@@ -1,0 +1,453 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Apple-Inspired Premium Design System */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    /* Apple-Inspired Color Palette */
+    --apple-bg: #F5F5F7;
+    --apple-surface: #FFFFFF;
+    --apple-text: #1D1D1F;
+    --apple-text-secondary: #6E6E73;
+    --apple-text-tertiary: #86868B;
+    --apple-separator: #D2D2D7;
+    --apple-separator-light: #E5E5E7;
+
+    /* Time Travel Design Brand Color Palette */
+    --brand-black: #09090B;
+    --brand-dark: #121212;
+    --brand-charcoal: #18181B;
+    --brand-zinc: #27272A;
+    --brand-muted: #71717A;
+    --brand-light: #F4F4F5;
+    --brand-paper: #FAFAFA;
+    --brand-green: #09090B;
+    --brand-green-soft: #F4F4F5;
+    --brand-gold: #18181B;
+    --brand-gold-soft: #F4F4F5;
+
+    /* Status Colors - Restrained Financial */
+    --status-success: #10B981;
+    --status-warning: #F59E0B;
+    --status-error: #F43F5E;
+    --status-info: #0284C7;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background-color: var(--apple-bg);
+    color: var(--apple-text);
+    min-height: 100vh;
+  }
+
+  /* Selection */
+  ::selection {
+    background-color: var(--brand-green-soft);
+    color: var(--brand-green);
+  }
+}
+
+@layer utilities {
+  .apple-text { color: var(--apple-text); }
+  .apple-text-secondary { color: var(--apple-text-secondary); }
+  .apple-text-tertiary { color: var(--apple-text-tertiary); }
+
+  .apple-bg { background-color: var(--apple-bg); }
+  .apple-surface { background-color: var(--apple-surface); }
+
+  .brand-text { color: var(--brand-green); }
+  .brand-bg { background-color: var(--brand-green-soft); }
+
+  .currency {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+}
+
+/* Scrollbar - Minimal */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--apple-separator);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--apple-text-tertiary);
+}
+
+/* Focus States - Clean */
+*:focus {
+  outline: none;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--brand-green);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Typography Scale */
+.text-hero {
+  font-size: 48px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.text-headline {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.text-title {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+.text-body {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.text-caption {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--apple-text-secondary);
+}
+
+.text-label {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--apple-text-tertiary);
+}
+
+/* Money Display - Hero Numbers */
+.money-hero {
+  font-size: 36px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.money-title {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.money-large {
+  font-size: 18px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.money-base {
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Clean Surfaces */
+.surface {
+  background: var(--apple-surface);
+}
+
+.surface-elevated {
+  background: var(--apple-surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.surface-grouped {
+  background: var(--apple-surface);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* Separator */
+.separator {
+  height: 1px;
+  background: var(--apple-separator-light);
+  margin: 0;
+}
+
+.separator-vertical {
+  width: 1px;
+  background: var(--apple-separator-light);
+}
+
+/* Navigation */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--apple-text-secondary);
+  transition: all 150ms ease;
+}
+
+.nav-item:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--apple-text);
+}
+
+.nav-item.active {
+  background: var(--brand-green-soft);
+  color: var(--brand-green);
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 8px;
+  transition: all 150ms ease;
+  cursor: pointer;
+  border: none;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--brand-green);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--brand-green);
+  opacity: 0.9;
+}
+
+.btn-secondary {
+  background: var(--apple-surface);
+  color: var(--apple-text);
+  border: 1px solid var(--apple-separator);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--apple-bg);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--apple-text-secondary);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--apple-text);
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.btn-lg {
+  padding: 12px 24px;
+  font-size: 15px;
+}
+
+/* Form Inputs */
+.input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 14px;
+  background: var(--apple-surface);
+  border: 1px solid var(--apple-separator);
+  border-radius: 8px;
+  color: var(--apple-text);
+  transition: all 150ms ease;
+}
+
+.input:hover {
+  border-color: var(--apple-text-tertiary);
+}
+
+.input:focus {
+  border-color: var(--brand-green);
+  box-shadow: 0 0 0 3px var(--brand-green-soft);
+}
+
+.input::placeholder {
+  color: var(--apple-text-tertiary);
+}
+
+/* Tables - Clean */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th {
+  padding: 12px 16px;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--apple-text-tertiary);
+  text-align: left;
+  background: var(--apple-bg);
+  border-bottom: 1px solid var(--apple-separator-light);
+}
+
+.table td {
+  padding: 16px;
+  font-size: 14px;
+  border-bottom: 1px solid var(--apple-separator-light);
+}
+
+.table tbody tr {
+  transition: background 100ms ease;
+}
+
+.table tbody tr:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Status Pills - Minimal */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 100px;
+}
+
+.pill-success {
+  background: rgba(52, 199, 89, 0.12);
+  color: #248A3D;
+}
+
+.pill-warning {
+  background: rgba(255, 149, 0, 0.12);
+  color: #C93400;
+}
+
+.pill-error {
+  background: rgba(255, 59, 48, 0.12);
+  color: #C73430;
+}
+
+.pill-info {
+  background: rgba(0, 122, 255, 0.12);
+  color: #007AFF;
+}
+
+.pill-neutral {
+  background: var(--apple-bg);
+  color: var(--apple-text-secondary);
+}
+
+/* Empty States - Refined */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 24px;
+  text-align: center;
+}
+
+.empty-state-icon {
+  width: 56px;
+  height: 56px;
+  color: var(--apple-text-tertiary);
+  margin-bottom: 16px;
+}
+
+.empty-state-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--apple-text);
+  margin-bottom: 4px;
+}
+
+.empty-state-description {
+  font-size: 14px;
+  color: var(--apple-text-secondary);
+  max-width: 300px;
+}
+
+/* Cards - Minimal */
+.card {
+  background: var(--apple-surface);
+  border-radius: 12px;
+}
+
+.card-compact {
+  background: var(--apple-surface);
+  border-radius: 8px;
+}
+
+/* Grid Layout Helpers */
+.grid-auto-fill {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+/* Animation */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 200ms ease;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .text-hero { font-size: 32px; }
+  .text-headline { font-size: 24px; }
+  .text-title { font-size: 18px; }
+  .money-hero { font-size: 28px; }
+  .money-title { font-size: 20px; }
+}

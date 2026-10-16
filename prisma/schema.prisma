@@ -1,0 +1,692 @@
+// TimeTravelDesign Finance - Database Schema
+// Simplified version for initial setup
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ORGANIZATION & MEMBERS
+// ============================================
+
+model Organization {
+  id           String   @id @default(uuid())
+  name         String
+  address      String?
+  phone        String?
+  email        String?
+  logo_url     String?
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+  @@map("organizations")
+}
+
+model OrganizationSettings {
+  id                 String   @id @default(uuid())
+  organization_id    String   @unique
+  default_currency   String   @default("IDR")
+  timezone           String   @default("Asia/Jakarta")
+  date_format        String   @default("dd/MM/yyyy")
+  expense_prefix     String   @default("EXP")
+  invoice_prefix     String   @default("INV")
+  journal_prefix     String   @default("JNL")
+  cash_advance_prefix String  @default("CA")
+  reimbursement_prefix String  @default("RMB")
+  expense_approval_required Boolean @default(true)
+  default_approval_limit    Decimal @default(0) @db.Decimal(15, 2)
+  fiscal_year_start_month Int @default(1)
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+  @@map("organization_settings")
+}
+
+model Profile {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  full_name    String?
+  phone        String?
+  avatar_url   String?
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+  @@map("profiles")
+}
+
+enum Role {
+  OWNER
+  FINANCE
+  PROJECT_MANAGER
+  SITE_STAFF
+  VIEWER
+}
+
+model OrganizationMember {
+  id             String   @id @default(uuid())
+  organization_id String
+  profile_id     String
+  role           Role     @default(VIEWER)
+  approval_limit Decimal? @db.Decimal(15, 2)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  @@unique([organization_id, profile_id])
+  @@map("organization_members")
+}
+
+model ProjectMember {
+  id             String   @id @default(uuid())
+  project_id     String
+  member_id      String
+  can_edit       Boolean  @default(false)
+  can_approve    Boolean  @default(false)
+  created_at     DateTime @default(now())
+  @@unique([project_id, member_id])
+  @@map("project_members")
+}
+
+// ============================================
+// PROJECTS & CLIENTS
+// ============================================
+
+model Client {
+  id             String   @id @default(uuid())
+  organization_id String
+  name           String
+  email          String?
+  phone          String?
+  address        String?
+  contact_person String?
+  tax_id         String?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  @@map("clients")
+}
+
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum ProjectType {
+  ARCHITECTURE
+  INTERIOR_DESIGN
+  RENOVATION
+  CONSTRUCTION
+  OTHER
+}
+
+model Project {
+  id             String   @id @default(uuid())
+  organization_id String
+  code           String
+  name           String
+  client_id      String?
+  type           ProjectType @default(OTHER)
+  status         ProjectStatus @default(PLANNING)
+  location       String?
+  start_date     DateTime?
+  end_date       DateTime?
+  completed_date DateTime?
+  contract_value Decimal? @db.Decimal(15, 2)
+  description    String?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  @@unique([organization_id, code])
+  @@map("projects")
+}
+
+model Contract {
+  id             String   @id @default(uuid())
+  client_id      String
+  number         String
+  title          String
+  value          Decimal  @db.Decimal(15, 2)
+  start_date     DateTime
+  end_date       DateTime?
+  status         String   @default("ACTIVE")
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  @@unique([client_id, number])
+  @@map("contracts")
+}
+
+// ============================================
+// BUDGET / RAB
+// ============================================
+
+enum BudgetStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+model BudgetVersion {
+  id             String   @id @default(uuid())
+  project_id     String
+  version_number Int
+  title          String
+  status         BudgetStatus @default(DRAFT)
+  subtotal      Decimal  @db.Decimal(15, 2) @default(0)
+  tax_amount    Decimal  @db.Decimal(15, 2) @default(0)
+  total         Decimal  @db.Decimal(15, 2) @default(0)
+  notes         String?
+  submitted_by  String?
+  submitted_at  DateTime?
+  approved_by   String?
+  approved_at   DateTime?
+  rejected_by   String?
+  rejected_at   DateTime?
+  rejection_reason String?
+  is_locked     Boolean  @default(false)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+  @@unique([project_id, version_number])
+  @@map("budget_versions")
+}
+
+model BudgetItem {
+  id           String   @id @default(uuid())
+  budget_id    String
+  category     String
+  description  String
+  unit         String?
+  quantity     Decimal  @db.Decimal(15, 4) @default(1)
+  unit_price   Decimal  @db.Decimal(15, 2)
+  tax_rate     Decimal  @db.Decimal(5, 2) @default(0)
+  subtotal     Decimal  @db.Decimal(15, 2)
+  tax_amount   Decimal  @db.Decimal(15, 2) @default(0)
+  total        Decimal  @db.Decimal(15, 2)
+  sort_order   Int      @default(0)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+  @@map("budget_items")
+}
+
+// ============================================
+// VENDORS
+// ============================================
+
+model Vendor {
+  id             String   @id @default(uuid())
+  organization_id String
+  name           String
+  email          String?
+  phone          String?
+  address        String?
+  tax_id         String?
+  bank_name      String?
+  bank_account   String?
+  bank_holder   String?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  @@map("vendors")
+}
+
+// ============================================
+// EXPENSES & RECEIPTS
+// ============================================
+
+model Receipt {
+  id             String   @id @default(uuid())
+  organization_id String
+  file_name      String
+  file_url       String
+  file_type      String
+  file_size      Int
+  ocr_status     String   @default("PENDING")
+  ocr_data       Json?
+  ocr_confidence Decimal? @db.Decimal(5, 2)
+  uploaded_by    String
+  created_at     DateTime @default(now())
+  @@map("receipts")
+}
+
+enum ExpenseStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  POSTED
+  REVERSED
+}
+
+model Expense {
+  id             String   @id @default(uuid())
+  organization_id String
+  number         String
+  date           DateTime
+  merchant       String?
+  description    String
+  amount        Decimal  @db.Decimal(15, 2)
+  tax_amount    Decimal  @db.Decimal(15, 2) @default(0)
+  total_amount  Decimal  @db.Decimal(15, 2)
+  payment_method String?
+  cash_account_id String?
+  category      String?
+  category_id   String?
+  status        ExpenseStatus @default(DRAFT)
+  receipt_id    String?
+  submitted_by  String
+  notes         String?
+  journal_entry_id String? @unique
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+  @@unique([organization_id, number])
+  @@map("expenses")
+}
+
+model ExpenseAllocation {
+  id           String   @id @default(uuid())
+  expense_id   String
+  project_id   String
+  amount       Decimal  @db.Decimal(15, 2)
+  description  String?
+  @@map("expense_allocations")
+}
+
+// ============================================
+// CASH MANAGEMENT
+// ============================================
+
+enum CashAccountType {
+  CASH
+  BANK
+  E_WALLET
+  OTHER
+}
+
+model CashAccount {
+  id             String   @id @default(uuid())
+  organization_id String
+  name           String
+  type           CashAccountType @default(CASH)
+  account_number String?
+  bank_name      String?
+  opening_balance Decimal  @db.Decimal(15, 2) @default(0)
+  opening_date    DateTime
+  is_active      Boolean  @default(true)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  @@map("cash_accounts")
+}
+
+model CashTransfer {
+  id              String   @id @default(uuid())
+  organization_id  String
+  from_account_id String
+  to_account_id   String
+  amount          Decimal  @db.Decimal(15, 2)
+  date            DateTime
+  reference       String?
+  notes           String?
+  created_by      String
+  created_at      DateTime @default(now())
+  @@map("cash_transfers")
+}
+
+// ============================================
+// CASH ADVANCES
+// ============================================
+
+enum CashAdvanceStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  DISBURSED
+  PARTIALLY_SETTLED
+  SETTLED
+  CANCELLED
+}
+
+model CashAdvance {
+  id             String   @id @default(uuid())
+  organization_id String
+  number         String
+  date           DateTime
+  employee_id    String
+  project_id     String?
+  purpose        String
+  amount        Decimal  @db.Decimal(15, 2)
+  status        CashAdvanceStatus @default(DRAFT)
+  cash_account_id String?
+  disbursed_amount Decimal @db.Decimal(15, 2) @default(0)
+  settled_amount  Decimal @db.Decimal(15, 2) @default(0)
+  returned_amount Decimal @db.Decimal(15, 2) @default(0)
+  notes          String?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  @@unique([organization_id, number])
+  @@map("cash_advances")
+}
+
+model AdvanceSettlement {
+  id              String   @id @default(uuid())
+  cash_advance_id String
+  date            DateTime
+  description     String
+  amount          Decimal  @db.Decimal(15, 2)
+  type            String   @default("EXPENSE")
+  expense_id      String?
+  created_by      String
+  created_at      DateTime @default(now())
+  @@map("advance_settlements")
+}
+
+// ============================================
+// REIMBURSEMENTS
+// ============================================
+
+enum ReimbursementStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  PAID
+  CANCELLED
+}
+
+model Reimbursement {
+  id             String   @id @default(uuid())
+  organization_id String
+  number         String
+  date           DateTime
+  employee_id    String
+  amount         Decimal  @db.Decimal(15, 2)
+  description    String
+  status         ReimbursementStatus @default(DRAFT)
+  cash_account_id String?
+  paid_amount    Decimal  @db.Decimal(15, 2) @default(0)
+  paid_date      DateTime?
+  notes          String?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  @@unique([organization_id, number])
+  @@map("reimbursements")
+}
+
+// ============================================
+// INVOICES
+// ============================================
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PARTIAL
+  PAID
+  OVERDUE
+  CANCELLED
+  CREDIT_NOTE
+}
+
+model Invoice {
+  id             String   @id @default(uuid())
+  organization_id String
+  number         String
+  invoice_date   DateTime
+  due_date       DateTime
+  client_id      String
+  project_id     String?
+  subtotal      Decimal  @db.Decimal(15, 2) @default(0)
+  tax_amount    Decimal  @db.Decimal(15, 2) @default(0)
+  total         Decimal  @db.Decimal(15, 2) @default(0)
+  amount_paid   Decimal  @db.Decimal(15, 2) @default(0)
+  status        InvoiceStatus @default(DRAFT)
+  notes         String?
+  terms         String?
+  created_by    String
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+  @@unique([organization_id, number])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id           String   @id @default(uuid())
+  invoice_id   String
+  description  String
+  quantity     Decimal  @db.Decimal(15, 4) @default(1)
+  unit_price   Decimal  @db.Decimal(15, 2)
+  tax_rate     Decimal  @db.Decimal(5, 2) @default(0)
+  subtotal     Decimal  @db.Decimal(15, 2)
+  tax_amount   Decimal  @db.Decimal(15, 2) @default(0)
+  total        Decimal  @db.Decimal(15, 2)
+  sort_order   Int      @default(0)
+  @@map("invoice_items")
+}
+
+model InvoiceAllocation {
+  id         String   @id @default(uuid())
+  invoice_id String
+  project_id String
+  amount    Decimal  @db.Decimal(15, 2)
+  @@map("invoice_allocations")
+}
+
+model InvoicePayment {
+  id           String   @id @default(uuid())
+  invoice_id   String
+  amount       Decimal  @db.Decimal(15, 2)
+  payment_date DateTime
+  payment_method String?
+  reference    String?
+  cash_account_id String?
+  created_by   String
+  created_at   DateTime @default(now())
+  @@map("invoice_payments")
+}
+
+// ============================================
+// APPROVALS
+// ============================================
+
+model Approval {
+  id             String   @id @default(uuid())
+  expense_id     String?
+  reimbursement_id String?
+  step_number    Int      @default(1)
+  approver_id    String
+  action         String?
+  action_date    DateTime?
+  comments       String?
+  created_at     DateTime @default(now())
+  @@map("approvals")
+}
+
+// ============================================
+// ACCOUNTING
+// ============================================
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  COST_OF_SALES
+  EXPENSE
+  OTHER_INCOME
+  OTHER_EXPENSE
+}
+
+enum NormalBalance {
+  DEBIT
+  CREDIT
+}
+
+model Account {
+  id             String   @id @default(uuid())
+  organization_id String
+  code           String
+  name           String
+  type           AccountType
+  parent_id      String?
+  normal_balance NormalBalance @default(DEBIT)
+  is_active      Boolean  @default(true)
+  is_system      Boolean  @default(false)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  @@unique([organization_id, code])
+  @@map("accounts")
+}
+
+model AccountingPeriod {
+  id             String   @id @default(uuid())
+  organization_id String
+  name           String
+  start_date     DateTime
+  end_date       DateTime
+  is_closed      Boolean  @default(false)
+  closed_by      String?
+  closed_at      DateTime?
+  created_at     DateTime @default(now())
+  @@unique([organization_id, start_date, end_date])
+  @@map("accounting_periods")
+}
+
+enum JournalStatus {
+  DRAFT
+  POSTED
+  REVERSED
+}
+
+model JournalEntry {
+  id             String   @id @default(uuid())
+  organization_id String
+  number         String
+  date           DateTime
+  posting_date   DateTime?
+  description    String
+  source_type    String?
+  source_id      String?
+  status         JournalStatus @default(DRAFT)
+  reversed_by_id String?  @unique
+  reverses_id    String?  @unique
+  creator_id     String
+  poster_id      String?
+  posted_at      DateTime?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  @@unique([organization_id, number])
+  @@map("journal_entries")
+}
+
+model JournalLine {
+  id             String   @id @default(uuid())
+  journal_id     String
+  account_id     String
+  debit          Decimal? @db.Decimal(15, 2) @default(0)
+  credit         Decimal? @db.Decimal(15, 2) @default(0)
+  description    String?
+  project_id     String?
+  source_type    String?
+  source_id      String?
+  @@map("journal_lines")
+}
+
+// ============================================
+// NOTIFICATIONS
+// ============================================
+
+model Notification {
+  id           String   @id @default(uuid())
+  user_id      String
+  type         String
+  title        String
+  message      String
+  link         String?
+  is_read      Boolean  @default(false)
+  created_at   DateTime @default(now())
+  @@map("notifications")
+}
+
+// ============================================
+// AUDIT LOG
+// ============================================
+
+model AuditLog {
+  id             String   @id @default(uuid())
+  organization_id String
+  actor_id       String?
+  actor_email    String?
+  action         String
+  entity_type    String
+  entity_id      String
+  metadata       Json?
+  ip_address     String?
+  user_agent     String?
+  created_at     DateTime @default(now())
+  @@index([organization_id, entity_type, entity_id])
+  @@map("audit_logs")
+}
+
+// ============================================
+// COMMITMENTS
+// ============================================
+
+model CommitmentItem {
+  id             String   @id @default(uuid())
+  project_id     String
+  source_type    String
+  source_id      String?
+  description    String
+  amount         Decimal  @db.Decimal(15, 2)
+  status         String   @default("OPEN")
+  fulfilled_amount Decimal @db.Decimal(15, 2) @default(0)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  @@map("commitment_items")
+}
+
+// ============================================
+// IMPORT BATCHES
+// ============================================
+
+model ImportBatch {
+  id             String   @id @default(uuid())
+  organization_id String
+  type           String
+  file_name      String
+  total_rows     Int      @default(0)
+  success_rows   Int      @default(0)
+  error_rows     Int      @default(0)
+  status         String   @default("PROCESSING")
+  created_by     String
+  created_at     DateTime @default(now())
+  @@map("import_batches")
+}
+
+model ImportError {
+  id           String   @id @default(uuid())
+  batch_id     String
+  row_number   Int
+  field_name   String?
+  error_message String
+  raw_data     Json?
+  @@map("import_errors")
+}
+
+// ============================================
+// CASH PAYMENTS
+// ============================================
+
+model CashPayment {
+  id              String   @id @default(uuid())
+  organization_id String
+  cash_account_id String
+  date            DateTime
+  amount          Decimal  @db.Decimal(15, 2)
+  description     String
+  reference_type  String?
+  reference_id    String?
+  created_by      String
+  created_at      DateTime @default(now())
+  @@map("cash_payments")
+}
