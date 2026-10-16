@@ -17,6 +17,7 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@google/genai": "^2.30.0",
     "@hookform/resolvers": "^3.9.1",
     "@prisma/client": "^5.22.0",
     "@supabase/ssr": "^0.5.2",
