@@ -15,6 +15,7 @@ import {
   Clock,
   Sparkles,
   Camera,
+  Menu,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { signOut } from "@/lib/auth/actions";
@@ -31,6 +32,7 @@ interface HeaderProps {
     name?: string;
     role?: string;
   };
+  onOpenMobileMenu?: () => void;
 }
 
 const pageTitles: Record<string, { title: string; description: string }> = {
@@ -116,6 +118,7 @@ export default function Header({
   title: propTitle,
   description: propDescription,
   user: propUser,
+  onOpenMobileMenu,
 }: HeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -220,15 +223,28 @@ export default function Header({
     .toUpperCase();
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-zinc-200/80 bg-white/85 px-6 backdrop-blur-md transition-all">
-      {/* Left: Dynamic Title */}
-      <div className="flex flex-col justify-center">
-        <h1 className="text-base font-bold tracking-tight text-zinc-950 md:text-lg">
-          {pageTitle}
-        </h1>
-        <p className="hidden text-xs text-zinc-500 sm:block">
-          {pageDesc}
-        </p>
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-zinc-200/80 bg-white/85 px-4 sm:px-6 backdrop-blur-md transition-all">
+      {/* Left: Hamburger Button (Mobile/Tablet) + Dynamic Title */}
+      <div className="flex items-center gap-3">
+        {onOpenMobileMenu && (
+          <button
+            type="button"
+            onClick={onOpenMobileMenu}
+            className="flex lg:hidden h-9 w-9 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950 transition-colors focus:outline-none"
+            aria-label="Open navigation menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        )}
+
+        <div className="flex flex-col justify-center min-w-0">
+          <h1 className="text-sm font-bold tracking-tight text-zinc-950 sm:text-base md:text-lg truncate max-w-[200px] sm:max-w-xs md:max-w-md">
+            {pageTitle}
+          </h1>
+          <p className="hidden text-xs text-zinc-500 sm:block truncate max-w-md">
+            {pageDesc}
+          </p>
+        </div>
       </div>
 
       {/* Right Controls */}

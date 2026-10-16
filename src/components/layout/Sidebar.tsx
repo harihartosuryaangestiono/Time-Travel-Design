@@ -23,6 +23,7 @@ import {
   ChevronDown,
   ShieldCheck,
   Building,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BrandIconSvg } from "@/components/ui/BrandLogo";
@@ -101,11 +102,15 @@ const navigationGroups: NavGroup[] = [
 interface SidebarProps {
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 }
 
 export default function Sidebar({
   collapsed: propCollapsed,
   onToggleCollapse,
+  mobileOpen = false,
+  onMobileClose,
 }: SidebarProps) {
   const pathname = usePathname();
   const [internalCollapsed, setInternalCollapsed] = useState(false);
@@ -140,29 +145,46 @@ export default function Sidebar({
   };
 
   return (
-    <aside
-      className={cn(
-        "fixed left-0 top-0 z-40 flex h-full flex-col border-r border-zinc-800/80 bg-[#09090B] text-zinc-300 transition-all duration-300 shadow-2xl",
-        isCollapsed ? "w-20" : "w-64"
+    <>
+      {/* Mobile Backdrop for Phones & Tablets */}
+      {mobileOpen && (
+        <div
+          role="presentation"
+          onClick={onMobileClose}
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden animate-in fade-in duration-200"
+        />
       )}
-    >
-      {/* Brand Header with Clean Horizontal Lockup */}
-      <div
+
+      <aside
         className={cn(
-          "flex h-20 items-center border-b border-zinc-800/80 px-4",
-          isCollapsed ? "justify-center" : "justify-between"
+          "fixed top-0 bottom-0 z-50 flex h-full flex-col border-r border-zinc-800/80 bg-[#09090B] text-zinc-300 transition-all duration-300 shadow-2xl",
+          // Desktop & Tablet behavior (lg: screens)
+          "lg:translate-x-0 lg:z-40",
+          isCollapsed ? "lg:w-20" : "lg:w-64",
+          // Mobile & Tablet drawer (under lg: screen)
+          "w-72 max-w-[85vw]",
+          mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
-        <Link
-          href="/dashboard"
-          className="group flex items-center gap-3 transition-opacity hover:opacity-95 overflow-hidden focus:outline-none"
+        {/* Brand Header with Clean Horizontal Lockup */}
+        <div
+          className={cn(
+            "flex h-20 items-center border-b border-zinc-800/80 px-4",
+            isCollapsed ? "lg:justify-center justify-between" : "justify-between"
+          )}
         >
-          {isCollapsed ? (
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-zinc-900 border border-zinc-800 shadow-sm transition-all group-hover:border-zinc-700">
-              <BrandIconSvg fill="#FFFFFF" className="h-5 w-auto" />
-            </div>
-          ) : (
-            <div className="flex items-center gap-3.5">
+          <Link
+            href="/dashboard"
+            onClick={onMobileClose}
+            className="group flex items-center gap-3 transition-opacity hover:opacity-95 overflow-hidden focus:outline-none"
+          >
+            {isCollapsed ? (
+              <div className="hidden lg:flex h-11 w-11 items-center justify-center rounded-xl bg-zinc-900 border border-zinc-800 shadow-sm transition-all group-hover:border-zinc-700">
+                <BrandIconSvg fill="#FFFFFF" className="h-5 w-auto" />
+              </div>
+            ) : null}
+
+            <div className={cn("flex items-center gap-3.5", isCollapsed && "lg:hidden")}>
               {/* Geometric TT Vector Mark in Dark Ceramic Tile */}
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-zinc-900 border border-zinc-800/90 shadow-sm transition-all group-hover:border-zinc-700">
                 <BrandIconSvg fill="#FFFFFF" className="h-5 w-auto" />
@@ -183,12 +205,21 @@ export default function Sidebar({
                 </div>
               </div>
             </div>
-          )}
-        </Link>
-      </div>
+          </Link>
 
-      {/* Nav List */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5 scrollbar-thin scrollbar-thumb-zinc-800">
+          {/* Close button for Mobile/Tablet drawer */}
+          <button
+            type="button"
+            onClick={onMobileClose}
+            className="flex lg:hidden h-8 w-8 items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+            aria-label="Close menu"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Nav List */}
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5 scrollbar-thin scrollbar-thumb-zinc-800">
         {navigationGroups.map((group) => {
           const groupOpenState = isGroupOpen(group.label);
 
@@ -292,5 +323,6 @@ export default function Sidebar({
         </button>
       </div>
     </aside>
+    </>
   );
 }
