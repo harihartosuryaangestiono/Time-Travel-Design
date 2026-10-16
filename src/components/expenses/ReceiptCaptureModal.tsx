@@ -245,6 +245,12 @@ export function ReceiptCaptureModal({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [customApiKey, setCustomApiKey] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("gemini_api_key") || "";
+    }
+    return "";
+  });
 
   useEffect(() => {
     if (isOpen) {
@@ -315,57 +321,57 @@ export function ReceiptCaptureModal({
         setScanStep("Recognizing merchant header, date & receipt voucher ID...");
       }, 400);
 
-      setTimeout(() => {
-        setScanStep("Reading handwritten nota: items, qty, unit price & total...");
-      }, 900);
+      const localApiKey =
+        typeof window !== "undefined"
+          ? localStorage.getItem("gemini_api_key") || ""
+          : "";
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (localApiKey) {
+        headers["x-gemini-api-key"] = localApiKey;
+      }
 
       const res = await fetch("/api/ocr/scan-receipt", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           imageBase64: base64Data || receiptImage,
           mimeType: "image/jpeg",
         }),
       });
 
-      if (!res.ok) throw new Error("OCR server returned error");
       const data = await res.json();
 
-      if (data.success) {
-        setMerchant(data.merchant || "Toko Bahan Bangunan Makmur Jaya Abadi");
-        setReceiptNumber(data.receiptNumber || "");
-        setDate(data.date || new Date().toISOString().split("T")[0]);
-        setDescription(data.description || "Pembelian Bahan Bangunan & Alat Listrik");
-        setCategory(data.category || "Project Material");
-        setPaymentMethod(data.paymentMethod || "BANK_TRANSFER");
-        setLineItems(data.items || []);
-        setNotes(data.notes || "");
-        setIncludeTax(false); // Handwritten nota kontan already reflects the nett total
-        setOcrConfidence(data.confidence || 99.6);
-        setScanStep("All handwritten line items & Rp 599.000 total extracted accurately.");
+      if (!res.ok || !data.success) {
+        if (data.needsApiKey) {
+          setSubmitError(
+            "API Key Gemini diperlukan agar scanner bisa membaca bon fisik baru secara real-time. Masukkan Google Gemini API Key Anda."
+          );
+        } else {
+          setSubmitError(data.error || "Gagal memindai foto struk.");
+        }
+        return;
       }
-    } catch (err) {
-      console.warn("Using offline OCR heuristic parser:", err);
-      // Fallback to high-accuracy Indonesian architectural store parser
-      setMerchant("Toko Bahan Bangunan & Listrik MAKMUR JAYA ABADI");
-      setReceiptNumber("NK-2026/10/15-01");
-      setDate("2026-10-15");
-      setDescription("Pembelian Sealant, Lampu Inlite 9W, Kran Angsa, Sok Stainless, Seal Tape & Aquaproof");
-      setCategory("Project Material");
-      setPaymentMethod("BANK_TRANSFER");
-      setNotes("BCA 1640553177 a.n. Ardian Martadinata");
-      setLineItems([
-        { id: "item-1", description: "Sealant Tube", qty: 1, unit: "tb", unit_price: 39000, subtotal: 39000 },
-        { id: "item-2", description: "Lampu Inlite 9W", qty: 3, unit: "bh", unit_price: 25000, subtotal: 75000 },
-        { id: "item-3", description: "Kran Angsa W", qty: 1, unit: "bh", unit_price: 135000, subtotal: 135000 },
-        { id: "item-4", description: "Kran BC", qty: 1, unit: "bh", unit_price: 65000, subtotal: 65000 },
-        { id: "item-5", description: "Sok Stainless", qty: 1, unit: "bh", unit_price: 25000, subtotal: 25000 },
-        { id: "item-6", description: "Seal Tape", qty: 2, unit: "roll", unit_price: 5000, subtotal: 10000 },
-        { id: "item-7", description: "Aquaproof Putih", qty: 1, unit: "galon", unit_price: 250000, subtotal: 250000 },
-      ]);
+
+      // Populate with dynamically extracted AI data
+      setMerchant(data.merchant || "Vendor / Store");
+      setReceiptNumber(data.receiptNumber || "");
+      setDate(data.date || new Date().toISOString().split("T")[0]);
+      setDescription(data.description || "Pembelian Material / Pengeluaran Proyek");
+      setCategory(data.category || "Project Material");
+      setPaymentMethod(data.paymentMethod || "CASH");
+      setLineItems(data.items || []);
+      setNotes(data.notes || "");
       setIncludeTax(false);
-      setOcrConfidence(99.4);
-      setScanStep("All handwritten line items & Rp 599.000 total extracted accurately.");
+      setOcrConfidence(data.confidence || 99.4);
+      setScanStep(`Ekstraksi dinamis selesai (${data.items?.length || 0} item berhasil dibaca).`);
+    } catch (err: any) {
+      console.error("OCR Scanner Error:", err);
+      setSubmitError(
+        err?.message || "Terjadi kesalahan saat memproses gambar struk dengan AI Vision."
+      );
     } finally {
       setIsScanning(false);
       setOcrCompleted(true);
@@ -538,9 +544,34 @@ export function ReceiptCaptureModal({
 
         <form onSubmit={handleSubmit} className="p-3.5 sm:p-6 space-y-5 overflow-y-auto">
           {submitError && (
-            <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-300 flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 flex-shrink-0" />
-              <span>{submitError}</span>
+            <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-300 flex items-start gap-3">
+              <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 space-y-2">
+                <span>{submitError}</span>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
+                  <input
+                    type="password"
+                    placeholder="Paste Google Gemini API Key (AIzaSy...)"
+                    value={customApiKey}
+                    onChange={(e) => setCustomApiKey(e.target.value)}
+                    className="flex-1 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:border-white focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!customApiKey.trim()) return;
+                      localStorage.setItem("gemini_api_key", customApiKey.trim());
+                      setSubmitError(null);
+                      if (receiptImage) {
+                        runAutomaticOcrExtraction("receipt.jpg", receiptImage);
+                      }
+                    }}
+                    className="rounded-xl bg-white px-3 py-1.5 text-xs font-bold text-zinc-950 hover:bg-zinc-200 transition-colors whitespace-nowrap"
+                  >
+                    Save &amp; Scan Now
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
