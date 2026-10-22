@@ -4,25 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAuthUser } from "@/lib/auth/auth";
 import { revalidatePath } from "next/cache";
 import { logAudit } from "@/lib/audit/auditLogger";
-
-export interface PreviewRow {
-  sheetName: string;
-  rowNumber: number;
-  no?: number;
-  date: string;
-  description: string;
-  category: string;
-  type: "TERMIN_KLIEN" | "PENGELUARAN_PROYEK" | "PENGELUARAN_KANTOR" | "SETORAN_PROYEK";
-  ledger: "PROYEK" | "KANTOR";
-  debit: number;
-  kredit: number;
-  amount: number;
-  projectName?: string;
-  needsCategory: boolean;
-  workerAdvanceTo?: string;
-  isValid: boolean;
-  validationError?: string;
-}
+import { ParsedRow, ParsedImportResult } from "@/lib/import/excelParser";
 
 export interface ImportBatchSummary {
   id: string;
@@ -34,122 +16,14 @@ export interface ImportBatchSummary {
   created_at: string;
 }
 
-export async function validateImportRows(rawRows: Array<{
-  sheetName?: string;
-  rowNumber?: number;
-  no?: number;
-  date?: string;
-  description?: string;
-  category?: string;
-  debit?: number | string;
-  kredit?: number | string;
-  type?: string;
-  ledger?: string;
-  needsCategory?: boolean;
-  workerAdvanceTo?: string;
-  project?: string;
-  projectName?: string;
-}>): Promise<{
-  rows: PreviewRow[];
-  totalValid: number;
-  totalInvalid: number;
-  totalDebit: number;
-  totalKredit: number;
-  totalNeedsCategory: number;
-}> {
-  let totalValid = 0;
-  let totalInvalid = 0;
-  let totalDebit = 0;
-  let totalKredit = 0;
-  let totalNeedsCategory = 0;
-
-  const rows: PreviewRow[] = rawRows.map((r, idx) => {
-    const rowNumber = r.rowNumber || idx + 1;
-    const desc = (r.description || "").trim();
-    const dateStr = (r.date || "").trim();
-    const cat = (r.category || "").trim();
-    const debit = typeof r.debit === "number" ? r.debit : parseFloat(String(r.debit || 0)) || 0;
-    const kredit = typeof r.kredit === "number" ? r.kredit : parseFloat(String(r.kredit || 0)) || 0;
-    const sheetName = r.sheetName || "Sheet1";
-    const projectName = r.projectName || r.project || (sheetName !== "Lapkeu Perusahaan" ? sheetName : undefined);
-    const ledger = (r.ledger || (projectName ? "PROYEK" : "KANTOR")) as "PROYEK" | "KANTOR";
-
-    let txType: "TERMIN_KLIEN" | "PENGELUARAN_PROYEK" | "PENGELUARAN_KANTOR" | "SETORAN_PROYEK" = "PENGELUARAN_PROYEK";
-    if (r.type === "TERMIN_KLIEN" || r.type === "PENGELUARAN_PROYEK" || r.type === "PENGELUARAN_KANTOR" || r.type === "SETORAN_PROYEK") {
-      txType = r.type;
-    } else if (debit > 0) {
-      txType = ledger === "PROYEK" ? "TERMIN_KLIEN" : "SETORAN_PROYEK";
-    } else {
-      txType = ledger === "PROYEK" ? "PENGELUARAN_PROYEK" : "PENGELUARAN_KANTOR";
-    }
-
-    let isValid = true;
-    let validationError = "";
-
-    if (!desc) {
-      isValid = false;
-      validationError = "Keterangan transaksi kosong.";
-    } else if (debit <= 0 && kredit <= 0) {
-      isValid = false;
-      validationError = "Nominal debit atau kredit harus lebih dari 0.";
-    } else if (!dateStr) {
-      isValid = false;
-      validationError = "Tanggal transaksi kosong.";
-    }
-
-    const needsCat = r.needsCategory ?? (!cat || cat === "Perlu dikategorikan");
-    if (needsCat && txType !== "TERMIN_KLIEN" && txType !== "SETORAN_PROYEK") {
-      totalNeedsCategory++;
-    }
-
-    const amount = debit > 0 ? debit : kredit;
-
-    if (isValid) {
-      totalValid++;
-      if (debit > 0) totalDebit += debit;
-      if (kredit > 0) totalKredit += kredit;
-    } else {
-      totalInvalid++;
-    }
-
-    return {
-      sheetName,
-      rowNumber,
-      no: r.no,
-      date: dateStr || new Date().toISOString().split("T")[0],
-      description: desc,
-      category: cat || (txType === "TERMIN_KLIEN" ? "Pendapatan Termin Proyek" : "Perlu dikategorikan"),
-      type: txType,
-      ledger,
-      debit,
-      kredit,
-      amount,
-      projectName,
-      needsCategory: needsCat,
-      workerAdvanceTo: r.workerAdvanceTo,
-      isValid,
-      validationError: validationError || undefined,
-    };
-  });
-
-  return {
-    rows,
-    totalValid,
-    totalInvalid,
-    totalDebit,
-    totalKredit,
-    totalNeedsCategory,
-  };
-}
-
 export async function executeImportBatch(input: {
   fileName: string;
-  rows: PreviewRow[];
+  rows: ParsedRow[];
 }) {
   const user = await requireAuthUser();
   const supabase = await createClient();
 
-  // 1. Buat record batch
+  // 1. Buat record batch di import_batches
   const { data: batch, error: batchErr } = await supabase
     .from("import_batches")
     .insert({
@@ -207,21 +81,22 @@ export async function executeImportBatch(input: {
       continue;
     }
 
-    // Setoran proyek internal dilewati agar tidak terjadi double counting mutasi kas
-    if (row.type === "SETORAN_PROYEK") {
+    // Aturan: jenis SETORAN_PROYEK dilewati (tidak disimpan)
+    if (row.isSkipped || row.jenis === "SETORAN_PROYEK") {
       successCount++;
       continue;
     }
 
     try {
-      const extRef = `UI_IMP_${batch.id}_${row.sheetName.replace(/\s+/g, "_")}_${row.rowNumber}`;
+      // Idempoten lewat external_ref = sheet_asal + "_" + baris_excel
+      const extRef = `${row.sheetAsal}_${row.barisExcel}`;
 
       // Resolusi Project ID jika transaksi terkait proyek
       let resolvedProjectId: string | null = null;
-      if (row.projectName && row.ledger === "PROYEK") {
-        const cleanProjName = row.projectName.trim();
+      if (row.buku === "PROYEK") {
+        const cleanProjName = row.sheetAsal.trim();
         const lowerProj = cleanProjName.toLowerCase();
-        
+
         if (projectMap.has(lowerProj)) {
           resolvedProjectId = projectMap.get(lowerProj)!;
         } else {
@@ -258,45 +133,74 @@ export async function executeImportBatch(input: {
         }
       }
 
-      if (row.type === "TERMIN_KLIEN") {
-        // Simpan ke project_revenues
-        if (!resolvedProjectId) {
-          throw new Error(`Proyek untuk termin klien '${row.sheetName}' tidak ditemukan.`);
+      if (row.jenis === "TERMIN_KLIEN") {
+        // Cek idempoten di project_revenues
+        const { data: existingRevenue } = await supabase
+          .from("project_revenues")
+          .select("id")
+          .eq("external_ref", extRef)
+          .maybeSingle();
+
+        if (!existingRevenue) {
+          if (!resolvedProjectId) {
+            throw new Error(`Proyek untuk termin klien '${row.sheetAsal}' tidak ditemukan.`);
+          }
+
+          await supabase.from("project_revenues").insert({
+            organization_id: user.organizationId,
+            project_id: resolvedProjectId,
+            cash_account_id: cashAccountId,
+            date: new Date(row.date).toISOString(),
+            amount: row.debit,
+            description: row.description,
+            source: "IMPORT_EXCEL",
+            external_ref: extRef,
+          });
         }
-
-        await supabase.from("project_revenues").insert({
-          organization_id: user.organizationId,
-          project_id: resolvedProjectId,
-          cash_account_id: cashAccountId,
-          date: new Date(row.date).toISOString(),
-          amount: row.debit,
-          description: row.description,
-          source: "IMPORT_EXCEL",
-          external_ref: extRef,
-        });
+      } else if (row.jenis === "MODAL_AWAL") {
+        // Modal awal kas 2025: update opening_balance jika belum ada
+        if (cashAccountId) {
+          await supabase
+            .from("cash_accounts")
+            .update({
+              opening_balance: row.debit,
+              opening_date: new Date(row.date).toISOString(),
+            })
+            .eq("id", cashAccountId);
+        }
       } else {
-        // PENGELUARAN_PROYEK atau PENGELUARAN_KANTOR
-        const randNum = String(Math.floor(1000 + Math.random() * 9000));
-        const expNum = `EXP-IMP-${row.rowNumber}-${randNum}`;
+        // PENGELUARAN_PROYEK, PENGELUARAN_KANTOR, BUNGA_BANK
+        const { data: existingExpense } = await supabase
+          .from("expenses")
+          .select("id")
+          .eq("external_ref", extRef)
+          .maybeSingle();
 
-        await supabase.from("expenses").insert({
-          organization_id: user.organizationId,
-          number: expNum,
-          date: new Date(row.date).toISOString(),
-          merchant: row.description.slice(0, 50),
-          description: row.description,
-          amount: row.kredit,
-          tax_amount: 0,
-          total_amount: row.kredit,
-          cash_account_id: cashAccountId,
-          project_id: resolvedProjectId,
-          category: row.category,
-          status: "APPROVED",
-          needs_category: row.needsCategory,
-          source: "IMPORT_EXCEL",
-          external_ref: extRef,
-          submitted_by: user.profileId || user.id,
-        });
+        if (!existingExpense) {
+          const randNum = String(Math.floor(1000 + Math.random() * 9000));
+          const expNum = `EXP-IMP-${row.barisExcel}-${randNum}`;
+          const finalCategory = row.needsCategory ? "Perlu dikategorikan" : row.category;
+          const finalAmount = row.kredit > 0 ? row.kredit : row.amount;
+
+          await supabase.from("expenses").insert({
+            organization_id: user.organizationId,
+            number: expNum,
+            date: new Date(row.date).toISOString(),
+            merchant: row.description.slice(0, 50),
+            description: row.description,
+            amount: finalAmount,
+            tax_amount: 0,
+            total_amount: finalAmount,
+            cash_account_id: cashAccountId,
+            project_id: resolvedProjectId,
+            category: finalCategory,
+            status: "APPROVED",
+            needs_category: row.needsCategory,
+            source: "IMPORT_EXCEL",
+            external_ref: extRef,
+            submitted_by: user.profileId || user.id,
+          });
+        }
       }
 
       successCount++;

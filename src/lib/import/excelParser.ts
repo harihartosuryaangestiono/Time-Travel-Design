@@ -1,441 +1,603 @@
 import * as XLSX from "xlsx";
 
-export type SheetType = "PROJECT" | "OFFICE_CASH" | "SUMMARY" | "UNKNOWN";
+export type TransactionType =
+  | "TERMIN_KLIEN"
+  | "PENGELUARAN_PROYEK"
+  | "PENGELUARAN_KANTOR"
+  | "MODAL_AWAL"
+  | "BUNGA_BANK"
+  | "SETORAN_PROYEK";
 
-export interface SheetMeta {
-  name: string;
-  type: SheetType;
-  estimatedRows: number;
-  isSelected: boolean;
-}
-
-export interface ParsedTransactionRow {
-  sheetName: string;
+export interface ParsedRow {
   rowNumber: number;
+  sheetAsal: string;
+  barisExcel: number;
   no?: number;
   date: string;
   description: string;
+  category: string;
+  jenis: TransactionType;
+  buku: "PROYEK" | "KAS_PERUSAHAAN";
   debit: number;
   kredit: number;
-  category: string;
-  type: "TERMIN_KLIEN" | "PENGELUARAN_PROYEK" | "PENGELUARAN_KANTOR" | "SETORAN_PROYEK";
-  ledger: "PROYEK" | "KANTOR";
+  amount: number;
+  kasbonKe?: string;
   needsCategory: boolean;
-  workerAdvanceTo?: string;
-  projectName?: string;
+  isSkipped: boolean;
+  isValid: boolean;
+  validationError?: string;
+  externalRef: string;
 }
 
-export function detectSheetType(sheetName: string): SheetType {
-  const lower = sheetName.toLowerCase().trim();
-  if (lower.includes("rekapitulasi") || lower.includes("summary") || lower.includes("dashboard")) {
-    return "SUMMARY";
-  }
-  if (
-    lower.includes("lapkeu perusahaan") ||
-    lower.includes("kas perusahaan") ||
-    lower.includes("buku kas") ||
-    (lower.includes("kantor") && !lower.includes("proyek") && !lower.includes("office")) ||
-    lower === "operasional"
-  ) {
-    return "OFFICE_CASH";
-  }
-  return "PROJECT";
+export interface ParsedImportResult {
+  rows: ParsedRow[];
+  totalRead: number;
+  totalRows: number; // alias untuk totalRead
+  totalSkipped: number;
+  totalValid: number;
+  totalInvalid: number;
+  totalDebit: number;
+  totalKredit: number;
+  totalCredit: number; // alias untuk totalKredit
+  totalSkippedDebit: number;
+  totalNeedsCategory: number;
+  needsCategoryAmount: number;
+  jenisCounts: Record<string, number>;
+  validRows: ParsedRow[];
 }
 
-export function excelDateToISO(serial: unknown): string {
-  if (serial instanceof Date) {
-    return serial.toISOString().split("T")[0];
+// 1. Strip UTF-8 BOM jika ada
+export function stripBom(text: string): string {
+  if (text.charCodeAt(0) === 0xfeff) {
+    return text.slice(1);
   }
-  if (typeof serial === "string" && serial.includes("-")) {
-    const parts = serial.trim().split("-");
-    if (parts.length === 3 && parts[0].length === 4) return serial.trim();
-  }
-  const n = parseFloat(String(serial));
-  if (!isNaN(n) && n > 0) {
-    const utcDays = Math.floor(n - 25569);
-    const dateInfo = new Date(utcDays * 86400 * 1000);
-    if (!isNaN(dateInfo.getTime())) {
-      return dateInfo.toISOString().split("T")[0];
-    }
-  }
-  return new Date().toISOString().split("T")[0];
+  return text;
 }
 
-// Analisis formula cell SUM(F...:F...) seperti di Excel TTD asli
-export function parseFormulaRows(sheet: XLSX.WorkSheet, formulaStr: string, visited = new Set<string>()): Set<number> {
-  const rows = new Set<number>();
-  if (!formulaStr) return rows;
+// Helper validasi tanggal kalender sebenarnya (mencegah 30 Februari atau 31 April)
+function isValidCalendarDate(y: number, m: number, d: number): boolean {
+  if (m < 1 || m > 12 || d < 1 || d > 31) return false;
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
 
-  const sumMatches = Array.from(formulaStr.matchAll(/SUM\(([^)]+)\)/g));
-  for (const m of sumMatches) {
-    const parts = m[1].split(",");
-    for (const part of parts) {
-      const trimmed = part.trim();
-      if (trimmed.includes(":")) {
-        const [startCell, endCell] = trimmed.split(":");
-        const startCol = startCell.replace(/[0-9]/g, "");
-        const endCol = endCell.replace(/[0-9]/g, "");
-        const startRow = parseInt(startCell.replace(/[^0-9]/g, ""), 10);
-        const endRow = parseInt(endCell.replace(/[^0-9]/g, ""), 10);
+// 2. Parser Tanggal Ketat: terima nomor seri Excel, ISO (YYYY-MM-DD), dan dd/MM/yyyy
+// JANGAN PERNAH default ke tanggal hari ini!
+export function parseStrictDate(val: unknown): string | null {
+  if (val === null || val === undefined) return null;
 
-        if (startCol === "F" && endCol === "F") {
-          for (let r = startRow; r <= endRow; r++) rows.add(r);
-        } else {
-          for (let r = startRow; r <= endRow; r++) {
-            ["K", "L", "M", "N"].forEach((col) => {
-              const cellKey = `${col}${r}`;
-              const cell = sheet[cellKey];
-              if (cell && cell.f && !visited.has(cellKey)) {
-                visited.add(cellKey);
-                parseFormulaRows(sheet, cell.f, visited).forEach((subR) => rows.add(subR));
-              }
-            });
-          }
-        }
-      } else {
-        const col = trimmed.replace(/[0-9]/g, "");
-        const r = parseInt(trimmed.replace(/[^0-9]/g, ""), 10);
-        if (col === "F" && !isNaN(r)) {
-          rows.add(r);
-        } else if (!isNaN(r)) {
-          const cellKey = `${col}${r}`;
-          const cell = sheet[cellKey];
-          if (cell && cell.f && !visited.has(cellKey)) {
-            visited.add(cellKey);
-            parseFormulaRows(sheet, cell.f, visited).forEach((subR) => rows.add(subR));
-          }
-        }
+  // Jika sudah Date instance
+  if (val instanceof Date) {
+    if (isNaN(val.getTime())) return null;
+    return val.toISOString().split("T")[0];
+  }
+
+  // Jika nomor seri Excel (angka 1000..100000)
+  if (typeof val === "number" || (!isNaN(Number(val)) && typeof val === "string" && !String(val).includes("-") && !String(val).includes("/"))) {
+    const n = Number(val);
+    if (n >= 1000 && n <= 100000) {
+      const utcDays = Math.floor(n - 25569);
+      const d = new Date(utcDays * 86400 * 1000);
+      if (!isNaN(d.getTime())) {
+        return d.toISOString().split("T")[0];
       }
     }
+    return null;
   }
 
-  const cleanStr = formulaStr.replace(/SUM\([^)]+\)/g, "");
-  const cellMatches = Array.from(cleanStr.matchAll(/([A-Z]+)([0-9]+)/g));
-  for (const m of cellMatches) {
-    const col = m[1];
-    const r = parseInt(m[2], 10);
-    if (col === "F" && !isNaN(r)) {
-      rows.add(r);
-    } else if (col !== "F" && !isNaN(r)) {
-      const cellKey = `${col}${r}`;
-      const cell = sheet[cellKey];
-      if (cell && cell.f && !visited.has(cellKey)) {
-        visited.add(cellKey);
-        parseFormulaRows(sheet, cell.f, visited).forEach((subR) => rows.add(subR));
+  const str = String(val).trim();
+  if (!str) return null;
+
+  // Format ISO: YYYY-MM-DD atau YYYY/MM/DD
+  const isoMatch = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (isoMatch) {
+    const y = parseInt(isoMatch[1], 10);
+    const m = parseInt(isoMatch[2], 10);
+    const d = parseInt(isoMatch[3], 10);
+    if (isValidCalendarDate(y, m, d)) {
+      return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    }
+    return null;
+  }
+
+  // Format dd/MM/yyyy atau dd-MM-yyyy atau dd.MM.yyyy
+  const dmyMatch = str.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
+  if (dmyMatch) {
+    const d = parseInt(dmyMatch[1], 10);
+    const m = parseInt(dmyMatch[2], 10);
+    const y = parseInt(dmyMatch[3], 10);
+    if (isValidCalendarDate(y, m, d)) {
+      return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    }
+    return null;
+  }
+
+  return null;
+}
+
+// 3. Pembaca Header: Pindai 15 baris pertama untuk mencocokkan nama header secara dinamis
+export interface HeaderMapping {
+  headerRowIndex: number;
+  colMap: {
+    sheetAsal?: number;
+    barisExcel?: number;
+    no?: number;
+    date?: number;
+    desc?: number;
+    debit?: number;
+    kredit?: number;
+    category?: number;
+    jenis?: number;
+    buku?: number;
+    needsCategory?: number;
+    kasbonKe?: number;
+  };
+}
+
+export function findHeaderRow(grid: any[][], maxScanRows = 15): HeaderMapping | null {
+  const scanLimit = Math.min(grid.length, maxScanRows);
+
+  for (let r = 0; r < scanLimit; r++) {
+    const row = grid[r];
+    if (!Array.isArray(row)) continue;
+
+    const colMap: HeaderMapping["colMap"] = {};
+
+    row.forEach((cell, idx) => {
+      const text = String(cell || "").toLowerCase().trim().replace(/[\r\n\t_]/g, " ");
+
+      if (/tanggal|tgl|date/i.test(text)) {
+        colMap.date = idx;
+      } else if (/keterangan|uraian|desc|deskripsi/i.test(text)) {
+        colMap.desc = idx;
+      } else if (/debit|debet|pemasukan|termin/i.test(text)) {
+        colMap.debit = idx;
+      } else if (/kredit|credit|pengeluaran|beban/i.test(text)) {
+        colMap.kredit = idx;
+      } else if (/^no$|^nomor$|^no\./i.test(text)) {
+        colMap.no = idx;
+      } else if (/perlu.*kategori|needs.*category/i.test(text)) {
+        colMap.needsCategory = idx;
+      } else if (/kategori|category/i.test(text)) {
+        colMap.category = idx;
+      } else if (/jenis|type/i.test(text)) {
+        colMap.jenis = idx;
+      } else if (/buku|ledger/i.test(text)) {
+        colMap.buku = idx;
+      } else if (/sheet/i.test(text)) {
+        colMap.sheetAsal = idx;
+      } else if (/baris|row/i.test(text)) {
+        colMap.barisExcel = idx;
+      } else if (/kasbon|mandor/i.test(text)) {
+        colMap.kasbonKe = idx;
       }
+    });
+
+    // Harus memiliki minimal kolom Tanggal dan Keterangan atau Debit/Kredit
+    if (
+      (colMap.date !== undefined && colMap.desc !== undefined) ||
+      (colMap.debit !== undefined && colMap.kredit !== undefined && (colMap.date !== undefined || colMap.desc !== undefined))
+    ) {
+      return {
+        headerRowIndex: r,
+        colMap,
+      };
     }
   }
 
-  return rows;
+  return null;
 }
 
-// Rekomendasi kategori cerdas jika baris tidak punya formula
-export function suggestCategory(desc: string, isProject: boolean): { category: string; isGuessed: boolean } {
-  const d = desc.toLowerCase().trim();
-
-  if (isProject) {
-    // 4 Kategori HPP
-    if (/upah|tukang|gajian|kasbon|mandor|ongkos tukang/.test(d)) {
-      return { category: "Upah Tukang", isGuessed: true };
-    }
-    if (/sewa|steger|scaffolding|molen|genset|alat|pompa/.test(d)) {
-      return { category: "Sewa Alat Proyek", isGuessed: true };
-    }
-    if (/transport|bensin|solar|tol|ojol|ongkir|delivery/.test(d)) {
-      return { category: "Transportasi Lapangan", isGuessed: true };
-    }
-    if (/material|semen|pasir|bata|hebel|besi|baja|cat|keramik|pipa|kabel|triplek|gypsum|kayu|batu|paku|lem|baut|seng|kawat/.test(d)) {
-      return { category: "Bahan Baku Utama / Material", isGuessed: true };
-    }
-  } else {
-    // 11 Kategori Kantor
-    if (/gaji|salary|upah staf|thr|bonus|honor/.test(d)) {
-      return { category: "Gaji dan Upah Karyawan", isGuessed: true };
-    }
-    if (/bensin|solar|tol|parkir|grab|gojek|transport/.test(d)) {
-      return { category: "Transportasi Operasional", isGuessed: true };
-    }
-    if (/makan|konsumsi|snack|kopi|minum|galon|lunch/.test(d)) {
-      return { category: "Biaya Konsumsi Kantor", isGuessed: true };
-    }
-    if (/jamuan|entertain|dinner|meeting klien|treat/.test(d)) {
-      return { category: "Biaya Jamuan / Representasi", isGuessed: true };
-    }
-    if (/iklan|ads|marketing|brosur|social media|domain|hosting/.test(d)) {
-      return { category: "Biaya Marketing", isGuessed: true };
-    }
-    if (/listrik|pln|internet|wifi|pdam|air|kebersihan|sampah|atk|keperluan kantor/.test(d)) {
-      return { category: "Kebutuhan Workshop", isGuessed: true };
-    }
-    if (/admin|biaya transfer|pajak bank|bunga|materai/.test(d)) {
-      return { category: "Biaya Administrasi Finansial", isGuessed: true };
-    }
-    if (/renov|cat kantor|perbaikan kantor/.test(d)) {
-      return { category: "Renovasi Kantor", isGuessed: true };
-    }
-    if (/notaris|legal|akta|izin|nib|pajak/.test(d)) {
-      return { category: "Legalitas Perusahaan", isGuessed: true };
-    }
-    if (/laptop|pc|komputer|printer|monitor|gadget|mouse|hp/.test(d)) {
-      return { category: "Perangkat Gadget", isGuessed: true };
-    }
-    if (/meja|kursi|lemari|rak|ac|inventaris/.test(d)) {
-      return { category: "Inventaris", isGuessed: true };
+// Helper parsing satu baris CSV yang menghormati tanda kutip ganda
+export function parseCsvLine(line: string): string[] {
+  const result: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') {
+      inQuotes = !inQuotes;
+    } else if (c === "," && !inQuotes) {
+      result.push(cur.trim().replace(/^"|"$/g, ""));
+      cur = "";
+    } else {
+      cur += c;
     }
   }
-
-  return { category: "Perlu dikategorikan", isGuessed: false };
+  result.push(cur.trim().replace(/^"|"$/g, ""));
+  return result;
 }
 
-// Mengekstrak daftar sheet dan estimasi transaksi
-export function getWorkbookSheetsMeta(workbook: XLSX.WorkBook): SheetMeta[] {
-  return workbook.SheetNames.map((name) => {
-    const type = detectSheetType(name);
-    const sheet = workbook.Sheets[name];
-    let estimatedRows = 0;
+// 4. Parser Format CSV (Datar, Template, atau transaksi_2026.csv)
+export function parseCsv(csvContent: string): ParsedImportResult {
+  const cleanContent = stripBom(csvContent).trim();
+  const rawLines = cleanContent.split(/\r?\n/).filter((l) => l.trim().length > 0);
 
-    if (sheet && sheet["!ref"]) {
-      const range = XLSX.utils.decode_range(sheet["!ref"]);
-      estimatedRows = Math.max(0, range.e.r - 5);
-    }
-
+  if (rawLines.length === 0) {
     return {
-      name,
-      type,
-      estimatedRows,
-      // Default: centang jika bukan sheet Ringkasan
-      isSelected: type !== "SUMMARY",
+      rows: [],
+      totalRead: 0,
+      totalRows: 0,
+      totalSkipped: 0,
+      totalValid: 0,
+      totalInvalid: 0,
+      totalDebit: 0,
+      totalKredit: 0,
+      totalCredit: 0,
+      totalSkippedDebit: 0,
+      totalNeedsCategory: 0,
+      needsCategoryAmount: 0,
+      jenisCounts: {},
+      validRows: [],
     };
-  });
-}
-
-// Parsing isi sheet Excel terpilih menjadi daftar ParsedTransactionRow
-export function parseSheetTransactions(
-  sheet: XLSX.WorkSheet,
-  sheetName: string
-): ParsedTransactionRow[] {
-  const type = detectSheetType(sheetName);
-  if (type === "SUMMARY") return [];
-
-  const isProject = type === "PROJECT";
-  const data = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: "" });
-  if (data.length < 6) return [];
-
-  // Peta formula kategori dari cell referensi (J7:J17)
-  const categoryMap = new Map<number, string>();
-  const mandorRowSet = new Set<number>();
-
-  if (isProject) {
-    const addProjCat = (cellRef: string, catName: string) => {
-      const c = sheet[cellRef];
-      if (c && c.f) {
-        parseFormulaRows(sheet, c.f).forEach((r) => categoryMap.set(r, catName));
-      }
-    };
-    addProjCat("J7", "Bahan Baku Utama / Material");
-    addProjCat("J8", "Upah Tukang");
-    addProjCat("J9", "Sewa Alat Proyek");
-    addProjCat("J10", "Transportasi Lapangan");
-
-    if (sheet["J13"] && sheet["J13"].f) {
-      parseFormulaRows(sheet, sheet["J13"].f).forEach((r) => {
-        mandorRowSet.add(r);
-        categoryMap.set(r, "Upah Tukang");
-      });
-    }
-  } else {
-    const addKasCat = (cellRef: string, catName: string) => {
-      const c = sheet[cellRef];
-      if (c && c.f) {
-        parseFormulaRows(sheet, c.f).forEach((r) => categoryMap.set(r, catName));
-      }
-    };
-    addKasCat("J7", "Gaji dan Upah Karyawan");
-    addKasCat("J8", "Transportasi Operasional");
-    addKasCat("J9", "Biaya Konsumsi Kantor");
-    addKasCat("J10", "Biaya Jamuan / Representasi");
-    addKasCat("J11", "Biaya Marketing");
-    addKasCat("J12", "Biaya Administrasi Finansial");
-    addKasCat("J13", "Renovasi Kantor");
-    addKasCat("J14", "Legalitas Perusahaan");
-    addKasCat("J15", "Inventaris");
-    addKasCat("J16", "Perangkat Gadget");
-    addKasCat("J17", "Kebutuhan Workshop");
   }
 
-  const results: ParsedTransactionRow[] = [];
+  const grid = rawLines.map(parseCsvLine);
+  const headerInfo = findHeaderRow(grid, 15);
 
-  // Iterasi baris data (mulai dari baris index 5/6)
-  for (let r = 5; r < data.length; r++) {
-    const row = data[r];
-    if (!row || row.length === 0) continue;
+  if (!headerInfo) {
+    throw new Error("Header CSV tidak ditemukan. Pastikan terdapat kolom Tanggal, Keterangan, Debit, dan Kredit.");
+  }
 
-    const no = typeof row[0] === "number" ? row[0] : parseInt(String(row[0] || ""), 10);
-    const dateRaw = row[1];
-    const desc = String(row[2] || "").trim();
-    const debit = typeof row[3] === "number" ? row[3] : parseFloat(String(row[3] || "0")) || 0;
-    const kredit = typeof row[4] === "number" ? row[4] : parseFloat(String(row[4] || "0")) || 0;
+  const { headerRowIndex, colMap } = headerInfo;
+  const dataRows = grid.slice(headerRowIndex + 1);
 
-    // Abaikan jika bukan baris data transaksi
-    if (isNaN(no) && !desc && debit === 0 && kredit === 0) continue;
-    if (desc.toLowerCase().includes("total") || desc.toLowerCase().includes("jumlah") || desc.toLowerCase().includes("saldo awal")) continue;
-    if (debit === 0 && kredit === 0) continue;
+  return processGridRows(dataRows, colMap, "CSV_IMPORT");
+}
 
-    const rowExcel = r + 1; // 1-indexed Excel row
-    const date = excelDateToISO(dateRaw);
+// 5. Parser Single-Sheet Excel
+export function parseSingleSheetExcel(sheet: XLSX.WorkSheet, sheetName = "Sheet1"): ParsedImportResult {
+  const grid = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: "" });
+  if (grid.length === 0) {
+    return {
+      rows: [],
+      totalRead: 0,
+      totalRows: 0,
+      totalSkipped: 0,
+      totalValid: 0,
+      totalInvalid: 0,
+      totalDebit: 0,
+      totalKredit: 0,
+      totalCredit: 0,
+      totalSkippedDebit: 0,
+      totalNeedsCategory: 0,
+      needsCategoryAmount: 0,
+      jenisCounts: {},
+      validRows: [],
+    };
+  }
 
-    let category = categoryMap.get(rowExcel) || "";
+  const headerInfo = findHeaderRow(grid, 15);
+  if (!headerInfo) {
+    throw new Error(`Header tidak ditemukan pada sheet '${sheetName}'. Pastikan terdapat kolom Tanggal, Keterangan, Debit, dan Kredit.`);
+  }
+
+  const { headerRowIndex, colMap } = headerInfo;
+  const dataRows = grid.slice(headerRowIndex + 1);
+
+  return processGridRows(dataRows, colMap, sheetName);
+}
+
+// Core processor untuk array 2D setelah header dipetakan
+function processGridRows(
+  dataRows: any[][],
+  colMap: HeaderMapping["colMap"],
+  defaultSheetName: string
+): ParsedImportResult {
+  const rows: ParsedRow[] = [];
+  let totalRead = 0;
+  let totalSkipped = 0;
+  let totalValid = 0;
+  let totalInvalid = 0;
+  let totalDebit = 0;
+  let totalKredit = 0;
+  let totalSkippedDebit = 0;
+  let totalNeedsCategory = 0;
+  let needsCategoryAmount = 0;
+  const jenisCounts: Record<string, number> = {};
+
+  dataRows.forEach((cols, idx) => {
+    // Lewati baris kosong total
+    if (!cols || cols.every((c) => c === "" || c === null || c === undefined)) {
+      return;
+    }
+
+    const rowNumber = idx + 1;
+    totalRead++;
+
+    const rawSheet = colMap.sheetAsal !== undefined ? String(cols[colMap.sheetAsal] || "").trim() : defaultSheetName;
+    const sheetAsal = rawSheet || defaultSheetName;
+    const barisExcel = colMap.barisExcel !== undefined ? parseInt(String(cols[colMap.barisExcel] || "0"), 10) || rowNumber + 1 : rowNumber + 1;
+    const no = colMap.no !== undefined ? parseInt(String(cols[colMap.no] || ""), 10) : undefined;
+    const rawDesc = colMap.desc !== undefined ? String(cols[colMap.desc] || "").trim() : "";
+    const debit = colMap.debit !== undefined ? parseFloat(String(cols[colMap.debit] || "0")) || 0 : 0;
+    const kredit = colMap.kredit !== undefined ? parseFloat(String(cols[colMap.kredit] || "0")) || 0 : 0;
+    const rawCategory = colMap.category !== undefined ? String(cols[colMap.category] || "").trim() : "";
+    const rawJenis = colMap.jenis !== undefined ? String(cols[colMap.jenis] || "").trim().toUpperCase() : "";
+    const rawBuku = colMap.buku !== undefined ? String(cols[colMap.buku] || "").trim().toUpperCase() : "";
+    const rawNeeds = colMap.needsCategory !== undefined ? String(cols[colMap.needsCategory] || "").trim().toUpperCase() : "";
+    const kasbonKe = colMap.kasbonKe !== undefined ? String(cols[colMap.kasbonKe] || "").trim() : undefined;
+
+    // Abaikan baris summary seperti "TOTAL", "JUMLAH"
+    if (/^(total|jumlah|subtotal|saldo akhir)$/i.test(rawDesc)) {
+      return;
+    }
+
+    // Tanggal validasi ketat
+    const rawDate = colMap.date !== undefined ? cols[colMap.date] : null;
+    const parsedDate = parseStrictDate(rawDate);
+
+    // Buku (PROYEK atau KAS_PERUSAHAAN)
+    const buku: "PROYEK" | "KAS_PERUSAHAAN" =
+      rawBuku === "KAS_PERUSAHAAN" || rawBuku === "KANTOR" || sheetAsal.toLowerCase().includes("lapkeu") || sheetAsal.toLowerCase().includes("kantor")
+        ? "KAS_PERUSAHAAN"
+        : "PROYEK";
+
+    // Jenis Transaksi
+    let jenis: TransactionType = "PENGELUARAN_PROYEK";
+    if (
+      rawJenis === "SETORAN_PROYEK" ||
+      rawJenis === "TERMIN_KLIEN" ||
+      rawJenis === "PENGELUARAN_PROYEK" ||
+      rawJenis === "PENGELUARAN_KANTOR" ||
+      rawJenis === "MODAL_AWAL" ||
+      rawJenis === "BUNGA_BANK"
+    ) {
+      jenis = rawJenis as TransactionType;
+    } else if (buku === "PROYEK") {
+      jenis = debit > 0 ? "TERMIN_KLIEN" : "PENGELUARAN_PROYEK";
+    } else {
+      if (debit > 0) {
+        if (/modal/i.test(rawDesc)) jenis = "MODAL_AWAL";
+        else if (/bunga/i.test(rawDesc)) jenis = "BUNGA_BANK";
+        else if (/final project|setoran/i.test(rawDesc)) jenis = "SETORAN_PROYEK";
+        else jenis = "SETORAN_PROYEK";
+      } else {
+        jenis = "PENGELUARAN_KANTOR";
+      }
+    }
+
+    // Catat hitungan jenis
+    jenisCounts[jenis] = (jenisCounts[jenis] || 0) + 1;
+
+    // Aturan 3: SETORAN_PROYEK dilewati
+    const isSkipped = jenis === "SETORAN_PROYEK";
+
+    // Validasi baris
+    let isValid = true;
+    let validationError = "";
+
+    if (!parsedDate) {
+      isValid = false;
+      validationError = "Tanggal transaksi tidak valid.";
+    } else if (!rawDesc) {
+      isValid = false;
+      validationError = "Keterangan transaksi kosong.";
+    } else if (debit === 0 && kredit === 0) {
+      isValid = false;
+      validationError = "Nominal debit atau kredit harus diisi (> 0).";
+    }
+
+    // Penentuan kategori & needs_category
+    // Kategori diambil apa adanya (TIDAK DITEBAK!).
+    // perlu_kategori = YA / TRUE atau category kosong / "Perlu dikategorikan" diimpor sebagai "Perlu dikategorikan"
+    const isExplicitNeeds = rawNeeds === "YA" || rawNeeds === "TRUE" || rawNeeds === "1";
+    let category = rawCategory;
     let needsCategory = false;
 
-    // Tentukan tipe transaksi
-    let txType: "TERMIN_KLIEN" | "PENGELUARAN_PROYEK" | "PENGELUARAN_KANTOR" | "SETORAN_PROYEK";
-    let workerAdvanceTo: string | undefined = undefined;
-
-    if (isProject) {
-      if (debit > 0) {
-        txType = "TERMIN_KLIEN";
-        category = "Pendapatan Termin Proyek";
-      } else {
-        txType = "PENGELUARAN_PROYEK";
-        if (!category) {
-          const suggested = suggestCategory(desc, true);
-          category = suggested.category;
-          if (!suggested.isGuessed) needsCategory = true;
-        }
-        if (mandorRowSet.has(rowExcel) || /kasbon/i.test(desc)) {
-          workerAdvanceTo = desc;
-        }
+    if (jenis === "TERMIN_KLIEN" || jenis === "MODAL_AWAL" || jenis === "SETORAN_PROYEK") {
+      needsCategory = false;
+      if (!category) {
+        category = jenis === "TERMIN_KLIEN" ? "Pendapatan Termin Proyek" : jenis === "MODAL_AWAL" ? "Modal Awal Kas" : "Setoran Kas Masuk";
       }
     } else {
-      if (debit > 0) {
-        txType = "SETORAN_PROYEK";
-        category = "Setoran Kas Masuk Proyek";
-      } else {
-        txType = "PENGELUARAN_KANTOR";
-        if (!category) {
-          const suggested = suggestCategory(desc, false);
-          category = suggested.category;
-          if (!suggested.isGuessed) needsCategory = true;
-        }
+      // Pengeluaran atau Bunga Bank
+      if (isExplicitNeeds || !category || category.toLowerCase() === "perlu dikategorikan") {
+        needsCategory = true;
+        category = "Perlu dikategorikan";
       }
     }
 
-    results.push({
-      sheetName,
-      rowNumber: rowExcel,
-      no: isNaN(no) ? undefined : no,
-      date,
-      description: desc,
+    const amount = debit > 0 ? debit : kredit;
+    const externalRef = `${sheetAsal}_${barisExcel}`;
+
+    if (isSkipped) {
+      totalSkipped++;
+      totalSkippedDebit += debit;
+    } else if (isValid) {
+      totalValid++;
+      totalDebit += debit;
+      totalKredit += kredit;
+      if (needsCategory) {
+        totalNeedsCategory++;
+        needsCategoryAmount += amount;
+      }
+    } else {
+      totalInvalid++;
+    }
+
+    rows.push({
+      rowNumber,
+      sheetAsal,
+      barisExcel,
+      no: isNaN(Number(no)) ? undefined : no,
+      date: parsedDate || "",
+      description: rawDesc,
+      category,
+      jenis,
+      buku,
       debit,
       kredit,
-      category: category || "Perlu dikategorikan",
-      type: txType,
-      ledger: isProject ? "PROYEK" : "KANTOR",
+      amount,
+      kasbonKe: kasbonKe || undefined,
       needsCategory,
-      workerAdvanceTo,
-      projectName: isProject ? sheetName : undefined,
+      isSkipped,
+      isValid,
+      validationError: validationError || undefined,
+      externalRef,
     });
-  }
+  });
 
-  return results;
+  return {
+    rows,
+    totalRead,
+    totalRows: totalRead,
+    totalSkipped,
+    totalValid,
+    totalInvalid,
+    totalDebit,
+    totalKredit,
+    totalCredit: totalKredit,
+    totalSkippedDebit,
+    totalNeedsCategory,
+    needsCategoryAmount,
+    jenisCounts,
+    validRows: rows.filter((r) => r.isValid && !r.isSkipped),
+  };
 }
 
-// Parsing CSV datar berformat transaksi_2026.csv
-export function parseFlatCSV(csvText: string): ParsedTransactionRow[] {
-  const lines = csvText.split(/\r?\n/).filter((l) => l.trim().length > 0);
-  if (lines.length < 2) return [];
+// 6. Pemeriksa Workbook Multi-Sheet:
+// Jika file .xlsx berisi banyak sheet atau sheet "Rekapitulasi", tampilkan pesan peringatan jelas
+export function checkExcelWorkbook(workbookOrSheets: XLSX.WorkBook | string[]): {
+  isSupported: boolean;
+  isMultiSheetOrRekap: boolean;
+  reason?: string;
+  sheetName?: string;
+} {
+  const sheetNames = Array.isArray(workbookOrSheets)
+    ? workbookOrSheets
+    : workbookOrSheets?.SheetNames || [];
 
-  // Parse header
-  const headerLine = lines[0];
-  const isTtdCsv = headerLine.includes("sheet") && headerLine.includes("debit") && headerLine.includes("kredit");
+  const hasRekapitulasi = sheetNames.some((name) => /rekapitulasi/i.test(name));
+  const hasMultipleSheets = sheetNames.length > 1;
 
-  const results: ParsedTransactionRow[] = [];
-
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i];
-    if (!line.trim()) continue;
-
-    if (isTtdCsv) {
-      // Regex CSV splitter yang menghormati tanda kutip
-      const cols: string[] = [];
-      let inQuotes = false;
-      let curVal = "";
-      for (let c = 0; c < line.length; c++) {
-        const char = line[c];
-        if (char === '"') {
-          inQuotes = !inQuotes;
-        } else if (char === "," && !inQuotes) {
-          cols.push(curVal.trim().replace(/^"|"$/g, ""));
-          curVal = "";
-        } else {
-          curVal += char;
-        }
-      }
-      cols.push(curVal.trim().replace(/^"|"$/g, ""));
-
-      // Format transaksi_2026.csv: sheet,row,no,date,desc,debit,kredit,category,type,ledger,needs_category,worker_advance_to
-      const sheet = cols[0] || "Import";
-      const rowNum = parseInt(cols[1] || `${i + 1}`, 10);
-      const no = parseInt(cols[2] || "0", 10);
-      const date = cols[3] || new Date().toISOString().split("T")[0];
-      const desc = cols[4] || "";
-      const debit = parseFloat(cols[5] || "0") || 0;
-      const kredit = parseFloat(cols[6] || "0") || 0;
-      const category = cols[7] || "Perlu dikategorikan";
-      const rawType = cols[8] as any;
-      const ledger = (cols[9] || "PROYEK") as "PROYEK" | "KANTOR";
-      const needsCategory = cols[10]?.toUpperCase() === "TRUE";
-      const workerAdvanceTo = cols[11] || undefined;
-
-      let type: "TERMIN_KLIEN" | "PENGELUARAN_PROYEK" | "PENGELUARAN_KANTOR" | "SETORAN_PROYEK" = "PENGELUARAN_PROYEK";
-      if (rawType === "TERMIN_KLIEN" || rawType === "PENGELUARAN_PROYEK" || rawType === "PENGELUARAN_KANTOR" || rawType === "SETORAN_PROYEK") {
-        type = rawType;
-      } else if (debit > 0) {
-        type = ledger === "PROYEK" ? "TERMIN_KLIEN" : "SETORAN_PROYEK";
-      } else {
-        type = ledger === "PROYEK" ? "PENGELUARAN_PROYEK" : "PENGELUARAN_KANTOR";
-      }
-
-      results.push({
-        sheetName: sheet,
-        rowNumber: isNaN(rowNum) ? i + 1 : rowNum,
-        no: isNaN(no) ? undefined : no,
-        date,
-        description: desc,
-        debit,
-        kredit,
-        category,
-        type,
-        ledger,
-        needsCategory,
-        workerAdvanceTo,
-        projectName: ledger === "PROYEK" ? sheet : undefined,
-      });
-    } else {
-      // Format CSV umum (Tanggal, Keterangan, Kategori, Debit, Kredit)
-      const parts = line.split(",").map((s) => s.trim().replace(/^"|"$/g, ""));
-      const date = parts[0] || new Date().toISOString().split("T")[0];
-      const desc = parts[1] || "";
-      const cat = parts[2] || "Perlu dikategorikan";
-      const debit = parseFloat(parts[3] || "0") || 0;
-      const kredit = parseFloat(parts[4] || "0") || 0;
-
-      const type = debit > 0 ? "TERMIN_KLIEN" : "PENGELUARAN_KANTOR";
-
-      results.push({
-        sheetName: "Import Sheet",
-        rowNumber: i + 1,
-        date,
-        description: desc,
-        debit,
-        kredit,
-        category: cat,
-        type,
-        ledger: type === "TERMIN_KLIEN" ? "PROYEK" : "KANTOR",
-        needsCategory: cat === "Perlu dikategorikan" || !cat,
-      });
-    }
+  if (hasRekapitulasi || hasMultipleSheets) {
+    return {
+      isSupported: false,
+      isMultiSheetOrRekap: true,
+      reason: "Format workbook multi-sheet belum didukung di UI. Gunakan template CSV atau skrip import-ttd-2026.",
+    };
   }
 
-  return results;
+  return {
+    isSupported: true,
+    isMultiSheetOrRekap: false,
+    sheetName: sheetNames[0] || "Sheet1",
+  };
+}
+
+// 7. Generator Template CSV dengan BOM UTF-8
+export function generateCsvTemplate(): string {
+  const headers = [
+    "buku",
+    "sheet_asal",
+    "baris_excel",
+    "tanggal",
+    "keterangan",
+    "jenis",
+    "kategori",
+    "debit",
+    "kredit",
+    "kasbon_ke",
+    "perlu_kategori",
+  ];
+
+  const sampleRows = [
+    [
+      "PROYEK",
+      "Charity House - Bintaro",
+      "7",
+      "2026-09-22",
+      "Pembayaran Tahap I",
+      "TERMIN_KLIEN",
+      "",
+      "100000000",
+      "0",
+      "",
+      "TIDAK",
+    ],
+    [
+      "PROYEK",
+      "Charity House - Bintaro",
+      "8",
+      "2026-10-04",
+      "Material Semen & Pasir",
+      "PENGELUARAN_PROYEK",
+      "Bahan Baku Utama / Material",
+      "0",
+      "3513000",
+      "",
+      "TIDAK",
+    ],
+    [
+      "PROYEK",
+      "Charity House - Bintaro",
+      "9",
+      "2026-10-04",
+      "Kasbon Mang Rian",
+      "PENGELUARAN_PROYEK",
+      "Upah Tukang",
+      "0",
+      "1000000",
+      "Mang Rian",
+      "TIDAK",
+    ],
+    [
+      "KAS_PERUSAHAAN",
+      "Lapkeu Perusahaan",
+      "6",
+      "2025-12-31",
+      "Kas Modal 2025",
+      "MODAL_AWAL",
+      "Modal Awal Kas",
+      "12500179.89",
+      "0",
+      "",
+      "TIDAK",
+    ],
+    [
+      "KAS_PERUSAHAAN",
+      "Lapkeu Perusahaan",
+      "14",
+      "2026-01-24",
+      "Gaji Kantor - Januari",
+      "PENGELUARAN_KANTOR",
+      "Gaji dan Upah Karyawan",
+      "0",
+      "5000000",
+      "",
+      "TIDAK",
+    ],
+    [
+      "KAS_PERUSAHAAN",
+      "Lapkeu Perusahaan",
+      "7",
+      "2026-01-10",
+      "WPC Kebutuhan Kantor",
+      "PENGELUARAN_KANTOR",
+      "Perlu dikategorikan",
+      "0",
+      "359990",
+      "",
+      "YA",
+    ],
+    [
+      "KAS_PERUSAHAAN",
+      "Lapkeu Perusahaan",
+      "17",
+      "2026-01-30",
+      "Bunga Bank BCA",
+      "BUNGA_BANK",
+      "Biaya Administrasi Finansial",
+      "251.4",
+      "0",
+      "",
+      "TIDAK",
+    ],
+  ];
+
+  const csvRows = [headers.join(","), ...sampleRows.map((r) => r.map((c) => (c.includes(",") ? `"${c}"` : c)).join(","))];
+
+  // Tambahkan UTF-8 BOM (\uFEFF)
+  return "\uFEFF" + csvRows.join("\n");
 }
