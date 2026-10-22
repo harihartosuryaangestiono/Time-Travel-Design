@@ -8,11 +8,15 @@ export interface DashboardMetrics {
   total_income: number;
   total_expenses: number;
   net_profit: number;
+  profit_margin: number;
   outstanding_receivables: number;
   outstanding_payables: number;
   outstanding_cash_advances: number;
   pending_approvals: number;
   overdue_invoices: number;
+  accounts_count: number;
+  cash_runway_months: number;
+  quick_ratio: number | null;
 }
 
 export async function getDashboardMetrics(period?: {
@@ -24,7 +28,7 @@ export async function getDashboardMetrics(period?: {
 
   const orgId = user.organizationId;
 
-  // Get current date range (this month by default)
+  // Rentang waktu bulan berjalan secara default
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
@@ -32,31 +36,36 @@ export async function getDashboardMetrics(period?: {
   const startDate = period?.start_date || startOfMonth.toISOString().split("T")[0];
   const endDate = period?.end_date || endOfMonth.toISOString().split("T")[0];
 
-  // 1. Get cash accounts total
+  // 1. Total saldo kas riil dari seluruh rekening aktif
   const { data: cashAccounts } = await supabase
     .from("cash_accounts")
-    .select("opening_balance")
+    .select("current_balance, opening_balance")
     .eq("organization_id", orgId)
     .eq("is_active", true);
 
-  const totalCash = cashAccounts?.reduce(
-    (sum, acc) => sum + Number(acc.opening_balance),
-    0
-  ) || 0;
+  const totalCash = (cashAccounts || []).reduce((sum, acc) => {
+    const bal =
+      acc.current_balance !== null
+        ? parseFloat(acc.current_balance)
+        : parseFloat(acc.opening_balance || "0");
+    return sum + (isNaN(bal) ? 0 : bal);
+  }, 0);
 
-  // 2. Get posted expenses in period
+  // 2. Total pengeluaran dalam periode
   const { data: expenses } = await supabase
     .from("expenses")
     .select("total_amount")
     .eq("organization_id", orgId)
-    .eq("status", "POSTED")
+    .in("status", ["APPROVED", "POSTED"])
     .gte("date", startDate)
     .lte("date", endDate);
 
-  const totalExpenses =
-    expenses?.reduce((sum, exp) => sum + Number(exp.total_amount), 0) || 0;
+  const totalExpenses = (expenses || []).reduce((sum, exp) => {
+    const amt = parseFloat(exp.total_amount || "0");
+    return sum + (isNaN(amt) ? 0 : amt);
+  }, 0);
 
-  // 3. Get posted invoices (income) in period
+  // 3. Total penerimaan pendapatan dari invoice
   const { data: invoices } = await supabase
     .from("invoices")
     .select("total, amount_paid")
@@ -65,60 +74,60 @@ export async function getDashboardMetrics(period?: {
     .gte("invoice_date", startDate)
     .lte("invoice_date", endDate);
 
-  const totalIncome =
-    invoices?.reduce((sum, inv) => sum + Number(inv.amount_paid), 0) || 0;
+  const totalIncome = (invoices || []).reduce((sum, inv) => {
+    const paid = parseFloat(inv.amount_paid || "0");
+    return sum + (isNaN(paid) ? 0 : paid);
+  }, 0);
 
-  // 4. Get outstanding receivables
+  // 4. Piutang belum tertagih (A/R)
   const { data: outstandingInvoices } = await supabase
     .from("invoices")
     .select("total, amount_paid")
     .eq("organization_id", orgId)
     .in("status", ["ISSUED", "PARTIAL", "OVERDUE"]);
 
-  const outstandingReceivables =
-    outstandingInvoices?.reduce(
-      (sum, inv) => sum + (Number(inv.total) - Number(inv.amount_paid)),
-      0
-    ) || 0;
+  const outstandingReceivables = (outstandingInvoices || []).reduce((sum, inv) => {
+    const tot = parseFloat(inv.total || "0");
+    const paid = parseFloat(inv.amount_paid || "0");
+    return sum + Math.max(0, (isNaN(tot) ? 0 : tot) - (isNaN(paid) ? 0 : paid));
+  }, 0);
 
-  // 5. Get outstanding payables (vendor bills) - simplified for now
+  // 5. Hutang usaha belum dibayar (Vendor Bills)
   const { data: vendorBills } = await supabase
     .from("vendor_bills")
     .select("total, paid_amount")
     .eq("organization_id", orgId)
     .in("status", ["PENDING", "PARTIAL", "OVERDUE"]);
 
-  const outstandingPayables =
-    vendorBills?.reduce(
-      (sum, bill) => sum + (Number(bill.total) - Number(bill.paid_amount || 0)),
-      0
-    ) || 0;
+  const outstandingPayables = (vendorBills || []).reduce((sum, bill) => {
+    const tot = parseFloat(bill.total || "0");
+    const paid = parseFloat(bill.paid_amount || "0");
+    return sum + Math.max(0, (isNaN(tot) ? 0 : tot) - (isNaN(paid) ? 0 : paid));
+  }, 0);
 
-  // 6. Get outstanding cash advances
+  // 6. Kasbon berjalan / belum diselesaikan
   const { data: outstandingAdvances } = await supabase
     .from("cash_advances")
     .select("disbursed_amount, settled_amount, returned_amount")
     .eq("organization_id", orgId)
     .in("status", ["DISBURSED", "PARTIALLY_SETTLED"]);
 
-  const outstandingCashAdvances =
-    outstandingAdvances?.reduce(
-      (sum, ca) =>
-        sum +
-        (Number(ca.disbursed_amount) -
-          Number(ca.settled_amount) -
-          Number(ca.returned_amount)),
-      0
-    ) || 0;
+  const outstandingCashAdvances = (outstandingAdvances || []).reduce((sum, ca) => {
+    const disb = parseFloat(ca.disbursed_amount || "0");
+    const setl = parseFloat(ca.settled_amount || "0");
+    const ret = parseFloat(ca.returned_amount || "0");
+    const rem = (isNaN(disb) ? 0 : disb) - (isNaN(setl) ? 0 : setl) - (isNaN(ret) ? 0 : ret);
+    return sum + Math.max(0, rem);
+  }, 0);
 
-  // 7. Get pending approvals count
+  // 7. Pengeluaran menunggu approval
   const { count: pendingApprovals } = await supabase
     .from("expenses")
     .select("*", { count: "exact", head: true })
     .eq("organization_id", orgId)
     .eq("status", "SUBMITTED");
 
-  // 8. Get overdue invoices
+  // 8. Invoice jatuh tempo (overdue)
   const today = new Date().toISOString().split("T")[0];
   const { count: overdueInvoices } = await supabase
     .from("invoices")
@@ -127,20 +136,46 @@ export async function getDashboardMetrics(period?: {
     .eq("status", "ISSUED")
     .lt("due_date", today);
 
+  // Metrik turunan dengan guard pembagian dengan nol
+  const netProfit = totalIncome - totalExpenses;
+  const profitMargin =
+    totalIncome > 0
+      ? Math.round(((totalIncome - totalExpenses) / totalIncome) * 1000) / 10
+      : 0;
+
+  // Runway: Saldo kas dibagi pengeluaran bulanan (jika totalExpenses > 0)
+  const cashRunwayMonths =
+    totalExpenses > 0
+      ? Math.round((totalCash / totalExpenses) * 10) / 10
+      : totalCash > 0
+      ? 12
+      : 0;
+
+  // Quick Ratio: (Kas + Piutang) / (Hutang + Kasbon Berjalan)
+  const totalShortTermObligations = outstandingPayables + outstandingCashAdvances;
+  const quickRatio =
+    totalShortTermObligations > 0
+      ? Math.round(((totalCash + outstandingReceivables) / totalShortTermObligations) * 10) / 10
+      : null;
+
   return {
     total_cash: totalCash,
     total_income: totalIncome,
     total_expenses: totalExpenses,
-    net_profit: totalIncome - totalExpenses,
+    net_profit: netProfit,
+    profit_margin: profitMargin,
     outstanding_receivables: outstandingReceivables,
     outstanding_payables: outstandingPayables,
     outstanding_cash_advances: outstandingCashAdvances,
     pending_approvals: pendingApprovals || 0,
     overdue_invoices: overdueInvoices || 0,
+    accounts_count: (cashAccounts || []).length,
+    cash_runway_months: cashRunwayMonths,
+    quick_ratio: quickRatio,
   };
 }
 
-export async function getRecentTransactions(limit: number = 10) {
+export async function getRecentTransactions(limit: number = 8) {
   const user = await requireAuthUser();
   const supabase = await createClient();
 
@@ -154,21 +189,25 @@ export async function getRecentTransactions(limit: number = 10) {
       date,
       status,
       merchant,
-      profile:profiles!submitted_by(full_name)
+      category
     `)
     .eq("organization_id", user.organizationId)
-    .order("created_at", { ascending: false })
+    .order("date", { ascending: false })
     .limit(limit);
 
-  const mappedExpenses = (expenses || []).map((exp: any) => ({
-    id: exp.id,
-    type: "expense",
-    description: exp.description,
-    amount: Number(exp.total_amount),
-    date: exp.date,
-    status: exp.status,
-    submitted_by: (exp.profile as any)?.full_name,
-  }));
+  const mappedExpenses = (expenses || []).map((exp: any) => {
+    const amt = parseFloat(exp.total_amount || "0");
+    return {
+      id: exp.id,
+      date: exp.date ? exp.date.split("T")[0] : "-",
+      description: exp.description || "Pengeluaran Proyek",
+      category: exp.category || "Operasional",
+      merchant: exp.merchant || "-",
+      amount: isNaN(amt) ? 0 : amt,
+      type: "expense" as const,
+      status: exp.status || "POSTED",
+    };
+  });
 
   return mappedExpenses;
 }
@@ -187,54 +226,35 @@ export async function getProjectBudgetSummary(limit: number = 5) {
       status
     `)
     .eq("organization_id", user.organizationId)
-    .eq("status", "ACTIVE")
     .order("created_at", { ascending: false })
     .limit(limit);
 
-  if (!projects) return [];
+  if (!projects || projects.length === 0) return [];
 
   const result = await Promise.all(
     projects.map(async (project) => {
-      // Get approved budget
-      const { data: budget } = await supabase
-        .from("budget_versions")
-        .select("total")
-        .eq("project_id", project.id)
-        .eq("status", "APPROVED")
-        .order("version_number", { ascending: false })
-        .limit(1)
-        .single();
-
-      // Get actual expenses
-      const { data: expenses } = await supabase
+      const { data: allocations } = await supabase
         .from("expense_allocations")
         .select("amount")
         .eq("project_id", project.id);
 
-      // Get commitments
-      const { data: commitments } = await supabase
-        .from("commitment_items")
-        .select("amount, fulfilled_amount")
-        .eq("project_id", project.id)
-        .eq("status", "OPEN");
+      const spent = (allocations || []).reduce((sum, a) => {
+        const val = parseFloat(a.amount || "0");
+        return sum + (isNaN(val) ? 0 : val);
+      }, 0);
 
-      const spent = expenses?.reduce((sum, e) => sum + Number(e.amount), 0) || 0;
-      const committed =
-        commitments?.reduce(
-          (sum, c) => sum + (Number(c.amount) - Number(c.fulfilled_amount)),
-          0
-        ) || 0;
-      const budgetAmount = Number(budget?.total || project.contract_value || 0);
-      const remaining = budgetAmount - spent - committed;
+      const contract = parseFloat(project.contract_value || "0") || 0;
+      const remaining = contract - spent;
 
       return {
         id: project.id,
         code: project.code,
         name: project.name,
-        budget: budgetAmount,
-        spent,
-        committed,
-        remaining,
+        contract: contract,
+        spent: spent,
+        committed: 0,
+        remaining: remaining,
+        status: project.status,
       };
     })
   );
@@ -253,35 +273,44 @@ export async function getExpensesByCategory(
     .from("expenses")
     .select("category, total_amount")
     .eq("organization_id", user.organizationId)
-    .eq("status", "POSTED")
+    .in("status", ["APPROVED", "POSTED"])
     .gte("date", startDate)
     .lte("date", endDate);
 
-  if (!expenses) return [];
+  if (!expenses || expenses.length === 0) return [];
 
-  // Group by category
-  const grouped = expenses.reduce(
-    (acc, exp) => {
-      const cat = exp.category || "Lainnya";
-      if (!acc[cat]) {
-        acc[cat] = 0;
-      }
-      acc[cat] += Number(exp.total_amount);
-      return acc;
-    },
-    {} as Record<string, number>
-  );
+  const grouped: Record<string, number> = {};
+  let totalAll = 0;
 
-  // Convert to array format for charts
-  return Object.entries(grouped).map(([name, value]) => ({
+  expenses.forEach((exp: any) => {
+    const cat = exp.category || "Biaya Operasional";
+    const amt = parseFloat(exp.total_amount || "0") || 0;
+    grouped[cat] = (grouped[cat] || 0) + amt;
+    totalAll += amt;
+  });
+
+  const colors = [
+    "#18181B",
+    "#27272A",
+    "#3F3F46",
+    "#52525B",
+    "#71717A",
+    "#A1A1AA",
+    "#D4D4D8",
+  ];
+
+  return Object.entries(grouped).map(([name, value], idx) => ({
     name,
     value,
+    color: colors[idx % colors.length],
+    percent:
+      totalAll > 0
+        ? `${Math.round((value / totalAll) * 1000) / 10}%`
+        : "0%",
   }));
 }
 
-export async function getIncomeVsExpense(
-  months: number = 6
-) {
+export async function getIncomeVsExpense(months: number = 6) {
   const user = await requireAuthUser();
   const supabase = await createClient();
 
@@ -300,29 +329,43 @@ export async function getIncomeVsExpense(
       .toISOString()
       .split("T")[0];
 
-    // Get income (posted invoices)
+    // Penerimaan Invoice
     const { data: income } = await supabase
       .from("invoices")
       .select("amount_paid")
       .eq("organization_id", user.organizationId)
-      .eq("status", "PAID")
+      .in("status", ["ISSUED", "PARTIAL", "PAID"])
       .gte("invoice_date", startDate)
       .lte("invoice_date", endDate);
 
-    // Get expenses (posted expenses)
+    // Pengeluaran
     const { data: expenseData } = await supabase
       .from("expenses")
       .select("total_amount")
       .eq("organization_id", user.organizationId)
-      .eq("status", "POSTED")
+      .in("status", ["APPROVED", "POSTED"])
       .gte("date", startDate)
       .lte("date", endDate);
 
+    const incSum = (income || []).reduce((sum, inv) => {
+      const paid = parseFloat(inv.amount_paid || "0");
+      return sum + (isNaN(paid) ? 0 : paid);
+    }, 0);
+
+    const expSum = (expenseData || []).reduce((sum, exp) => {
+      const tot = parseFloat(exp.total_amount || "0");
+      return sum + (isNaN(tot) ? 0 : tot);
+    }, 0);
+
+    const profit = incSum - expSum;
+    const margin = incSum > 0 ? Math.round((profit / incSum) * 1000) / 10 : 0;
+
     result.push({
-      name: monthName,
-      income: income?.reduce((sum, inv) => sum + Number(inv.amount_paid), 0) || 0,
-      expense:
-        expenseData?.reduce((sum, exp) => sum + Number(exp.total_amount), 0) || 0,
+      month: monthName,
+      income: incSum,
+      expense: expSum,
+      profit: profit,
+      margin: margin,
     });
   }
 

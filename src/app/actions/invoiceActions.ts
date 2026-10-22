@@ -12,7 +12,7 @@ export interface InvoiceInput {
   project_id?: string;
   total: number;
   amount_paid?: number;
-  status: "DRAFT" | "ISSUED" | "PAID" | "OVERDUE";
+  status: "DRAFT" | "ISSUED" | "PARTIAL" | "PAID" | "OVERDUE" | "CANCELLED" | "CREDIT_NOTE";
   notes?: string;
 }
 

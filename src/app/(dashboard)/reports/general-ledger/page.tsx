@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { Download, Printer, Filter, BookOpen } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Download, Printer, Filter, BookOpen, AlertCircle, FileSpreadsheet } from "lucide-react";
+import { fetchGeneralLedger } from "@/app/actions/reportActions";
 
 function formatCurrency(value: number): string {
+  if (isNaN(value)) return "Rp 0";
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
     currency: "IDR",
@@ -12,142 +14,89 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
+interface AccountOption {
+  id: string;
+  code: string;
+  name: string;
+  type: string;
+}
+
 interface LedgerLine {
   id: string;
-  entry_number: string;
   date: string;
+  entryNumber: string;
+  accountCode: string;
+  accountName: string;
   description: string;
-  reference?: string;
   debit: number;
   credit: number;
-  balance: number;
 }
-
-interface AccountLedger {
-  account_id: string;
-  account_code: string;
-  account_name: string;
-  opening_balance: number;
-  closing_balance: number;
-  total_debit: number;
-  total_credit: number;
-  lines: LedgerLine[];
-}
-
-const defaultLedgerData: AccountLedger[] = [
-  {
-    account_id: "1",
-    account_code: "1120",
-    account_name: "BCA Operating & Treasury Account",
-    opening_balance: 280000000,
-    closing_balance: 342000000,
-    total_debit: 220000000,
-    total_credit: 158000000,
-    lines: [
-      {
-        id: "l1",
-        entry_number: "JE-2024-0089",
-        date: "2024-10-02",
-        description: "Client Retainer Milestone 1 - PRJ-24-002 Cafe Senopati",
-        reference: "INV-2024-0012",
-        debit: 84000000,
-        credit: 0,
-        balance: 364000000,
-      },
-      {
-        id: "l2",
-        entry_number: "JE-2024-0091",
-        date: "2024-10-05",
-        description: "Direct Disbursement: MEP Engineering Subcontractor",
-        reference: "EXP-2024-0045",
-        debit: 0,
-        credit: 22000000,
-        balance: 342000000,
-      },
-      {
-        id: "l3",
-        entry_number: "JE-2024-0095",
-        date: "2024-10-10",
-        description: "Progress Billing Payment - PRJ-24-003 BSD Masterplan",
-        reference: "INV-2024-0015",
-        debit: 136000000,
-        credit: 0,
-        balance: 478000000,
-      },
-      {
-        id: "l4",
-        entry_number: "JE-2024-0099",
-        date: "2024-10-12",
-        description: "Natural Stone Procurement - PRJ-24-001 Villa Canggu",
-        reference: "EXP-2024-0052",
-        debit: 0,
-        credit: 136000000,
-        balance: 342000000,
-      },
-    ],
-  },
-  {
-    account_id: "2",
-    account_code: "1210",
-    account_name: "Accounts Receivable & Unbilled Client WIP",
-    opening_balance: 65000000,
-    closing_balance: 98000000,
-    total_debit: 185000000,
-    total_credit: 152000000,
-    lines: [
-      {
-        id: "l5",
-        entry_number: "JE-2024-0088",
-        date: "2024-10-01",
-        description: "Progress Invoice Issued - PRJ-24-003 BSD Masterplan",
-        reference: "INV-2024-0015",
-        debit: 156000000,
-        credit: 0,
-        balance: 221000000,
-      },
-      {
-        id: "l6",
-        entry_number: "JE-2024-0094",
-        date: "2024-10-10",
-        description: "Settlement Received - PRJ-24-003 BSD Masterplan",
-        reference: "PAY-2024-0021",
-        debit: 0,
-        credit: 152000000,
-        balance: 69000000,
-      },
-      {
-        id: "l7",
-        entry_number: "JE-2024-0098",
-        date: "2024-10-14",
-        description: "Initial Design Retainer Billed - PRJ-24-005 Ubud Resort",
-        reference: "INV-2024-0018",
-        debit: 29000000,
-        credit: 0,
-        balance: 98000000,
-      },
-    ],
-  },
-];
 
 export default function GeneralLedgerPage() {
   const [startDate, setStartDate] = useState(() => `${new Date().getFullYear()}-01-01`);
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split("T")[0]);
-  const [selectedAccount, setSelectedAccount] = useState<string>("all");
-  const [isLoading, setIsLoading] = useState(false);
-  const [data, setData] = useState<AccountLedger[]>(defaultLedgerData);
+  const [selectedAccountId, setSelectedAccountId] = useState<string>("ALL");
+  const [accounts, setAccounts] = useState<AccountOption[]>([]);
+  const [lines, setLines] = useState<LedgerLine[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleGenerate = () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setData(defaultLedgerData);
+  const loadData = async (start: string, end: string, accId: string) => {
+    try {
+      setIsLoading(true);
+      setErrorMessage(null);
+      const res = await fetchGeneralLedger({
+        startDate: start,
+        endDate: end,
+        accountId: accId,
+      });
+
+      setAccounts(res.accounts || []);
+      setLines(res.lines || []);
+    } catch (err: any) {
+      console.error("Gagal memuat buku besar:", err);
+      setErrorMessage(err.message || "Gagal memuat buku besar dari database.");
+    } finally {
       setIsLoading(false);
-    }, 400);
+    }
   };
 
-  const filteredData =
-    selectedAccount === "all"
-      ? data
-      : data.filter((d) => d.account_code === selectedAccount);
+  useEffect(() => {
+    loadData(startDate, endDate, selectedAccountId);
+  }, []);
+
+  const handleGenerate = () => {
+    loadData(startDate, endDate, selectedAccountId);
+  };
+
+  const exportCSV = () => {
+    const rows = [
+      ["Tanggal", "No. Jurnal", "Kode Akun", "Nama Akun", "Keterangan", "Debit", "Kredit"],
+      ...lines.map((l) => [
+        l.date,
+        l.entryNumber,
+        l.accountCode,
+        `"${l.accountName}"`,
+        `"${l.description}"`,
+        l.debit,
+        l.credit,
+      ]),
+      ["", "", "", "", "TOTAL", totalDebit, totalCredit],
+    ];
+
+    const csvContent =
+      "data:text/csv;charset=utf-8," + rows.map((e) => e.join(",")).join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Buku_Besar_${startDate}_sd_${endDate}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const totalDebit = lines.reduce((s, l) => s + (l.debit || 0), 0);
+  const totalCredit = lines.reduce((s, l) => s + (l.credit || 0), 0);
 
   return (
     <div className="space-y-6 pb-12 animate-in fade-in duration-300">
@@ -155,14 +104,14 @@ export default function GeneralLedgerPage() {
       <div className="flex flex-col gap-4 rounded-3xl border border-zinc-200/90 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-zinc-500 uppercase">Period:</span>
+            <span className="text-xs font-semibold text-zinc-500 uppercase">Periode:</span>
             <input
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
               className="h-9 rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs text-zinc-800 focus:border-zinc-900 focus:bg-white focus:outline-none"
             />
-            <span className="text-xs text-zinc-400">to</span>
+            <span className="text-xs text-zinc-400">s/d</span>
             <input
               type="date"
               value={endDate}
@@ -172,13 +121,16 @@ export default function GeneralLedgerPage() {
           </div>
 
           <select
-            value={selectedAccount}
-            onChange={(e) => setSelectedAccount(e.target.value)}
-            className="h-9 rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs text-zinc-800 focus:border-zinc-900 focus:bg-white focus:outline-none"
+            value={selectedAccountId}
+            onChange={(e) => setSelectedAccountId(e.target.value)}
+            className="h-9 rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs text-zinc-800 focus:border-zinc-900 focus:bg-white focus:outline-none max-w-xs"
           >
-            <option value="all">All General Ledger Accounts</option>
-            <option value="1120">1120 - BCA Operating &amp; Treasury</option>
-            <option value="1210">1210 - Accounts Receivable &amp; WIP</option>
+            <option value="ALL">Semua Akun Buku Besar (Bagan Akun)</option>
+            {accounts.map((acc) => (
+              <option key={acc.id} value={acc.id}>
+                {acc.code} - {acc.name}
+              </option>
+            ))}
           </select>
 
           <button
@@ -187,7 +139,7 @@ export default function GeneralLedgerPage() {
             className="flex items-center gap-1.5 rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-zinc-800 active:scale-95 transition-all disabled:opacity-50"
           >
             <Filter className="h-3.5 w-3.5" />
-            {isLoading ? "Generating..." : "Apply Filter"}
+            {isLoading ? "Memuat..." : "Terapkan Filter"}
           </button>
         </div>
 
@@ -197,110 +149,113 @@ export default function GeneralLedgerPage() {
             className="flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition-colors shadow-sm"
           >
             <Printer className="h-3.5 w-3.5 text-zinc-500" />
-            Print PDF
+            Cetak PDF
           </button>
-          <button className="flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition-colors shadow-sm">
+          <button
+            onClick={exportCSV}
+            className="flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition-colors shadow-sm"
+          >
             <Download className="h-3.5 w-3.5 text-zinc-900" />
-            Export CSV
+            Ekspor CSV
           </button>
         </div>
       </div>
 
-      {/* Ledgers per Account */}
-      <div className="space-y-6">
-        {filteredData.map((ledger) => (
-          <div
-            key={ledger.account_id}
-            className="rounded-3xl border border-zinc-200/90 bg-white shadow-sm overflow-hidden"
+      {/* Error Banner */}
+      {errorMessage && (
+        <div className="flex items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs font-medium text-rose-800">
+          <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+          <span>{errorMessage}</span>
+          <button
+            onClick={() => loadData(startDate, endDate, selectedAccountId)}
+            className="ml-auto underline hover:text-rose-950 font-semibold"
           >
-            {/* Account Title Strip */}
-            <div className="border-b border-zinc-100 bg-[#09090B] p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-white">
-              <div>
-                <span className="font-mono text-xs font-bold text-zinc-300 mr-2 bg-zinc-800 border border-zinc-700 px-2.5 py-0.5 rounded">
-                  {ledger.account_code}
-                </span>
-                <h3 className="inline text-base font-bold text-white tracking-tight">
-                  {ledger.account_name}
-                </h3>
-              </div>
-              <div className="flex items-center gap-4 text-xs font-mono">
-                <div>
-                  <span className="text-zinc-400 block text-[10px] uppercase font-sans font-semibold">
-                    Opening Balance
-                  </span>
-                  <span className="font-bold text-zinc-300">{formatCurrency(ledger.opening_balance)}</span>
-                </div>
-                <div>
-                  <span className="text-zinc-400 block text-[10px] uppercase font-sans font-semibold">
-                    Closing Balance
-                  </span>
-                  <span className="font-bold text-white">{formatCurrency(ledger.closing_balance)}</span>
-                </div>
-              </div>
-            </div>
+            Coba lagi
+          </button>
+        </div>
+      )}
 
-            {/* Account Transactions Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead className="bg-zinc-50 border-b border-zinc-200 text-zinc-500 uppercase tracking-wider text-[10px] font-mono">
-                  <tr>
-                    <th className="px-4 py-2.5 text-left font-bold">Posting Date</th>
-                    <th className="px-4 py-2.5 text-left font-bold">Journal Ref</th>
-                    <th className="px-4 py-2.5 text-left font-bold">Transaction Narration</th>
-                    <th className="px-4 py-2.5 text-left font-bold">Source Ref</th>
-                    <th className="px-4 py-2.5 text-right font-bold">Debit (+)</th>
-                    <th className="px-4 py-2.5 text-right font-bold">Credit (-)</th>
-                    <th className="px-4 py-2.5 text-right font-bold">Running Balance</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-100">
-                  {ledger.lines.map((line) => (
-                    <tr key={line.id} className="hover:bg-zinc-50/70 transition-colors">
-                      <td className="px-4 py-2.5 font-mono text-zinc-500 whitespace-nowrap">
-                        {line.date}
-                      </td>
-                      <td className="px-4 py-2.5 font-mono font-semibold text-zinc-800 whitespace-nowrap">
-                        {line.entry_number}
-                      </td>
-                      <td className="px-4 py-2.5 text-zinc-900 font-medium">
-                        {line.description}
-                      </td>
-                      <td className="px-4 py-2.5 font-mono text-zinc-400 whitespace-nowrap">
-                        {line.reference || "-"}
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-mono tabular-nums text-zinc-950 font-semibold whitespace-nowrap">
-                        {line.debit > 0 ? formatCurrency(line.debit) : "-"}
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-mono tabular-nums text-rose-600 font-semibold whitespace-nowrap">
-                        {line.credit > 0 ? formatCurrency(line.credit) : "-"}
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-mono tabular-nums font-bold text-zinc-900 whitespace-nowrap">
-                        {formatCurrency(line.balance)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot className="border-t bg-zinc-50/80 font-bold text-xs">
-                  <tr>
-                    <td colSpan={4} className="px-4 py-2.5 text-right text-zinc-500 uppercase font-mono tracking-wider">
-                      Account Total Postings
-                    </td>
-                    <td className="px-4 py-2.5 text-right font-mono text-zinc-950">
-                      {formatCurrency(ledger.total_debit)}
-                    </td>
-                    <td className="px-4 py-2.5 text-right font-mono text-rose-600">
-                      {formatCurrency(ledger.total_credit)}
-                    </td>
-                    <td className="px-4 py-2.5 text-right font-mono text-zinc-900">
-                      {formatCurrency(ledger.closing_balance)}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
+      {/* Ledger Content */}
+      {isLoading ? (
+        <div className="h-96 w-full animate-pulse rounded-3xl border border-zinc-100 bg-white p-6" />
+      ) : lines.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-zinc-200 bg-white p-12 text-center shadow-sm">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-400 mb-3">
+            <BookOpen className="h-6 w-6" />
           </div>
-        ))}
-      </div>
+          <h3 className="text-sm font-bold text-zinc-900 mb-1">
+            Belum Ada Mutasi Buku Besar
+          </h3>
+          <p className="text-xs text-zinc-500 max-w-sm mb-4">
+            Catatan debit dan kredit akan otomatis terakumulasi di sini saat transaksi jurnal di-posting.
+          </p>
+        </div>
+      ) : (
+        <div className="rounded-3xl border border-zinc-200/90 bg-white shadow-sm overflow-hidden">
+          <div className="border-b border-zinc-100 bg-[#09090B] p-5 text-white flex justify-between items-center">
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 font-mono">
+                GENERAL LEDGER AUDIT
+              </span>
+              <h2 className="text-lg font-bold text-white tracking-tight">
+                BUKU BESAR MUTASI TRANSAKSI
+              </h2>
+            </div>
+            <span className="text-xs text-zinc-400 font-mono">
+              {lines.length} Baris Jurnal
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-zinc-100 text-zinc-400 font-semibold uppercase tracking-wider text-[10px] bg-zinc-50/50">
+                  <th className="py-3 pl-4">Tanggal</th>
+                  <th className="py-3">No. Jurnal</th>
+                  <th className="py-3">Akun</th>
+                  <th className="py-3">Keterangan</th>
+                  <th className="py-3 text-right">Debit</th>
+                  <th className="py-3 pr-4 text-right">Kredit</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100 font-mono text-[11px]">
+                {lines.map((line) => (
+                  <tr key={line.id} className="hover:bg-zinc-50/70 transition-colors">
+                    <td className="py-3 pl-4 text-zinc-500 whitespace-nowrap">{line.date}</td>
+                    <td className="py-3 font-bold text-zinc-900 whitespace-nowrap">
+                      {line.entryNumber}
+                    </td>
+                    <td className="py-3 text-zinc-700 whitespace-nowrap">
+                      <span className="font-bold text-zinc-900 mr-1.5">{line.accountCode}</span>
+                      <span className="font-sans text-zinc-500">{line.accountName}</span>
+                    </td>
+                    <td className="py-3 font-sans text-zinc-600 max-w-xs truncate">
+                      {line.description}
+                    </td>
+                    <td className="py-3 text-right tabular-nums text-zinc-900 font-medium">
+                      {line.debit > 0 ? formatCurrency(line.debit) : "—"}
+                    </td>
+                    <td className="py-3 pr-4 text-right tabular-nums text-zinc-900 font-medium">
+                      {line.credit > 0 ? formatCurrency(line.credit) : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-zinc-200 bg-zinc-50 font-bold text-zinc-950 font-mono text-xs">
+                  <td colSpan={4} className="py-3.5 pl-4 uppercase font-sans">
+                    Total Mutasi Periode
+                  </td>
+                  <td className="py-3.5 text-right tabular-nums">{formatCurrency(totalDebit)}</td>
+                  <td className="py-3.5 pr-4 text-right tabular-nums">
+                    {formatCurrency(totalCredit)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

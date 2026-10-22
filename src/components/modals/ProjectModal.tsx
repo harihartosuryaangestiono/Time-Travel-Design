@@ -66,9 +66,9 @@ export function ProjectModal({
         name: "",
         client_name: "",
         category: "Architecture & Interior",
-        contract_value: 350000000,
+        contract_value: 0,
         status: "ACTIVE",
-        deadline: "December 2025",
+        deadline: "",
         description: "",
       });
     }
@@ -80,7 +80,7 @@ export function ProjectModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim() || !formData.code.trim()) {
-      setErrorMsg("Project Code and Name are required.");
+      setErrorMsg("Kode dan Nama Proyek wajib diisi.");
       return;
     }
 
@@ -88,33 +88,29 @@ export function ProjectModal({
       setIsSubmitting(true);
       setErrorMsg(null);
 
-      // Attempt server action if user is authenticated
-      try {
-        if (isEditing && formData.id) {
-          await updateProject(formData.id, {
-            code: formData.code,
-            name: formData.name,
-            contract_value: formData.contract_value,
-            description: formData.description,
-          });
-        } else {
-          await createProject({
-            code: formData.code,
-            name: formData.name,
-            type: "ARCHITECTURE",
-            contract_value: formData.contract_value,
-            description: formData.description,
-          });
-        }
-      } catch (err: any) {
-        // Fallback for demo/offline workspace
-        console.warn("Server action fallback to local state:", err.message);
+      let savedRecord: any = null;
+      if (isEditing && formData.id) {
+        savedRecord = await updateProject(formData.id, {
+          code: formData.code,
+          name: formData.name,
+          contract_value: Number(formData.contract_value) || 0,
+          description: formData.description,
+        });
+      } else {
+        savedRecord = await createProject({
+          code: formData.code,
+          name: formData.name,
+          type: "ARCHITECTURE",
+          contract_value: Number(formData.contract_value) || 0,
+          description: formData.description,
+        });
       }
 
-      onSuccess(formData);
+      onSuccess(savedRecord || formData);
       onClose();
     } catch (err: any) {
-      setErrorMsg(err.message || "Failed to save project.");
+      console.error("Save project error:", err);
+      setErrorMsg(err?.message || "Gagal menyimpan proyek.");
     } finally {
       setIsSubmitting(false);
     }

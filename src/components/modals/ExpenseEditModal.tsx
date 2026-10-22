@@ -84,23 +84,20 @@ export function ExpenseEditModal({
       setIsSubmitting(true);
       setErrorMsg(null);
 
-      try {
-        if (isEditing && formData.id) {
-          await updateExpense(formData.id, {
-            description: formData.description,
-            merchant: formData.merchant || undefined,
-            category: formData.category,
-            amount: formData.total_amount,
-          });
-        }
-      } catch (err: any) {
-        console.warn("Expense server action fallback:", err.message);
+      if (isEditing && formData.id) {
+        await updateExpense(formData.id, {
+          description: formData.description,
+          merchant: formData.merchant || undefined,
+          category: formData.category,
+          amount: formData.total_amount,
+        });
       }
 
       onSuccess(formData);
       onClose();
     } catch (err: any) {
-      setErrorMsg(err.message || "Failed to save expense voucher.");
+      console.error("Expense update error:", err);
+      setErrorMsg(err?.message || "Gagal memperbarui data pengeluaran.");
     } finally {
       setIsSubmitting(false);
     }

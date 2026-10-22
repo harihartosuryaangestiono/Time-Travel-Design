@@ -1,18 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Users, Building2, Mail, Phone, Tag, DollarSign, Loader2, Check } from "lucide-react";
+import { X, Users, Mail, Phone, MapPin, FileText, Loader2, Check } from "lucide-react";
 import { createClientRecord, updateClientRecord } from "@/app/actions/clientActions";
 
 export interface ClientFormData {
   id?: string;
   name: string;
-  company_type: string;
-  email: string;
-  phone: string;
-  status: "VIP" | "ACTIVE" | "PROSPECT";
-  total_projects: number;
-  total_billing: number;
+  contact_person?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  tax_id?: string;
 }
 
 interface ClientModalProps {
@@ -32,12 +31,11 @@ export function ClientModal({
 
   const [formData, setFormData] = useState<ClientFormData>({
     name: "",
-    company_type: "Hospitality Developer",
+    contact_person: "",
     email: "",
     phone: "",
-    status: "ACTIVE",
-    total_projects: 1,
-    total_billing: 0,
+    address: "",
+    tax_id: "",
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -48,22 +46,20 @@ export function ClientModal({
       setFormData({
         id: clientToEdit.id,
         name: clientToEdit.name || "",
-        company_type: clientToEdit.company_type || "Hospitality Developer",
+        contact_person: clientToEdit.contact_person || "",
         email: clientToEdit.email || "",
         phone: clientToEdit.phone || "",
-        status: clientToEdit.status || "ACTIVE",
-        total_projects: clientToEdit.total_projects || 1,
-        total_billing: clientToEdit.total_billing || 0,
+        address: clientToEdit.address || "",
+        tax_id: clientToEdit.tax_id || "",
       });
     } else {
       setFormData({
         name: "",
-        company_type: "Hospitality Developer",
+        contact_person: "",
         email: "",
         phone: "",
-        status: "ACTIVE",
-        total_projects: 1,
-        total_billing: 250000000,
+        address: "",
+        tax_id: "",
       });
     }
     setErrorMsg(null);
@@ -74,7 +70,7 @@ export function ClientModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim()) {
-      setErrorMsg("Client / Entity Name is required.");
+      setErrorMsg("Nama Klien / Perusahaan wajib diisi.");
       return;
     }
 
@@ -82,28 +78,31 @@ export function ClientModal({
       setIsSubmitting(true);
       setErrorMsg(null);
 
-      try {
-        if (isEditing && formData.id) {
-          await updateClientRecord(formData.id, {
-            name: formData.name,
-            email: formData.email,
-            phone: formData.phone,
-          });
-        } else {
-          await createClientRecord({
-            name: formData.name,
-            email: formData.email,
-            phone: formData.phone,
-          });
-        }
-      } catch (err: any) {
-        console.warn("Client server action fallback:", err.message);
+      let savedRecord;
+      if (isEditing && formData.id) {
+        savedRecord = await updateClientRecord(formData.id, {
+          name: formData.name.trim(),
+          contact_person: formData.contact_person?.trim() || undefined,
+          email: formData.email?.trim() || undefined,
+          phone: formData.phone?.trim() || undefined,
+          address: formData.address?.trim() || undefined,
+          tax_id: formData.tax_id?.trim() || undefined,
+        });
+      } else {
+        savedRecord = await createClientRecord({
+          name: formData.name.trim(),
+          contact_person: formData.contact_person?.trim() || undefined,
+          email: formData.email?.trim() || undefined,
+          phone: formData.phone?.trim() || undefined,
+          address: formData.address?.trim() || undefined,
+          tax_id: formData.tax_id?.trim() || undefined,
+        });
       }
 
-      onSuccess(formData);
+      onSuccess(savedRecord as ClientFormData);
       onClose();
     } catch (err: any) {
-      setErrorMsg(err.message || "Failed to save client.");
+      setErrorMsg(err.message || "Gagal menyimpan data klien.");
     } finally {
       setIsSubmitting(false);
     }
@@ -133,12 +132,12 @@ export function ClientModal({
           </div>
           <div>
             <h3 className="text-base font-bold text-zinc-950">
-              {isEditing ? "Edit Client Profile" : "Register New Client"}
+              {isEditing ? "Edit Profil Klien" : "Tambah Klien Baru"}
             </h3>
             <p className="text-xs text-zinc-500">
               {isEditing
-                ? "Update corporate contacts, billing agreements, and classification"
-                : "Add a new client account to your architectural billing network"}
+                ? "Perbarui informasi kontak, alamat, dan nomor pajak klien"
+                : "Daftarkan akun klien baru untuk penagihan dan proyek"}
             </p>
           </div>
         </div>
@@ -153,72 +152,45 @@ export function ClientModal({
           {/* Client Name */}
           <div>
             <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-              Client / Enterprise Name *
+              Nama Klien / Perusahaan *
             </label>
             <input
               type="text"
               required
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="e.g. PT Bali Resort Investama or Mr. Hendra Gunawan"
+              placeholder="Contoh: PT Bali Resort Investama atau Hendra Gunawan"
               className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 text-xs font-semibold text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Classification */}
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-                Company Type / Sector
-              </label>
-              <select
-                value={formData.company_type}
-                onChange={(e) =>
-                  setFormData({ ...formData, company_type: e.target.value })
-                }
-                className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
-              >
-                <option value="Hospitality Developer">Hospitality Developer</option>
-                <option value="Commercial F&B Enterprise">Commercial F&amp;B Enterprise</option>
-                <option value="Commercial Developer">Commercial Developer</option>
-                <option value="Private Client (Residential)">Private Client (Residential)</option>
-                <option value="Wellness & Eco Resort">Wellness &amp; Eco Resort</option>
-                <option value="Institutional / Gov">Institutional / Gov</option>
-              </select>
-            </div>
-
-            {/* Status */}
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-                Account Status
-              </label>
-              <select
-                value={formData.status}
-                onChange={(e) =>
-                  setFormData({ ...formData, status: e.target.value as any })
-                }
-                className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
-              >
-                <option value="ACTIVE">ACTIVE Account</option>
-                <option value="VIP">VIP Key Partner</option>
-                <option value="PROSPECT">PROSPECT (Under Discussion)</option>
-              </select>
-            </div>
+          {/* Contact Person */}
+          <div>
+            <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
+              Contact Person / PIC
+            </label>
+            <input
+              type="text"
+              value={formData.contact_person || ""}
+              onChange={(e) => setFormData({ ...formData, contact_person: e.target.value })}
+              placeholder="Contoh: Bpk. Andi Pratama"
+              className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
+            />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Email */}
             <div>
               <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-                Contact Email
+                Email Kontak
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
                 <input
                   type="email"
-                  value={formData.email}
+                  value={formData.email || ""}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="procurement@baliresort.com"
+                  placeholder="kontak@perusahaan.com"
                   className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
                 />
               </div>
@@ -227,64 +199,51 @@ export function ClientModal({
             {/* Phone */}
             <div>
               <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-                Phone / WhatsApp
+                Telepon / WhatsApp
               </label>
               <div className="relative">
                 <Phone className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
                 <input
                   type="text"
-                  value={formData.phone}
+                  value={formData.phone || ""}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="+62 811 9876 543"
+                  placeholder="+62 811..."
                   className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
                 />
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Total Billing */}
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-                Total Contract Portfolio (IDR)
-              </label>
-              <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-xs font-bold text-zinc-400">
-                  Rp
-                </span>
-                <input
-                  type="number"
-                  min="0"
-                  step="5000000"
-                  value={formData.total_billing || ""}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      total_billing: Number(e.target.value) || 0,
-                    })
-                  }
-                  placeholder="250000000"
-                  className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-10 pr-3 font-mono text-xs font-bold text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
-                />
-              </div>
+          {/* Address */}
+          <div>
+            <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
+              Alamat Lengkap
+            </label>
+            <div className="relative">
+              <MapPin className="absolute left-3 top-3 h-3.5 w-3.5 text-zinc-400" />
+              <textarea
+                rows={2}
+                value={formData.address || ""}
+                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                placeholder="Jl. Sunset Road No. 88, Kuta, Bali"
+                className="w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 py-2 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none resize-none"
+              />
             </div>
+          </div>
 
-            {/* Total Projects */}
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-                Active Projects Count
-              </label>
+          {/* Tax ID */}
+          <div>
+            <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
+              Nomor Pokok Wajib Pajak (NPWP)
+            </label>
+            <div className="relative">
+              <FileText className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
               <input
-                type="number"
-                min="0"
-                value={formData.total_projects}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    total_projects: Number(e.target.value) || 1,
-                  })
-                }
-                className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 font-mono text-xs font-bold text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
+                type="text"
+                value={formData.tax_id || ""}
+                onChange={(e) => setFormData({ ...formData, tax_id: e.target.value })}
+                placeholder="01.234.567.8-901.000"
+                className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 font-mono text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
               />
             </div>
           </div>
@@ -297,7 +256,7 @@ export function ClientModal({
               disabled={isSubmitting}
               className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition-colors"
             >
-              Cancel
+              Batal
             </button>
             <button
               type="submit"
@@ -307,12 +266,12 @@ export function ClientModal({
               {isSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Saving...</span>
+                  <span>Menyimpan...</span>
                 </>
               ) : (
                 <>
                   <Check className="h-4 w-4" />
-                  <span>{isEditing ? "Save Changes" : "Register Client"}</span>
+                  <span>{isEditing ? "Simpan Perubahan" : "Daftarkan Klien"}</span>
                 </>
               )}
             </button>

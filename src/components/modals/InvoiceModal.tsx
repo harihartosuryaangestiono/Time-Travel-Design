@@ -3,17 +3,20 @@
 import { useState, useEffect } from "react";
 import { X, FileText, Calendar, Building2, DollarSign, Loader2, Check } from "lucide-react";
 import { createInvoiceRecord, updateInvoiceRecord } from "@/app/actions/invoiceActions";
+import { createClient } from "@/lib/supabase/client";
 
 export interface InvoiceFormData {
   id?: string;
   number: string;
+  client_id?: string;
   client_name: string;
-  project: string;
+  project_id?: string;
+  project?: string;
   invoice_date: string;
   due_date: string;
   total: number;
   amount_paid: number;
-  status: "ISSUED" | "PAID" | "OVERDUE" | "DRAFT";
+  status: "DRAFT" | "ISSUED" | "PARTIAL" | "PAID" | "OVERDUE" | "CANCELLED" | "CREDIT_NOTE";
 }
 
 interface InvoiceModalProps {
@@ -33,7 +36,9 @@ export function InvoiceModal({
 
   const [formData, setFormData] = useState<InvoiceFormData>({
     number: "",
+    client_id: "",
     client_name: "",
+    project_id: "",
     project: "",
     invoice_date: "",
     due_date: "",
@@ -42,15 +47,59 @@ export function InvoiceModal({
     status: "ISSUED",
   });
 
+  const [clientsList, setClientsList] = useState<{ id: string; name: string }[]>([]);
+  const [projectsList, setProjectsList] = useState<{ id: string; name: string; code: string }[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!isOpen) return;
+
+    // Load available clients and projects for dropdowns
+    const loadRelations = async () => {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data: membership } = await supabase
+          .from("organization_members")
+          .select("organization_id")
+          .eq("profile_id", user.id)
+          .limit(1)
+          .maybeSingle();
+
+        if (!membership) return;
+
+        const [{ data: clientsData }, { data: projectsData }] = await Promise.all([
+          supabase
+            .from("clients")
+            .select("id, name")
+            .eq("organization_id", membership.organization_id)
+            .order("name"),
+          supabase
+            .from("projects")
+            .select("id, name, code")
+            .eq("organization_id", membership.organization_id)
+            .order("name"),
+        ]);
+
+        if (clientsData) setClientsList(clientsData);
+        if (projectsData) setProjectsList(projectsData);
+      } catch (err) {
+        console.error("Error loading clients/projects:", err);
+      }
+    };
+
+    loadRelations();
+
     if (invoiceToEdit) {
       setFormData({
         id: invoiceToEdit.id,
         number: invoiceToEdit.number || "",
+        client_id: invoiceToEdit.client_id || "",
         client_name: invoiceToEdit.client_name || "",
+        project_id: invoiceToEdit.project_id || "",
         project: invoiceToEdit.project || "",
         invoice_date: invoiceToEdit.invoice_date || "",
         due_date: invoiceToEdit.due_date || "",
@@ -66,11 +115,13 @@ export function InvoiceModal({
 
       setFormData({
         number: `INV-${year}-${randNum}`,
+        client_id: "",
         client_name: "",
+        project_id: "",
         project: "",
         invoice_date: today,
         due_date: dueDate,
-        total: 75000000,
+        total: 0,
         amount_paid: 0,
         status: "ISSUED",
       });
@@ -82,8 +133,12 @@ export function InvoiceModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.number.trim() || !formData.client_name.trim()) {
-      setErrorMsg("Invoice Number and Client Name are required.");
+    if (!formData.number.trim()) {
+      setErrorMsg("Nomor invoice wajib diisi.");
+      return;
+    }
+    if (!formData.client_name.trim() && !formData.client_id) {
+      setErrorMsg("Nama klien atau instansi wajib dipilih.");
       return;
     }
 
@@ -91,34 +146,70 @@ export function InvoiceModal({
       setIsSubmitting(true);
       setErrorMsg(null);
 
-      try {
-        if (isEditing && formData.id) {
-          await updateInvoiceRecord(formData.id, {
-            number: formData.number,
-            invoice_date: formData.invoice_date,
-            due_date: formData.due_date,
-            total: formData.total,
-            amount_paid: formData.amount_paid,
-            status: formData.status,
-          });
+      // If user selected or typed client, ensure client_id is resolved if possible
+      let resolvedClientId = formData.client_id;
+      if (!resolvedClientId && formData.client_name) {
+        const matched = clientsList.find(
+          (c) => c.name.toLowerCase() === formData.client_name.trim().toLowerCase()
+        );
+        if (matched) {
+          resolvedClientId = matched.id;
         } else {
-          await createInvoiceRecord({
-            number: formData.number,
-            invoice_date: formData.invoice_date,
-            due_date: formData.due_date,
-            total: formData.total,
-            amount_paid: formData.amount_paid,
-            status: formData.status,
-          });
+          // Create client record in database
+          const supabase = createClient();
+          const { data: { user } } = await supabase.auth.getUser();
+          const { data: membership } = await supabase
+            .from("organization_members")
+            .select("organization_id")
+            .eq("profile_id", user?.id)
+            .limit(1)
+            .maybeSingle();
+
+          if (membership) {
+            const { data: newClient } = await supabase
+              .from("clients")
+              .insert({
+                organization_id: membership.organization_id,
+                name: formData.client_name.trim(),
+              })
+              .select("id")
+              .single();
+
+            if (newClient) resolvedClientId = newClient.id;
+          }
         }
-      } catch (err: any) {
-        console.warn("Invoice server action fallback:", err.message);
       }
 
-      onSuccess(formData);
+      let savedRecord: any = null;
+      if (isEditing && formData.id) {
+        savedRecord = await updateInvoiceRecord(formData.id, {
+          number: formData.number,
+          invoice_date: formData.invoice_date,
+          due_date: formData.due_date,
+          total: Number(formData.total) || 0,
+          amount_paid: Number(formData.amount_paid) || 0,
+          client_id: resolvedClientId || undefined,
+          project_id: formData.project_id || undefined,
+          status: formData.status as any,
+        });
+      } else {
+        savedRecord = await createInvoiceRecord({
+          number: formData.number,
+          invoice_date: formData.invoice_date,
+          due_date: formData.due_date,
+          total: Number(formData.total) || 0,
+          amount_paid: Number(formData.amount_paid) || 0,
+          client_id: resolvedClientId || undefined,
+          project_id: formData.project_id || undefined,
+          status: formData.status as any,
+        });
+      }
+
+      onSuccess(savedRecord || { ...formData, client_id: resolvedClientId });
       onClose();
     } catch (err: any) {
-      setErrorMsg(err.message || "Failed to save invoice.");
+      console.error("Save invoice error:", err);
+      setErrorMsg(err?.message || "Gagal menyimpan invoice.");
     } finally {
       setIsSubmitting(false);
     }
@@ -133,7 +224,7 @@ export function InvoiceModal({
       />
 
       {/* Modal Dialog */}
-      <div className="relative w-full max-w-xl rounded-3xl border border-zinc-200/90 bg-white p-7 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+      <div className="relative w-full max-w-lg rounded-3xl border border-zinc-200 bg-white p-6 shadow-2xl transition-all max-h-[90vh] overflow-y-auto">
         <button
           type="button"
           onClick={onClose}
@@ -148,12 +239,12 @@ export function InvoiceModal({
           </div>
           <div>
             <h3 className="text-base font-bold text-zinc-950">
-              {isEditing ? "Edit Client Invoice" : "Issue Client Milestone Invoice"}
+              {isEditing ? "Edit Invoice Klien" : "Terbitkan Invoice Termin Baru"}
             </h3>
             <p className="text-xs text-zinc-500">
               {isEditing
-                ? "Update billing milestones, payment settlement, and due dates"
-                : "Generate a formal architectural fee invoice and accounts receivable voucher"}
+                ? "Perbarui detail termin, pembayaran masuk, dan tanggal jatuh tempo"
+                : "Catat invoice piutang termin proyek atau jasa desain"}
             </p>
           </div>
         </div>
@@ -169,14 +260,14 @@ export function InvoiceModal({
             {/* Invoice Ref Number */}
             <div>
               <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-                Invoice Reference *
+                Nomor Invoice *
               </label>
               <input
                 type="text"
                 required
                 value={formData.number}
                 onChange={(e) => setFormData({ ...formData, number: e.target.value })}
-                placeholder="e.g. INV-2024-0019"
+                placeholder="e.g. INV-2026-0001"
                 className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 font-mono text-xs font-semibold text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
               />
             </div>
@@ -184,7 +275,7 @@ export function InvoiceModal({
             {/* Status */}
             <div>
               <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-                Billing Status
+                Status Pembayaran
               </label>
               <select
                 value={formData.status}
@@ -193,49 +284,97 @@ export function InvoiceModal({
                 }
                 className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
               >
-                <option value="ISSUED">ISSUED (Awaiting Client Remittance)</option>
-                <option value="PAID">PAID (Settled in Full)</option>
-                <option value="OVERDUE">OVERDUE (Payment Grace Period Expired)</option>
-                <option value="DRAFT">DRAFT (Internal Review)</option>
+                <option value="ISSUED">ISSUED (Menunggu Pembayaran)</option>
+                <option value="PARTIAL">PARTIAL (Dibayar Sebagian)</option>
+                <option value="PAID">PAID (Lunas 100%)</option>
+                <option value="OVERDUE">OVERDUE (Jatuh Tempo Terlewati)</option>
+                <option value="DRAFT">DRAFT (Draft Internal)</option>
+                <option value="CANCELLED">CANCELLED (Dibatalkan)</option>
               </select>
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Client Name */}
+            {/* Client Select / Name */}
             <div>
               <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-                Client / Commissioning Entity *
+                Klien / Pemberi Tugas *
               </label>
-              <div className="relative">
-                <Building2 className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
-                <input
-                  type="text"
-                  required
-                  value={formData.client_name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, client_name: e.target.value })
-                  }
-                  placeholder="e.g. PT Sinarmas Mitra Kreasi"
-                  className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
-                />
-              </div>
+              {clientsList.length > 0 ? (
+                <select
+                  value={formData.client_id}
+                  onChange={(e) => {
+                    const selectedId = e.target.value;
+                    const c = clientsList.find((item) => item.id === selectedId);
+                    setFormData({
+                      ...formData,
+                      client_id: selectedId,
+                      client_name: c ? c.name : formData.client_name,
+                    });
+                  }}
+                  className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
+                >
+                  <option value="">Pilih Klien Terdaftar...</option>
+                  {clientsList.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="relative">
+                  <Building2 className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
+                  <input
+                    type="text"
+                    required
+                    value={formData.client_name}
+                    onChange={(e) =>
+                      setFormData({ ...formData, client_name: e.target.value })
+                    }
+                    placeholder="Nama klien / perusahaan..."
+                    className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
+                  />
+                </div>
+              )}
             </div>
 
-            {/* Project Milestone */}
+            {/* Project Select */}
             <div>
               <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-                Project &amp; Milestone Phase
+                Proyek Terkait
               </label>
-              <input
-                type="text"
-                value={formData.project}
-                onChange={(e) =>
-                  setFormData({ ...formData, project: e.target.value })
-                }
-                placeholder="e.g. Serpong Feasibility Study (Milestone 2)"
-                className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
-              />
+              {projectsList.length > 0 ? (
+                <select
+                  value={formData.project_id || ""}
+                  onChange={(e) => {
+                    const selectedId = e.target.value;
+                    const p = projectsList.find((item) => item.id === selectedId);
+                    setFormData({
+                      ...formData,
+                      project_id: selectedId,
+                      project: p ? p.name : "",
+                    });
+                  }}
+                  className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
+                >
+                  <option value="">Pilih Proyek (Opsional)...</option>
+                  {projectsList.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={formData.project || ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, project: e.target.value })
+                  }
+                  placeholder="Keterangan termin / milestone..."
+                  className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
+                />
+              )}
             </div>
           </div>
 
@@ -243,7 +382,7 @@ export function InvoiceModal({
             {/* Invoice Date */}
             <div>
               <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-                Issue Date
+                Tanggal Terbit
               </label>
               <input
                 type="date"
@@ -259,7 +398,7 @@ export function InvoiceModal({
             {/* Due Date */}
             <div>
               <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-                Payment Due Date
+                Jatuh Tempo
               </label>
               <input
                 type="date"
@@ -274,10 +413,10 @@ export function InvoiceModal({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Total Amount */}
+            {/* Total Billing */}
             <div>
               <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-                Total Invoiced Amount (IDR)
+                Nilai Tagihan Total (IDR) *
               </label>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-xs font-bold text-zinc-400">
@@ -286,13 +425,17 @@ export function InvoiceModal({
                 <input
                   type="number"
                   min="0"
-                  step="1000000"
+                  step="50000"
+                  required
                   value={formData.total || ""}
                   onChange={(e) =>
-                    setFormData({ ...formData, total: Number(e.target.value) || 0 })
+                    setFormData({
+                      ...formData,
+                      total: Number(e.target.value) || 0,
+                    })
                   }
-                  placeholder="75000000"
-                  className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-10 pr-3 font-mono text-xs font-bold text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
+                  placeholder="0"
+                  className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3.5 font-mono text-xs font-bold text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
                 />
               </div>
             </div>
@@ -300,7 +443,7 @@ export function InvoiceModal({
             {/* Amount Paid */}
             <div>
               <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-                Amount Received / Paid (IDR)
+                Telah Dibayar (IDR)
               </label>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-xs font-bold text-zinc-400">
@@ -309,7 +452,7 @@ export function InvoiceModal({
                 <input
                   type="number"
                   min="0"
-                  step="1000000"
+                  step="50000"
                   value={formData.amount_paid || ""}
                   onChange={(e) =>
                     setFormData({
@@ -318,36 +461,35 @@ export function InvoiceModal({
                     })
                   }
                   placeholder="0"
-                  className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-10 pr-3 font-mono text-xs font-bold text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
+                  className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3.5 font-mono text-xs font-bold text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
                 />
               </div>
             </div>
           </div>
 
-          {/* Footer Controls */}
-          <div className="mt-6 flex items-center justify-end gap-2.5 border-t border-zinc-100 pt-4">
+          <div className="mt-6 flex items-center justify-end gap-2 border-t border-zinc-100 pt-4">
             <button
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
               className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition-colors"
             >
-              Cancel
+              Batal
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex items-center gap-2 rounded-xl bg-zinc-950 px-5 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-black disabled:opacity-50 transition-colors"
+              className="flex items-center gap-2 rounded-xl bg-zinc-950 px-5 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-black active:scale-95 transition-all disabled:opacity-50"
             >
               {isSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Saving...</span>
+                  <span>Menyimpan...</span>
                 </>
               ) : (
                 <>
                   <Check className="h-4 w-4" />
-                  <span>{isEditing ? "Save Changes" : "Issue Invoice"}</span>
+                  <span>{isEditing ? "Simpan Perubahan" : "Terbitkan Invoice"}</span>
                 </>
               )}
             </button>

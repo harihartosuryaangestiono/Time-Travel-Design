@@ -49,13 +49,12 @@ export function CashAccountModal({
         account_number: accountToEdit.account_number || "",
         opening_balance: accountToEdit.opening_balance || 0,
       });
-    } else {
       setFormData({
         name: "",
         type: "BANK",
         bank_name: "Bank Central Asia (BCA)",
         account_number: "",
-        opening_balance: 100000000,
+        opening_balance: 0,
       });
     }
     setErrorMsg(null);
@@ -66,7 +65,7 @@ export function CashAccountModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim()) {
-      setErrorMsg("Account Name is required.");
+      setErrorMsg("Nama akun kas/bank wajib diisi.");
       return;
     }
 
@@ -74,32 +73,30 @@ export function CashAccountModal({
       setIsSubmitting(true);
       setErrorMsg(null);
 
-      try {
-        if (isEditing && formData.id) {
-          await updateCashAccountRecord(formData.id, {
-            name: formData.name,
-            type: formData.type as "BANK" | "CASH",
-            bank_name: formData.bank_name,
-            account_number: formData.account_number,
-            opening_balance: formData.opening_balance,
-          });
-        } else {
-          await createCashAccountRecord({
-            name: formData.name,
-            type: formData.type as "BANK" | "CASH",
-            bank_name: formData.bank_name,
-            account_number: formData.account_number,
-            opening_balance: formData.opening_balance,
-          });
-        }
-      } catch (err: any) {
-        console.warn("Cash Account server action fallback:", err.message);
+      let savedRecord: any = null;
+      if (isEditing && formData.id) {
+        savedRecord = await updateCashAccountRecord(formData.id, {
+          name: formData.name,
+          type: formData.type as "BANK" | "CASH",
+          bank_name: formData.bank_name,
+          account_number: formData.account_number,
+          opening_balance: Number(formData.opening_balance) || 0,
+        });
+      } else {
+        savedRecord = await createCashAccountRecord({
+          name: formData.name,
+          type: formData.type as "BANK" | "CASH",
+          bank_name: formData.bank_name,
+          account_number: formData.account_number,
+          opening_balance: Number(formData.opening_balance) || 0,
+        });
       }
 
-      onSuccess(formData);
+      onSuccess(savedRecord || formData);
       onClose();
     } catch (err: any) {
-      setErrorMsg(err.message || "Failed to save cash account.");
+      console.error("Cash Account server action error:", err);
+      setErrorMsg(err?.message || "Gagal menyimpan akun kas/bank.");
     } finally {
       setIsSubmitting(false);
     }

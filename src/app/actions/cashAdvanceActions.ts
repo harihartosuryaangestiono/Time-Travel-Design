@@ -294,3 +294,95 @@ export async function settleCashAdvance(
   revalidatePath("/cash-advances");
   return { success: true };
 }
+
+export async function deleteCashAdvance(id: string) {
+  const user = await requireAuthUser();
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("cash_advances")
+    .delete()
+    .eq("id", id)
+    .eq("organization_id", user.organizationId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/cash-advances");
+  return { success: true };
+}
+
+export async function saveCashAdvanceRecord(input: {
+  id?: string;
+  number?: string;
+  date: string;
+  purpose: string;
+  amount: number;
+  status: CashAdvanceStatus;
+  notes?: string;
+}) {
+  const user = await requireAuthUser();
+  const supabase = await createClient();
+
+  if (input.id) {
+    const { data, error } = await supabase
+      .from("cash_advances")
+      .update({
+        date: input.date,
+        purpose: input.purpose,
+        amount: input.amount,
+        disbursed_amount:
+          input.status === "DISBURSED" ||
+          input.status === "PARTIALLY_SETTLED" ||
+          input.status === "SETTLED"
+            ? input.amount
+            : 0,
+        status: input.status,
+        notes: input.notes,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", input.id)
+      .eq("organization_id", user.organizationId)
+      .select()
+      .single();
+
+    if (error) throw new Error(error.message);
+    revalidatePath("/cash-advances");
+    return data;
+  } else {
+    const date = new Date(input.date || Date.now());
+    const yearMonth = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}`;
+    const randNum = String(Math.floor(Math.random() * 9000) + 1000);
+    const number = input.number || `CA-${yearMonth}-${randNum}`;
+
+    const { data, error } = await supabase
+      .from("cash_advances")
+      .insert({
+        organization_id: user.organizationId,
+        number,
+        date: input.date,
+        employee_id: user.profileId || user.id,
+        purpose: input.purpose,
+        amount: input.amount,
+        disbursed_amount:
+          input.status === "DISBURSED" ||
+          input.status === "PARTIALLY_SETTLED" ||
+          input.status === "SETTLED"
+            ? input.amount
+            : 0,
+        settled_amount: 0,
+        returned_amount: 0,
+        status: input.status,
+        notes: input.notes,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(error.message);
+    revalidatePath("/cash-advances");
+    return data;
+  }
+}
+
+

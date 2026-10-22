@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { saveCashAdvanceRecord } from "@/app/actions/cashAdvanceActions";
 import { X, Coins, User, Calendar, DollarSign, Loader2, Check } from "lucide-react";
 
 export interface CashAdvanceFormData {
@@ -67,9 +68,9 @@ export function CashAdvanceModal({
         number: `CA-${year}-${randNum}`,
         date: new Date().toISOString().split("T")[0],
         purpose: "",
-        employee: "Rian Pratama (Lead Architect)",
-        amount: 5000000,
-        disbursed_amount: 5000000,
+        employee: "",
+        amount: 0,
+        disbursed_amount: 0,
         settled_amount: 0,
         returned_amount: 0,
         status: "DISBURSED",
@@ -83,17 +84,32 @@ export function CashAdvanceModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.purpose.trim() || !formData.employee.trim()) {
-      setErrorMsg("Recipient employee and operational purpose are required.");
+      setErrorMsg("Nama penerima kasbon dan tujuan operasional wajib diisi.");
+      return;
+    }
+    if ((Number(formData.amount) || 0) <= 0 && (Number(formData.disbursed_amount) || 0) <= 0) {
+      setErrorMsg("Nominal kasbon harus lebih dari 0.");
       return;
     }
 
     try {
       setIsSubmitting(true);
       setErrorMsg(null);
-      onSuccess(formData);
+
+      const saved = await saveCashAdvanceRecord({
+        id: formData.id,
+        number: formData.number,
+        date: formData.date,
+        purpose: formData.purpose,
+        amount: Number(formData.amount) || Number(formData.disbursed_amount) || 0,
+        status: formData.status,
+      });
+
+      onSuccess(saved || formData);
       onClose();
     } catch (err: any) {
-      setErrorMsg(err.message || "Failed to save cash advance.");
+      console.error("Cash advance save error:", err);
+      setErrorMsg(err?.message || "Gagal menyimpan pengajuan kasbon.");
     } finally {
       setIsSubmitting(false);
     }
