@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI, Type } from "@google/genai";
+import { createClient } from "@/lib/supabase/server";
 
 interface ScannedLineItem {
   id: string;
@@ -10,14 +11,68 @@ interface ScannedLineItem {
   subtotal: number;
 }
 
+// In-memory rate limiting: Map<userId, { count: number, resetAt: number }>
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const MAX_REQUESTS_PER_MINUTE = 20;
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const MAX_BASE64_SIZE_BYTES = 8 * 1024 * 1024; // ~6MB binary data in base64
+
 export async function POST(req: NextRequest) {
   try {
-    const { imageBase64, mimeType = "image/jpeg" } = await req.json();
+    // 1. Authenticate user
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
 
-    if (!imageBase64) {
+    if (authError || !user) {
       return NextResponse.json(
-        { error: "Image data is required" },
+        { error: "Unauthorized. Authentication is required to scan receipts." },
+        { status: 401 }
+      );
+    }
+
+    // 2. In-memory Rate Limiting per user
+    const now = Date.now();
+    const userLimit = rateLimitMap.get(user.id);
+    if (userLimit && now < userLimit.resetAt) {
+      if (userLimit.count >= MAX_REQUESTS_PER_MINUTE) {
+        return NextResponse.json(
+          { error: "Rate limit exceeded. Please wait a minute before scanning more receipts." },
+          { status: 429 }
+        );
+      }
+      userLimit.count += 1;
+    } else {
+      rateLimitMap.set(user.id, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    }
+
+    // Clean old entries periodically
+    if (rateLimitMap.size > 1000) {
+      rateLimitMap.forEach((val, key) => {
+        if (now >= val.resetAt) {
+          rateLimitMap.delete(key);
+        }
+      });
+    }
+
+    // 3. Parse and validate body
+    const body = await req.json();
+    const { imageBase64, mimeType = "image/jpeg" } = body;
+
+    if (!imageBase64 || typeof imageBase64 !== "string") {
+      return NextResponse.json(
+        { error: "Image data (base64 string) is required" },
         { status: 400 }
+      );
+    }
+
+    // Check payload size
+    if (imageBase64.length > MAX_BASE64_SIZE_BYTES) {
+      return NextResponse.json(
+        { error: "Image payload exceeds maximum limit of 6MB. Please compress the image." },
+        { status: 413 }
       );
     }
 
@@ -139,8 +194,7 @@ Extract the exact real data from this specific receipt:
       items: mappedItems,
       totalBilled: parsed.totalBilled,
       notes: parsed.notes || "",
-      confidence: 99.4,
-      source: "gemini-2.5-flash-vision",
+      source: "gemini-3.8-flash",
     });
   } catch (err: any) {
     console.error("OCR Scanner Route Error:", err);
@@ -150,3 +204,4 @@ Extract the exact real data from this specific receipt:
     );
   }
 }
+

@@ -1,7 +1,8 @@
 // Database Seed for TimeTravelDesign Finance
 // This file is for development/demo purposes only
 
-import { PrismaClient, AccountType, NormalBalance } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
+import { DEFAULT_CHART_OF_ACCOUNTS } from "../src/lib/accounting/defaultCoa";
 
 const prisma = new PrismaClient();
 
@@ -61,57 +62,8 @@ async function main() {
 
   console.log("Created admin user");
 
-  // Create chart of accounts with proper types
-  const accounts: Array<{
-    code: string;
-    name: string;
-    type: AccountType;
-    normal_balance: NormalBalance;
-  }> = [
-    // Assets
-    { code: "1100", name: "Kas", type: "ASSET", normal_balance: "DEBIT" },
-    { code: "1110", name: "Bank BCA", type: "ASSET", normal_balance: "DEBIT" },
-    { code: "1120", name: "Bank Mandiri", type: "ASSET", normal_balance: "DEBIT" },
-    { code: "1200", name: "Piutang Usaha", type: "ASSET", normal_balance: "DEBIT" },
-    { code: "1300", name: "Piutang Karyawan (Kasbon)", type: "ASSET", normal_balance: "DEBIT" },
-    { code: "1400", name: "Persediaan Material", type: "ASSET", normal_balance: "DEBIT" },
-    { code: "1500", name: "Aset Tetap", type: "ASSET", normal_balance: "DEBIT" },
-    { code: "1600", name: "Akumulasi Penyusutan", type: "ASSET", normal_balance: "CREDIT" },
-
-    // Liabilities
-    { code: "2100", name: "Hutang Usaha", type: "LIABILITY", normal_balance: "CREDIT" },
-    { code: "2200", name: "Hutang PPN", type: "LIABILITY", normal_balance: "CREDIT" },
-    { code: "2300", name: "Hutang Gaji", type: "LIABILITY", normal_balance: "CREDIT" },
-    { code: "2400", name: "Uang Muka Pelanggan", type: "LIABILITY", normal_balance: "CREDIT" },
-
-    // Equity
-    { code: "3100", name: "Modal Saham", type: "EQUITY", normal_balance: "CREDIT" },
-    { code: "3200", name: "Laba Ditahan", type: "EQUITY", normal_balance: "CREDIT" },
-    { code: "3300", name: "Laba/Rugi Tahun Berjalan", type: "EQUITY", normal_balance: "CREDIT" },
-
-    // Revenue
-    { code: "4100", name: "Pendapatan Jasa Arsitektur", type: "REVENUE", normal_balance: "CREDIT" },
-    { code: "4200", name: "Pendapatan Desain Interior", type: "REVENUE", normal_balance: "CREDIT" },
-    { code: "4300", name: "Pendapatan Konstruksi", type: "REVENUE", normal_balance: "CREDIT" },
-    { code: "4400", name: "Pendapatan Lainnya", type: "OTHER_INCOME", normal_balance: "CREDIT" },
-
-    // Cost of Sales / Project Costs
-    { code: "5100", name: "Biaya Material Proyek", type: "COST_OF_SALES", normal_balance: "DEBIT" },
-    { code: "5200", name: "Biaya Tenaga Kerja Proyek", type: "COST_OF_SALES", normal_balance: "DEBIT" },
-    { code: "5300", name: "Biaya Subkontrak", type: "COST_OF_SALES", normal_balance: "DEBIT" },
-
-    // Expenses
-    { code: "6100", name: "Beban Gaji", type: "EXPENSE", normal_balance: "DEBIT" },
-    { code: "6200", name: "Beban Sewa", type: "EXPENSE", normal_balance: "DEBIT" },
-    { code: "6300", name: "Beban Listrik & Air", type: "EXPENSE", normal_balance: "DEBIT" },
-    { code: "6400", name: "Beban Transportasi", type: "EXPENSE", normal_balance: "DEBIT" },
-    { code: "6500", name: "Beban Komunikasi", type: "EXPENSE", normal_balance: "DEBIT" },
-    { code: "6600", name: "Beban Perlengkapan Kantor", type: "EXPENSE", normal_balance: "DEBIT" },
-    { code: "6700", name: "Beban Penyusutan", type: "EXPENSE", normal_balance: "DEBIT" },
-    { code: "6800", name: "Beban Lainnya", type: "OTHER_EXPENSE", normal_balance: "DEBIT" },
-  ];
-
-  for (const acc of accounts) {
+  // Create chart of accounts using unified default COA
+  for (const acc of DEFAULT_CHART_OF_ACCOUNTS) {
     await prisma.account.create({
       data: {
         organization_id: org.id,
@@ -120,7 +72,7 @@ async function main() {
         type: acc.type,
         normal_balance: acc.normal_balance,
         is_active: true,
-        is_system: ["1100", "1110", "1200", "2100", "3100"].includes(acc.code),
+        is_system: acc.is_system,
       },
     });
   }

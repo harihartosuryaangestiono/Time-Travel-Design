@@ -12,7 +12,7 @@ export default function SetupOrganizationPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [formData, setFormData] = useState({
-    organizationName: "Time Travel Design",
+    organizationName: "",
     address: "",
     phone: "",
     email: "",
@@ -79,7 +79,7 @@ export default function SetupOrganizationPage() {
                 value={formData.organizationName}
                 onChange={(e) => setFormData({ ...formData, organizationName: e.target.value })}
                 className="mt-2 block w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/10 transition-all shadow-sm"
-                placeholder="Time Travel Design"
+                placeholder="PT. Ruma Inovasi Indonesia / Time Travel Design"
                 required
               />
             </div>

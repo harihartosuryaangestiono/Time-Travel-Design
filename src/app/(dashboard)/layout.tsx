@@ -1,41 +1,34 @@
-"use client";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import DashboardClientShell from "@/components/layout/DashboardClientShell";
 
-import { useState } from "react";
-import Sidebar from "@/components/layout/Sidebar";
-import Header from "@/components/layout/Header";
-import { cn } from "@/lib/utils";
-
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const supabase = await createClient();
 
-  return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 antialiased font-sans flex">
-      {/* Sidebar with mobile drawer & desktop collapse support */}
-      <Sidebar
-        collapsed={collapsed}
-        onToggleCollapse={() => setCollapsed(!collapsed)}
-        mobileOpen={mobileOpen}
-        onMobileClose={() => setMobileOpen(false)}
-      />
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
 
-      {/* Main Content Area: zero padding on mobile/tablet, responsive padding on desktop */}
-      <div
-        className={cn(
-          "flex flex-1 flex-col transition-all duration-300 min-w-0 w-full",
-          "pl-0",
-          collapsed ? "lg:pl-20" : "lg:pl-64"
-        )}
-      >
-        <Header onOpenMobileMenu={() => setMobileOpen(true)} />
-        <main className="flex-1 p-3 sm:p-5 md:p-6 lg:p-8 max-w-[1600px] w-full mx-auto overflow-x-hidden">
-          {children}
-        </main>
-      </div>
-    </div>
-  );
+  if (authError || !user) {
+    redirect("/login");
+  }
+
+  // Ensure user has at least one organization membership
+  const { data: membership } = await supabase
+    .from("organization_members")
+    .select("id, organization_id")
+    .eq("profile_id", user.id)
+    .limit(1)
+    .maybeSingle();
+
+  if (!membership) {
+    redirect("/setup-organization");
+  }
+
+  return <DashboardClientShell>{children}</DashboardClientShell>;
 }

@@ -23,7 +23,7 @@ export async function signIn(email: string, password: string) {
       .from("profiles")
       .select("id, full_name")
       .eq("id", data.user.id)
-      .single();
+      .maybeSingle();
 
     if (!profile && data.user.email) {
       await supabase.from("profiles").upsert({
@@ -38,7 +38,8 @@ export async function signIn(email: string, password: string) {
       .from("organization_members")
       .select("id")
       .eq("profile_id", data.user.id)
-      .single();
+      .limit(1)
+      .maybeSingle();
 
     // If no membership, return special flag to redirect to setup
     if (!membership) {
@@ -64,7 +65,7 @@ export async function signUp(
     .from("profiles")
     .select("id")
     .eq("email", email)
-    .single();
+    .maybeSingle();
 
   if (existingUser) {
     return { error: "Email sudah terdaftar" };
@@ -111,9 +112,10 @@ export async function signOut() {
 
 export async function resetPassword(email: string) {
   const supabase = await createClient();
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : "");
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback/reset-password`,
+    redirectTo: `${appUrl}/auth/callback/reset-password`,
   });
 
   if (error) {
@@ -146,28 +148,19 @@ export async function getCurrentUser(): Promise<User | null> {
 
   if (!user) return null;
 
-  // Get profile with organization membership
+  // Get profile safely
   const { data: profile } = await supabase
     .from("profiles")
     .select("*")
     .eq("id", user.id)
-    .single();
-
-  if (!profile) return null;
-
-  // Get organization membership
-  const { data: membership } = await supabase
-    .from("organization_members")
-    .select("*")
-    .eq("profile_id", user.id)
-    .single();
+    .maybeSingle();
 
   return {
     id: user.id,
-    email: user.email || profile.email,
-    full_name: profile.full_name || undefined,
-    phone: profile.phone || undefined,
-    avatar_url: profile.avatar_url || undefined,
+    email: user.email || profile?.email || "",
+    full_name: profile?.full_name || undefined,
+    phone: profile?.phone || undefined,
+    avatar_url: profile?.avatar_url || undefined,
   } as User;
 }
 
@@ -182,7 +175,8 @@ export async function getOrganizationMembership(userId: string) {
       organization:organizations(*)
     `)
     .eq("profile_id", userId)
-    .single();
+    .limit(1)
+    .maybeSingle();
 
   if (error) return null;
   return data;
