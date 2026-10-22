@@ -13,17 +13,20 @@ import {
   AlertCircle,
   RefreshCw,
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { StatCard } from "@/components/ui/StatCard";
 import { CashAccountModal, CashAccountFormData } from "@/components/modals/CashAccountModal";
 import { DeleteConfirmDialog } from "@/components/modals/DeleteConfirmDialog";
-import { deleteCashAccountRecord } from "@/app/actions/cashAccountActions";
+import {
+  getCashAccountsWithBalances,
+  deleteCashAccountRecord,
+} from "@/app/actions/cashAccountActions";
 
 interface CashAccount {
   id: string;
   name: string;
   type: string;
   opening_balance: number;
+  current_balance: number;
   bank_name: string | null;
   account_number: string | null;
 }
@@ -53,50 +56,8 @@ export default function CashAccountsPage() {
     try {
       setIsLoading(true);
       setError(null);
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        setIsLoading(false);
-        return;
-      }
-
-      const { data: membership } = await supabase
-        .from("organization_members")
-        .select("organization_id")
-        .eq("profile_id", user.id)
-        .limit(1)
-        .maybeSingle();
-
-      if (!membership) {
-        setIsLoading(false);
-        return;
-      }
-
-      const { data, error: fetchErr } = await supabase
-        .from("cash_accounts")
-        .select("*")
-        .eq("organization_id", membership.organization_id)
-        .eq("is_active", true)
-        .order("type");
-
-      if (fetchErr) {
-        throw new Error(fetchErr.message);
-      }
-
-      const mapped: CashAccount[] = (data || []).map((a) => {
-        const rawBal = parseFloat(a.opening_balance || "0");
-        return {
-          id: a.id,
-          name: a.name,
-          type: a.type,
-          opening_balance: isNaN(rawBal) ? 0 : rawBal,
-          bank_name: a.bank_name,
-          account_number: a.account_number,
-        };
-      });
-      setAccounts(mapped);
+      const data = await getCashAccountsWithBalances();
+      setAccounts(data);
     } catch (e: any) {
       console.error("Error fetching cash accounts:", e);
       setError(e?.message || "Gagal memuat daftar akun kas.");
@@ -129,42 +90,84 @@ export default function CashAccountsPage() {
     }
   };
 
-  const totalBalance = accounts.reduce((sum, acc) => sum + (isNaN(acc.opening_balance) ? 0 : acc.opening_balance), 0);
+  // Saldo dihitung dari opening_balance + mutasi berjalan (current_balance)
+  const totalBalance = accounts.reduce((sum, acc) => sum + (isNaN(acc.current_balance) ? 0 : acc.current_balance), 0);
   const bankTotal = accounts
     .filter((a) => a.type === "BANK")
-    .reduce((sum, acc) => sum + (isNaN(acc.opening_balance) ? 0 : acc.opening_balance), 0);
+    .reduce((sum, acc) => sum + (isNaN(acc.current_balance) ? 0 : acc.current_balance), 0);
   const cashTotal = accounts
     .filter((a) => a.type === "CASH")
-    .reduce((sum, acc) => sum + (isNaN(acc.opening_balance) ? 0 : acc.opening_balance), 0);
+    .reduce((sum, acc) => sum + (isNaN(acc.current_balance) ? 0 : acc.current_balance), 0);
 
   return (
-    <div className="space-y-8 pb-12 animate-in fade-in duration-300">
-      {/* ── Top Summary Statistics ── */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+    <div className="space-y-6 pb-12 animate-in fade-in duration-300">
+      {/* ── Page Header ── */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight text-zinc-950 sm:text-2xl">
+            Rekening Bank &amp; Kas Perusahaan
+          </h2>
+          <p className="text-xs text-zinc-500 mt-0.5">
+            Manajemen likuiditas kas, saldo riil mutasi tanpa menimpa saldo awal
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          <Link
+            href="/transfers"
+            className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-xs font-semibold text-zinc-700 shadow-sm hover:bg-zinc-50 transition-all"
+          >
+            <ArrowRightLeft className="h-4 w-4 text-zinc-500" />
+            <span>Transfer Antar Rekening</span>
+          </Link>
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedAccount(null);
+              setShowModal(true);
+            }}
+            className="flex items-center gap-2 rounded-xl bg-zinc-950 px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-black active:scale-95 transition-all"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Tambah Rekening</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ── Top Summary KPIs ── */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          title="Total Likuiditas Kas & Bank"
+          title="Total Likuiditas Kas"
           value={isLoading ? "..." : formatCurrency(totalBalance)}
-          subtitle="Saldo gabungan kas kecil & rekening operasional"
+          subtitle="Saldo riil (Saldo Awal + Seluruh Mutasi)"
           icon={Wallet}
           iconBgColor="bg-emerald-500/10"
           iconColor="text-emerald-700"
           gradient
         />
         <StatCard
-          title="Rekening Bank Operasional"
+          title="Kas di Bank"
           value={isLoading ? "..." : formatCurrency(bankTotal)}
-          subtitle="Saldo pada rekening bank komersial"
+          subtitle="Giro &amp; tabungan operasional"
           icon={CreditCard}
-          iconBgColor="bg-sky-500/10"
-          iconColor="text-sky-700"
+          iconBgColor="bg-blue-500/10"
+          iconColor="text-blue-700"
         />
         <StatCard
-          title="Kas Kecil (Petty Cash)"
+          title="Kas Kecil / Tunai"
           value={isLoading ? "..." : formatCurrency(cashTotal)}
-          subtitle="Dana tunai untuk kebutuhan operasional harian"
+          subtitle="Petty cash kantor &amp; lapangan"
           icon={Coins}
           iconBgColor="bg-amber-500/10"
           iconColor="text-amber-700"
+        />
+        <StatCard
+          title="Rekening Aktif"
+          value={isLoading ? "..." : `${accounts.length} Akun`}
+          subtitle="Rekening kas &amp; bank terdaftar"
+          icon={ArrowRightLeft}
+          iconBgColor="bg-zinc-100"
+          iconColor="text-zinc-950"
         />
       </div>
 
@@ -186,47 +189,13 @@ export default function CashAccountsPage() {
         </div>
       )}
 
-      {/* ── Action Bar ── */}
-      <div className="flex flex-col gap-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h3 className="text-base font-bold text-zinc-950">
-            Daftar Akun Kas &amp; Bank Perusahaan
-          </h3>
-          <p className="text-xs text-zinc-500 mt-0.5">
-            Kelola rekening bank, brankas kas kecil, dan mutasi saldo antar akun
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedAccount(null);
-              setShowModal(true);
-            }}
-            className="flex items-center gap-2 rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-black active:scale-95 transition-all"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Tambah Akun Kas</span>
-          </button>
-
-          <Link
-            href="/transfers"
-            className="flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3.5 py-2 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 transition-colors shadow-sm"
-          >
-            <ArrowRightLeft className="h-4 w-4" />
-            <span>Transfer Dana</span>
-          </Link>
-        </div>
-      </div>
-
-      {/* ── Skeleton Loading State ── */}
+      {/* ── Skeleton Loading ── */}
       {isLoading && (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3].map((idx) => (
+          {[1, 2, 3].map((i) => (
             <div
-              key={idx}
-              className="h-56 rounded-3xl bg-zinc-100 animate-pulse border border-zinc-200"
+              key={i}
+              className="h-56 rounded-3xl border border-zinc-200 bg-zinc-100 p-6 shadow-sm animate-pulse"
             />
           ))}
         </div>
@@ -234,13 +203,13 @@ export default function CashAccountsPage() {
 
       {/* ── Empty State ── */}
       {!isLoading && accounts.length === 0 && !error && (
-        <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-zinc-300 bg-white p-12 text-center">
+        <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-zinc-300 bg-white p-12 text-center shadow-sm">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-500 mb-4">
             <Wallet className="h-6 w-6" />
           </div>
-          <h4 className="text-sm font-bold text-zinc-900">Belum Ada Akun Kas Terdaftar</h4>
+          <h4 className="text-sm font-bold text-zinc-900">Belum Ada Rekening Kas</h4>
           <p className="mt-1 text-xs text-zinc-500 max-w-sm">
-            Daftarkan rekening bank operasional (misalnya BCA, Mandiri) atau kas kecil untuk mulai mencatat keuangan perusahaan.
+            Tambahkan rekening bank operasional atau kas kecil kantor untuk mencatat alur kas masuk dan keluar.
           </p>
           <button
             type="button"
@@ -248,15 +217,15 @@ export default function CashAccountsPage() {
               setSelectedAccount(null);
               setShowModal(true);
             }}
-            className="mt-5 inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-black transition-all"
+            className="mt-5 inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-black transition-all"
           >
             <Plus className="h-3.5 w-3.5" />
-            <span>Tambah Akun Kas Pertama</span>
+            <span>Tambah Rekening Pertama</span>
           </button>
         </div>
       )}
 
-      {/* ── Visual Bank Cards Grid ── */}
+      {/* ── Accounts Cards ── */}
       {!isLoading && accounts.length > 0 && (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {accounts.map((acc) => {
@@ -301,11 +270,16 @@ export default function CashAccountsPage() {
 
                 {/* Balance */}
                 <div className="mt-3">
-                  <span className="text-[10px] uppercase font-bold text-white/50 tracking-wider">
-                    SALDO KAS / AWAL
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold text-white/50 tracking-wider">
+                      SALDO BERJALAN RIIL
+                    </span>
+                    <span className="text-[10px] text-white/60 font-mono">
+                      Awal: {formatCurrency(acc.opening_balance)}
+                    </span>
+                  </div>
                   <div className="text-2xl font-black tracking-tight text-white font-mono tabular-nums mt-0.5">
-                    {formatCurrency(acc.opening_balance)}
+                    {formatCurrency(acc.current_balance)}
                   </div>
                 </div>
 
@@ -322,7 +296,7 @@ export default function CashAccountsPage() {
                         setSelectedAccount({
                           id: acc.id,
                           name: acc.name,
-                          type: acc.type,
+                          type: acc.type as any,
                           bank_name: acc.bank_name || "",
                           account_number: acc.account_number || "",
                           opening_balance: acc.opening_balance,
@@ -349,8 +323,8 @@ export default function CashAccountsPage() {
                       href="/transfers"
                       className="inline-flex items-center gap-1 font-bold text-white hover:text-zinc-300 transition-colors pl-1"
                     >
-                      Transfer
-                      <ArrowRightLeft className="h-3 w-3" />
+                      <ArrowRightLeft className="h-3.5 w-3.5" />
+                      <span>Transfer</span>
                     </Link>
                   </div>
                 </div>
@@ -360,7 +334,7 @@ export default function CashAccountsPage() {
         </div>
       )}
 
-      {/* ── Cash Account Create / Edit Modal ── */}
+      {/* ── Modal Add / Edit ── */}
       <CashAccountModal
         isOpen={showModal}
         onClose={() => {
@@ -380,8 +354,8 @@ export default function CashAccountsPage() {
         }}
         onConfirm={handleDeleteAccount}
         title="Hapus Akun Kas / Bank"
-        description="Apakah Anda yakin ingin menghapus akun ini secara permanen? Akun yang sudah memiliki riwayat mutasi jurnal tidak dapat dihapus sembarangan."
-        itemName={accountToDelete ? `${accountToDelete.name} (${accountToDelete.account_number || "Kas"})` : undefined}
+        description="Apakah Anda yakin ingin menghapus akun ini secara permanen?"
+        itemName={accountToDelete ? `${accountToDelete.name} (${accountToDelete.account_number || "-"})` : undefined}
         isDeleting={isDeleting}
       />
     </div>

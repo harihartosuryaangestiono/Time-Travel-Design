@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireAuthUser } from "@/lib/auth/auth";
 import { revalidatePath } from "next/cache";
+import { logAudit } from "@/lib/audit/auditLogger";
 
 export interface CreateTransferInput {
   from_account_id: string;
@@ -59,7 +60,8 @@ export async function createCashTransfer(input: CreateTransferInput) {
     refCode = `TRF-${year}-${rand}`;
   }
 
-  // 1. Simpan transfer record
+  // 1. Simpan transfer record (mutasi tercatat di tabel cash_transfers)
+  // Aturan: Saldo kas dihitung dari opening_balance + mutasi, jangan menimpa opening_balance.
   const { data: transferRecord, error: transferError } = await supabase
     .from("cash_transfers")
     .insert({
@@ -79,37 +81,22 @@ export async function createCashTransfer(input: CreateTransferInput) {
     throw new Error(transferError.message);
   }
 
-  // 2. Update saldo akun sumber & tujuan
-  const { data: fromAcc } = await supabase
-    .from("cash_accounts")
-    .select("current_balance")
-    .eq("id", input.from_account_id)
-    .single();
-
-  const { data: toAcc } = await supabase
-    .from("cash_accounts")
-    .select("current_balance")
-    .eq("id", input.to_account_id)
-    .single();
-
-  if (fromAcc) {
-    const curFrom = parseFloat(fromAcc.current_balance || "0");
-    await supabase
-      .from("cash_accounts")
-      .update({ current_balance: curFrom - input.amount })
-      .eq("id", input.from_account_id);
-  }
-
-  if (toAcc) {
-    const curTo = parseFloat(toAcc.current_balance || "0");
-    await supabase
-      .from("cash_accounts")
-      .update({ current_balance: curTo + input.amount })
-      .eq("id", input.to_account_id);
-  }
+  // 2. Tulis audit logs
+  await logAudit(user, {
+    action: "CREATE_TRANSFER",
+    entityType: "CASH_TRANSFER",
+    entityId: transferRecord.id,
+    metadata: {
+      reference: refCode,
+      amount: input.amount,
+      from_account_id: input.from_account_id,
+      to_account_id: input.to_account_id,
+    },
+  });
 
   revalidatePath("/transfers");
   revalidatePath("/cash-accounts");
+  revalidatePath("/dashboard");
   return transferRecord;
 }
 
@@ -127,7 +114,14 @@ export async function deleteCashTransfer(id: string) {
     throw new Error(error.message);
   }
 
+  await logAudit(user, {
+    action: "DELETE_TRANSFER",
+    entityType: "CASH_TRANSFER",
+    entityId: id,
+  });
+
   revalidatePath("/transfers");
   revalidatePath("/cash-accounts");
+  revalidatePath("/dashboard");
   return { success: true };
 }

@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireAuthUser } from "@/lib/auth/auth";
 import { revalidatePath } from "next/cache";
+import { logAudit } from "@/lib/audit/auditLogger";
 
 export interface ReimbursementInput {
   id?: string;
@@ -39,8 +40,7 @@ export async function saveReimbursementRecord(input: ReimbursementInput) {
   const user = await requireAuthUser();
   const supabase = await createClient();
 
-  // Jika employee_id tidak diberikan, gunakan user id pembuat sebagai default claimant
-  const employeeId = input.employee_id || user.id;
+  const employeeId = input.employee_id || user.profileId || user.id;
 
   if (input.id) {
     // Update
@@ -67,10 +67,16 @@ export async function saveReimbursementRecord(input: ReimbursementInput) {
       throw new Error(error.message);
     }
 
+    await logAudit(user, {
+      action: "UPDATE_REIMBURSEMENT",
+      entityType: "REIMBURSEMENT",
+      entityId: input.id,
+      metadata: { description: input.description, amount: input.amount, status: input.status },
+    });
+
     revalidatePath("/reimbursements");
     return data;
   } else {
-    // Generate nomor unik jika belum ada
     let docNumber = input.number;
     if (!docNumber) {
       const year = new Date().getFullYear();
@@ -101,9 +107,68 @@ export async function saveReimbursementRecord(input: ReimbursementInput) {
       throw new Error(error.message);
     }
 
+    await logAudit(user, {
+      action: "CREATE_REIMBURSEMENT",
+      entityType: "REIMBURSEMENT",
+      entityId: data.id,
+      metadata: { number: docNumber, amount: input.amount },
+    });
+
     revalidatePath("/reimbursements");
     return data;
   }
+}
+
+/**
+ * Approve Reimbursement dengan aturan self-approval protection:
+ * Pengaju tidak boleh menyetujui klaimnya sendiri.
+ */
+export async function approveReimbursement(id: string) {
+  const user = await requireAuthUser();
+  const supabase = await createClient();
+
+  if (!["OWNER", "FINANCE", "PROJECT_MANAGER"].includes(user.role)) {
+    throw new Error("Anda tidak memiliki wewenang untuk menyetujui reimbursement.");
+  }
+
+  const { data: existing } = await supabase
+    .from("reimbursements")
+    .select("id, number, amount, employee_id, organization_id, status")
+    .eq("id", id)
+    .single();
+
+  if (!existing || existing.organization_id !== user.organizationId) {
+    throw new Error("Data reimbursement tidak ditemukan.");
+  }
+
+  // ATURAN: Larang approve pengajuan sendiri
+  const actorId = user.profileId || user.id;
+  if (existing.employee_id === actorId || existing.employee_id === user.id) {
+    throw new Error("Anda tidak diperkenankan menyetujui pengajuan reimbursement Anda sendiri.");
+  }
+
+  const { error } = await supabase
+    .from("reimbursements")
+    .update({
+      status: "APPROVED",
+      approved_by: actorId,
+      approved_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  await logAudit(user, {
+    action: "APPROVE_REIMBURSEMENT",
+    entityType: "REIMBURSEMENT",
+    entityId: id,
+    metadata: { number: existing.number, amount: existing.amount },
+  });
+
+  revalidatePath("/reimbursements");
+  return { success: true };
 }
 
 export async function deleteReimbursementRecord(id: string) {
@@ -119,6 +184,12 @@ export async function deleteReimbursementRecord(id: string) {
   if (error) {
     throw new Error(error.message);
   }
+
+  await logAudit(user, {
+    action: "DELETE_REIMBURSEMENT",
+    entityType: "REIMBURSEMENT",
+    entityId: id,
+  });
 
   revalidatePath("/reimbursements");
   return { success: true };

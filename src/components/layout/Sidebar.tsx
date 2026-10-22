@@ -58,6 +58,7 @@ const navigationGroups: NavGroup[] = [
   {
     label: "Financial Operations",
     items: [
+      { name: "Buku Kas Perusahaan", href: "/cash-book", icon: BookOpen },
       { name: "Expenses & Bills", href: "/expenses", icon: Receipt },
       { name: "Cash Advances", href: "/cash-advances", icon: Coins },
       { name: "Reimbursements", href: "/reimbursements", icon: FileCheck },
@@ -82,6 +83,7 @@ const navigationGroups: NavGroup[] = [
   {
     label: "Financial Reports",
     items: [
+      { name: "Rekapitulasi Lapkeu", href: "/reports/rekapitulasi", icon: TrendingUp },
       { name: "Income Statement (P&L)", href: "/reports/income-statement", icon: TrendingUp },
       { name: "Cash Flow Statement", href: "/reports/cash-flow", icon: BarChart3 },
       { name: "Balance Sheet", href: "/reports/balance-sheet", icon: Scale },
@@ -92,6 +94,7 @@ const navigationGroups: NavGroup[] = [
   {
     label: "Administration",
     items: [
+      { name: "Impor Data Excel", href: "/settings/import", icon: FileText },
       { name: "Organization Profile", href: "/settings/organization", icon: Building },
       { name: "Chart of Accounts (COA)", href: "/settings/accounts", icon: BarChart3 },
       { name: "Users & Permissions", href: "/settings/users", icon: ShieldCheck },

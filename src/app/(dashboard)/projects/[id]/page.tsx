@@ -7,49 +7,22 @@ import {
   ArrowLeft,
   Building2,
   Calendar,
-  MapPin,
+  AlertTriangle,
   TrendingUp,
-  FileText,
+  Coins,
+  HardHat,
   Loader2,
+  Download,
+  CheckCircle,
+  FileText,
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
-
-interface Project {
-  id: string;
-  code: string;
-  name: string;
-  type: string | null;
-  status: string;
-  location: string | null;
-  start_date: string | null;
-  end_date: string | null;
-  contract_value: string | null;
-  description: string | null;
-  client?: {
-    name: string;
-  };
-}
-
-interface ProjectTransaction {
-  id: string;
-  amount: number;
-  description: string | null;
-  expense?: {
-    id: string;
-    number: string;
-    date: string;
-    description: string;
-    merchant: string | null;
-  };
-}
-
-const statusConfig: Record<string, { label: string; color: string }> = {
-  PLANNING: { label: "Perencanaan", color: "bg-zinc-100 text-zinc-700 border border-zinc-200" },
-  ACTIVE: { label: "Aktif", color: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
-  ON_HOLD: { label: "Ditunda", color: "bg-amber-50 text-amber-700 border border-amber-200" },
-  COMPLETED: { label: "Selesai", color: "bg-zinc-900 text-white" },
-  CANCELLED: { label: "Dibatalkan", color: "bg-rose-50 text-rose-700 border border-rose-200" },
-};
+import { StatCard } from "@/components/ui/StatCard";
+import { Badge } from "@/components/ui/Badge";
+import { FastTransactionEntry } from "@/components/cash-book/FastTransactionEntry";
+import {
+  getProjectDetailData,
+  ProjectDetailData,
+} from "@/app/actions/projectDetailActions";
 
 function formatCurrency(amount: number) {
   const safe = isNaN(amount) ? 0 : amount;
@@ -60,89 +33,57 @@ function formatCurrency(amount: number) {
   }).format(safe);
 }
 
-function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("id-ID", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-}
-
 export default function ProjectDetailPage() {
   const router = useRouter();
   const params = useParams();
   const projectId = params.id as string;
-  const [project, setProject] = useState<Project | null>(null);
-  const [incurredSpend, setIncurredSpend] = useState<number>(0);
-  const [transactions, setTransactions] = useState<ProjectTransaction[]>([]);
+
+  const [data, setData] = useState<ProjectDetailData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const fetchProject = useCallback(async () => {
+  const fetchProjectDetail = useCallback(async () => {
     try {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        router.push("/login");
-        return;
-      }
-
-      const { data: membership } = await supabase
-        .from("organization_members")
-        .select("organization_id")
-        .eq("profile_id", user.id)
-        .limit(1)
-        .maybeSingle();
-
-      if (!membership) {
-        router.push("/setup-organization");
-        return;
-      }
-
-      const [{ data: projData, error: projError }, { data: allocData }] =
-        await Promise.all([
-          supabase
-            .from("projects")
-            .select("*, client:clients(name)")
-            .eq("id", projectId)
-            .eq("organization_id", membership.organization_id)
-            .single(),
-          supabase
-            .from("expense_allocations")
-            .select("id, amount, description, expense:expenses(id, number, date, description, merchant)")
-            .eq("project_id", projectId),
-        ]);
-
-      if (projError) throw projError;
-      setProject(projData);
-
-      let totalSpend = 0;
-      const txs: ProjectTransaction[] = (allocData || []).map((a: any) => {
-        const amt = parseFloat(a.amount || "0");
-        const safeAmt = isNaN(amt) ? 0 : amt;
-        totalSpend += safeAmt;
-        return {
-          id: a.id,
-          amount: safeAmt,
-          description: a.description,
-          expense: a.expense,
-        };
-      });
-
-      setIncurredSpend(totalSpend);
-      setTransactions(txs);
-    } catch (error) {
-      console.error("Error fetching project:", error);
-      router.push("/projects");
+      setIsLoading(true);
+      setError(null);
+      const res = await getProjectDetailData(projectId);
+      setData(res);
+    } catch (err: any) {
+      console.error("Gagal memuat detail proyek:", err);
+      setError(err?.message || "Gagal memuat data detail proyek.");
     } finally {
       setIsLoading(false);
     }
-  }, [projectId, router]);
+  }, [projectId]);
 
   useEffect(() => {
-    fetchProject();
-  }, [fetchProject]);
+    fetchProjectDetail();
+  }, [fetchProjectDetail]);
+
+  const handleExportCSV = () => {
+    if (!data) return;
+    const headers = ["Tanggal", "Keterangan", "Kategori", "Debit (Termin)", "Kredit (HPP)", "Saldo Berjalan"];
+    const rows = data.transactions.map((t) => [
+      t.date,
+      `"${t.description.replace(/"/g, '""')}"`,
+      `"${t.category}"`,
+      t.debit,
+      t.kredit,
+      t.runningBalance,
+    ]);
+
+    const csvContent =
+      "data:text/csv;charset=utf-8,\uFEFF" +
+      [headers.join(","), ...rows.map((r) => r.join(","))].join("\r\n");
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Buku_Proyek_${data.project.code}_${new Date().toISOString().split("T")[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   if (isLoading) {
     return (
@@ -152,207 +93,285 @@ export default function ProjectDetailPage() {
     );
   }
 
-  if (!project) {
+  if (error || !data) {
     return (
-      <div className="flex h-96 items-center justify-center">
-        <div className="text-center">
-          <p className="text-zinc-500">Data proyek tidak ditemukan</p>
-          <Link href="/projects" className="mt-4 text-zinc-900 font-semibold hover:underline inline-block">
-            Kembali ke Daftar Proyek
-          </Link>
-        </div>
+      <div className="flex h-96 flex-col items-center justify-center text-center p-6">
+        <AlertTriangle className="h-10 w-10 text-rose-500 mb-3" />
+        <p className="text-zinc-900 font-bold mb-1">Gagal Memuat Proyek</p>
+        <p className="text-xs text-zinc-500 max-w-sm mb-4">{error || "Data proyek tidak ditemukan."}</p>
+        <Link
+          href="/projects"
+          className="rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black transition-colors"
+        >
+          Kembali ke Portofolio Proyek
+        </Link>
       </div>
     );
   }
 
-  const status = statusConfig[project.status] || statusConfig.PLANNING;
-  const rawContract = parseFloat(project.contract_value || "0");
-  const contractVal = isNaN(rawContract) ? 0 : rawContract;
-  const variance = contractVal - incurredSpend;
+  const { project, hppBreakdown, mandorAdvances } = data;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="space-y-6 pb-16 animate-in fade-in duration-300">
+      {/* ── Top Navigation & Title ── */}
       <div>
         <Link
           href="/projects"
-          className="inline-flex items-center gap-2 text-xs font-semibold text-zinc-500 hover:text-zinc-900 transition-colors mb-4"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-500 hover:text-zinc-900 transition-colors mb-3"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
           <span>Kembali ke Portofolio Proyek</span>
         </Link>
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-zinc-900">{project.name}</h1>
-            <span className={`rounded-full px-3 py-1 text-xs font-medium ${status.color}`}>
-              {status.label}
-            </span>
+
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold tracking-tight text-zinc-950">{project.name}</h1>
+              <Badge variant="neutral" size="sm">
+                {project.status}
+              </Badge>
+            </div>
+            <p className="text-xs text-zinc-500 mt-1">
+              Kode: <span className="font-mono font-semibold text-zinc-700">{project.code}</span> • Klien: <strong className="text-zinc-800">{project.clientName}</strong>
+            </p>
           </div>
-          <p className="mt-1 text-xs text-zinc-400 font-mono">{project.code}</p>
+
+          <button
+            type="button"
+            onClick={handleExportCSV}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3.5 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition-colors shadow-sm self-start sm:self-auto"
+          >
+            <Download className="h-3.5 w-3.5 text-zinc-500" />
+            <span>Export Buku Proyek</span>
+          </button>
         </div>
       </div>
 
-      {/* Project Info Grid */}
-      <div className="grid gap-6 md:grid-cols-3">
-        {/* Main Info */}
-        <div className="rounded-2xl border border-zinc-200 bg-white p-6 md:col-span-2 shadow-sm">
-          <h2 className="text-base font-bold text-zinc-900 mb-5 pb-3 border-b border-zinc-100">
-            Spesifikasi &amp; Detail Proyek
-          </h2>
-          <dl className="grid gap-5 sm:grid-cols-2">
+      {/* ── Peringatan Jika Proyek Merugi / Biaya Melebihi Pendapatan (Temuan Excel G.2) ── */}
+      {data.isDeficit && (
+        <div className="rounded-2xl border border-rose-300 bg-rose-50/90 p-5 shadow-sm text-xs text-rose-950">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 shrink-0 text-rose-600 mt-0.5" />
             <div>
-              <dt className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Klien / Pemberi Tugas</dt>
-              <dd className="mt-1.5 flex items-center gap-2 text-sm font-semibold text-zinc-900">
-                <Building2 className="h-4 w-4 text-zinc-400" />
-                {project.client?.name || "Klien Langsung"}
-              </dd>
+              <h4 className="font-bold text-sm text-rose-950">
+                Peringatan: Proyek Ini Sedang Mengalami Defisit / Merugi
+              </h4>
+              <p className="mt-1 text-rose-800 leading-relaxed">
+                Total pengeluaran biaya proyek ({formatCurrency(data.totalSpent)}) telah melampaui seluruh penerimaan termin ({formatCurrency(data.totalReceived)}) dengan selisih defisit <strong>{formatCurrency(Math.abs(data.netProfit))}</strong> (Margin: {data.profitMargin.toFixed(1)}%).
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Top Summary KPIs ── */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          title="Total Diterima (Termin)"
+          value={formatCurrency(data.totalReceived)}
+          subtitle="Total dana masuk dari klien"
+          icon={TrendingUp}
+          iconBgColor="bg-blue-500/10"
+          iconColor="text-blue-700"
+          gradient
+        />
+        <StatCard
+          title="Total Biaya (HPP Proyek)"
+          value={formatCurrency(data.totalSpent)}
+          subtitle="Realisasi pengeluaran konstruksi"
+          icon={Building2}
+          iconBgColor="bg-rose-500/10"
+          iconColor="text-rose-700"
+        />
+        <StatCard
+          title={data.isDeficit ? "Defisit Proyek" : "Sisa / Laba Proyek"}
+          value={formatCurrency(Math.abs(data.netProfit))}
+          subtitle={`Margin Proyek: ${data.profitMargin.toFixed(1)}%`}
+          icon={CheckCircle}
+          iconBgColor={data.isDeficit ? "bg-rose-500/10" : "bg-emerald-500/10"}
+          iconColor={data.isDeficit ? "text-rose-700" : "text-emerald-700"}
+        />
+        <StatCard
+          title="Plafon Upah Tukang"
+          value={project.laborAdvanceLimit > 0 ? formatCurrency(project.laborAdvanceLimit) : "Tanpa Limit"}
+          subtitle={`${mandorAdvances.length} Kasbon Mandor`}
+          icon={HardHat}
+          iconBgColor="bg-amber-500/10"
+          iconColor="text-amber-700"
+        />
+      </div>
+
+      {/* ── Ringkasan 4 Kategori HPP & Kasbon Mandor ── */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {/* Ringkasan 4 Kategori HPP */}
+        <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm lg:col-span-2">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-950 mb-3 pb-2 border-b border-zinc-100 flex items-center justify-between">
+            <span>Ringkasan Biaya HPP Proyek</span>
+            <span className="font-mono text-xs font-bold text-rose-700">
+              Total: {formatCurrency(data.totalSpent)}
+            </span>
+          </h3>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-xl bg-zinc-50 p-3 border border-zinc-100">
+              <span className="text-[10px] uppercase font-bold text-zinc-400 block">Material</span>
+              <span className="font-mono text-sm font-bold text-zinc-900 mt-1 block">
+                {formatCurrency(hppBreakdown.material)}
+              </span>
+              <span className="text-[10px] text-zinc-500 mt-0.5 block">
+                {data.totalSpent > 0 ? ((hppBreakdown.material / data.totalSpent) * 100).toFixed(0) : 0}% HPP
+              </span>
             </div>
 
-            <div>
-              <dt className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Jenis Layanan</dt>
-              <dd className="mt-1.5 text-sm font-semibold text-zinc-900 capitalize">
-                {project.type ? project.type.toLowerCase().replace(/_/g, " ") : "-"}
-              </dd>
+            <div className="rounded-xl bg-zinc-50 p-3 border border-zinc-100">
+              <span className="text-[10px] uppercase font-bold text-zinc-400 block">Upah Tukang</span>
+              <span className="font-mono text-sm font-bold text-zinc-900 mt-1 block">
+                {formatCurrency(hppBreakdown.upahTukang)}
+              </span>
+              <span className="text-[10px] text-zinc-500 mt-0.5 block">
+                {data.totalSpent > 0 ? ((hppBreakdown.upahTukang / data.totalSpent) * 100).toFixed(0) : 0}% HPP
+              </span>
             </div>
 
-            <div>
-              <dt className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Lokasi Proyek</dt>
-              <dd className="mt-1.5 flex items-center gap-2 text-sm font-semibold text-zinc-900">
-                <MapPin className="h-4 w-4 text-zinc-400" />
-                {project.location || "-"}
-              </dd>
+            <div className="rounded-xl bg-zinc-50 p-3 border border-zinc-100">
+              <span className="text-[10px] uppercase font-bold text-zinc-400 block">Sewa Alat</span>
+              <span className="font-mono text-sm font-bold text-zinc-900 mt-1 block">
+                {formatCurrency(hppBreakdown.sewaAlat)}
+              </span>
+              <span className="text-[10px] text-zinc-500 mt-0.5 block">
+                {data.totalSpent > 0 ? ((hppBreakdown.sewaAlat / data.totalSpent) * 100).toFixed(0) : 0}% HPP
+              </span>
             </div>
 
-            <div>
-              <dt className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Nilai Kontrak</dt>
-              <dd className="mt-1.5 text-sm font-mono font-bold text-zinc-900">
-                {contractVal > 0 ? formatCurrency(contractVal) : "Belum ditentukan"}
-              </dd>
+            <div className="rounded-xl bg-zinc-50 p-3 border border-zinc-100">
+              <span className="text-[10px] uppercase font-bold text-zinc-400 block">Transport Lapangan</span>
+              <span className="font-mono text-sm font-bold text-zinc-900 mt-1 block">
+                {formatCurrency(hppBreakdown.transportasi)}
+              </span>
+              <span className="text-[10px] text-zinc-500 mt-0.5 block">
+                {data.totalSpent > 0 ? ((hppBreakdown.transportasi / data.totalSpent) * 100).toFixed(0) : 0}% HPP
+              </span>
             </div>
+          </div>
+        </div>
 
-            <div>
-              <dt className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Tanggal Mulai</dt>
-              <dd className="mt-1.5 flex items-center gap-2 text-sm font-semibold text-zinc-900">
-                <Calendar className="h-4 w-4 text-zinc-400" />
-                {project.start_date ? formatDate(project.start_date) : "-"}
-              </dd>
+        {/* Kotak Kasbon Mandor */}
+        <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-950 mb-3 pb-2 border-b border-zinc-100 flex items-center justify-between">
+            <span className="flex items-center gap-1.5">
+              <HardHat className="h-4 w-4 text-amber-600" />
+              Kasbon Mandor
+            </span>
+            <span className="text-[11px] text-zinc-400 font-normal">
+              {mandorAdvances.length} berkas
+            </span>
+          </h3>
+
+          {mandorAdvances.length === 0 ? (
+            <div className="py-6 text-center text-xs text-zinc-400">
+              Belum ada kasbon mandor tercatat untuk proyek ini.
             </div>
-
-            <div>
-              <dt className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Target Serah Terima</dt>
-              <dd className="mt-1.5 flex items-center gap-2 text-sm font-semibold text-zinc-900">
-                <Calendar className="h-4 w-4 text-zinc-400" />
-                {project.end_date ? formatDate(project.end_date) : "-"}
-              </dd>
-            </div>
-          </dl>
-
-          {project.description && (
-            <div className="mt-6 pt-5 border-t border-zinc-100">
-              <dt className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Deskripsi / Konsep Proyek</dt>
-              <dd className="mt-2 text-sm text-zinc-600 leading-relaxed">{project.description}</dd>
+          ) : (
+            <div className="space-y-2.5">
+              {mandorAdvances.map((ca) => (
+                <div key={ca.id} className="rounded-xl bg-zinc-50 p-3 border border-zinc-100 text-xs">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="font-bold text-zinc-900">{ca.mandorName}</span>
+                    <Badge variant={ca.openBalance === 0 ? "success" : "warning"} size="sm">
+                      {ca.openBalance === 0 ? "Lunas" : "Berjalan"}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between text-[11px] text-zinc-500">
+                    <span>Dicairkan:</span>
+                    <span className="font-mono text-zinc-800">{formatCurrency(ca.disbursed)}</span>
+                  </div>
+                  <div className="flex justify-between text-[11px] text-zinc-500">
+                    <span>Sisa Kasbon:</span>
+                    <span className="font-mono font-bold text-amber-700">{formatCurrency(ca.openBalance)}</span>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
-
-        {/* Summary Card */}
-        <div className="space-y-6">
-          <div className="rounded-2xl border border-zinc-800 bg-[#09090B] p-6 text-white shadow-sm">
-            <div className="text-xs font-mono uppercase tracking-wider text-zinc-400">Total Nilai Kontrak</div>
-            <div className="mt-2 text-2xl font-bold font-mono tracking-tight text-white">
-              {contractVal > 0 ? formatCurrency(contractVal) : "Belum ditentukan"}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center gap-2 text-sm font-bold text-zinc-900 mb-4">
-              <TrendingUp className="h-4 w-4 text-zinc-900" />
-              Ringkasan Finansial Proyek
-            </div>
-            <div className="space-y-3">
-              <div className="flex justify-between text-xs">
-                <span className="text-zinc-500">Status Proyek</span>
-                <span className={`font-medium ${status.color} px-2 py-0.5 rounded text-[11px]`}>
-                  {status.label}
-                </span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-zinc-500">Nilai Kontrak</span>
-                <span className="font-semibold text-zinc-900 font-mono">
-                  {formatCurrency(contractVal)}
-                </span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-zinc-500">Biaya Terserap (HPP)</span>
-                <span className="font-semibold text-rose-600 font-mono">
-                  {formatCurrency(incurredSpend)}
-                </span>
-              </div>
-              <div className="flex justify-between text-xs border-t border-zinc-100 pt-2">
-                <span className="text-zinc-500 font-semibold">Sisa Laba / Varians</span>
-                <span className={`font-semibold font-mono ${variance >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
-                  {formatCurrency(variance)}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
 
-      {/* Ledger & Cost Transactions */}
-      <div className="rounded-2xl border border-zinc-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-4">
-          <h2 className="text-sm font-bold text-zinc-900">Alokasi Biaya &amp; Transaksi Pengeluaran</h2>
-          <span className="text-xs text-zinc-400">{transactions.length} transaksi dialokasikan</span>
+      {/* ── Fast Transaction Entry Khusus Proyek ── */}
+      <FastTransactionEntry
+        onSuccess={fetchProjectDetail}
+        defaultProjectId={projectId}
+        allowProjectSelection={false}
+      />
+
+      {/* ── Tabel Transaksi Proyek Ala Excel (Saldo Berjalan) ── */}
+      <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm overflow-x-auto">
+        <div className="flex items-center justify-between pb-3 mb-3 border-b border-zinc-100">
+          <h3 className="text-sm font-bold text-zinc-950 flex items-center gap-2">
+            <FileText className="h-4 w-4 text-zinc-700" />
+            Buku Proyek (Buku Kas &amp; Saldo Berjalan)
+          </h3>
+          <span className="text-xs text-zinc-400 font-medium">
+            {data.transactions.length} baris transaksi
+          </span>
         </div>
 
-        {transactions.length === 0 ? (
-          <div className="p-12 text-center">
-            <FileText className="mx-auto h-10 w-10 text-zinc-300" />
-            <h3 className="mt-3 text-sm font-semibold text-zinc-900">Belum ada transaksi biaya dialokasikan</h3>
-            <p className="mt-1 text-xs text-zinc-400">
-              Pengeluaran bahan material, upah tukang, dan sewa alat yang dialokasikan ke proyek ini akan muncul di sini.
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-zinc-100 text-zinc-400 font-semibold uppercase tracking-wider text-[10px]">
-                  <th className="py-3 px-6">No. Voucher</th>
-                  <th className="py-3">Tanggal</th>
-                  <th className="py-3">Deskripsi / Toko</th>
-                  <th className="py-3 text-right pr-6">Nominal Alokasi</th>
+        <table className="w-full text-left text-xs">
+          <thead>
+            <tr className="border-b border-zinc-100 text-zinc-400 font-bold uppercase tracking-wider text-[10px]">
+              <th className="pb-3 pl-2">Tanggal</th>
+              <th className="pb-3">Keterangan Transaksi</th>
+              <th className="pb-3">Kategori</th>
+              <th className="pb-3 text-right">Debit (Termin)</th>
+              <th className="pb-3 text-right">Kredit (Biaya)</th>
+              <th className="pb-3 pr-2 text-right">Saldo Berjalan</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-100">
+            {data.transactions.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="py-8 text-center text-zinc-400">
+                  Belum ada transaksi termin maupun pengeluaran pada proyek ini.
+                </td>
+              </tr>
+            ) : (
+              data.transactions.map((tx) => (
+                <tr key={tx.id} className="hover:bg-zinc-50/70 transition-colors">
+                  <td className="py-3 pl-2 font-mono text-zinc-500 whitespace-nowrap">
+                    {tx.date}
+                  </td>
+                  <td className="py-3 pr-2 font-semibold text-zinc-900">
+                    {tx.description}
+                  </td>
+                  <td className="py-3 whitespace-nowrap">
+                    <span
+                      className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${
+                        tx.debit > 0
+                          ? "bg-blue-50 text-blue-700 border border-blue-200"
+                          : tx.category === "Upah Tukang"
+                          ? "bg-amber-50 text-amber-700 border border-amber-200"
+                          : "bg-zinc-100 text-zinc-700"
+                      }`}
+                    >
+                      {tx.category}
+                    </span>
+                  </td>
+                  <td className="py-3 text-right font-mono tabular-nums text-emerald-700 font-bold whitespace-nowrap">
+                    {tx.debit > 0 ? formatCurrency(tx.debit) : "-"}
+                  </td>
+                  <td className="py-3 text-right font-mono tabular-nums text-rose-700 font-bold whitespace-nowrap">
+                    {tx.kredit > 0 ? formatCurrency(tx.kredit) : "-"}
+                  </td>
+                  <td
+                    className={`py-3 pr-2 text-right font-mono tabular-nums font-black whitespace-nowrap ${
+                      tx.runningBalance < 0 ? "text-rose-600" : "text-zinc-950"
+                    }`}
+                  >
+                    {formatCurrency(tx.runningBalance)}
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-100">
-                {transactions.map((tx) => (
-                  <tr key={tx.id} className="hover:bg-zinc-50/70 transition-colors">
-                    <td className="py-3 px-6 font-mono font-bold text-zinc-900">
-                      {tx.expense?.number || "-"}
-                    </td>
-                    <td className="py-3 font-mono text-zinc-500">
-                      {tx.expense?.date ? new Date(tx.expense.date).toISOString().split("T")[0] : "-"}
-                    </td>
-                    <td className="py-3">
-                      <span className="font-medium text-zinc-900">
-                        {tx.description || tx.expense?.description || "Alokasi Biaya Proyek"}
-                      </span>
-                      {tx.expense?.merchant && (
-                        <span className="block text-[11px] text-zinc-400">
-                          {tx.expense.merchant}
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3 pr-6 text-right font-mono font-bold text-zinc-900 tabular-nums">
-                      {formatCurrency(tx.amount)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );

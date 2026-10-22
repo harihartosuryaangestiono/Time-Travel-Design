@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireAuthUser } from "@/lib/auth/auth";
 import { revalidatePath } from "next/cache";
+import { getAccountsWithCalculatedBalance } from "@/lib/accounting/cashBalance";
 
 export interface CashAccountInput {
   name: string;
@@ -10,6 +11,39 @@ export interface CashAccountInput {
   account_number?: string;
   bank_name?: string;
   opening_balance?: number;
+}
+
+export async function getCashAccountsWithBalances() {
+  const user = await requireAuthUser();
+  const balances = await getAccountsWithCalculatedBalance(user.organizationId);
+
+  const supabase = await createClient();
+  const { data: accounts } = await supabase
+    .from("cash_accounts")
+    .select("id, name, type, bank_name, account_number, opening_balance, opening_date")
+    .eq("organization_id", user.organizationId)
+    .eq("is_active", true)
+    .order("name");
+
+  const balanceMap = new Map<string, number>();
+  balances.forEach((b) => balanceMap.set(b.accountId, b.currentBalance));
+
+  return (accounts || []).map((acc: any) => {
+    const rawOpening = parseFloat(acc.opening_balance || "0");
+    const current = balanceMap.has(acc.id)
+      ? balanceMap.get(acc.id)!
+      : rawOpening;
+
+    return {
+      id: acc.id,
+      name: acc.name,
+      type: acc.type,
+      bank_name: acc.bank_name,
+      account_number: acc.account_number,
+      opening_balance: isNaN(rawOpening) ? 0 : rawOpening,
+      current_balance: isNaN(current) ? 0 : current,
+    };
+  });
 }
 
 export async function createCashAccountRecord(input: CashAccountInput) {
