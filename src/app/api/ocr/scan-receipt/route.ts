@@ -60,7 +60,7 @@ Extract the exact real data from this specific receipt:
 9. notes: Any bank accounts, phone numbers, or special notes written on the receipt.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents: [
         {
           role: "user",
