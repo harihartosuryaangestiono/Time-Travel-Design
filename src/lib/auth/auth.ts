@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import type { Role } from "@prisma/client";
 
 export interface AuthUser {
@@ -22,15 +22,17 @@ export async function getAuthUser(): Promise<AuthUser | null> {
 
   if (!user) return null;
 
-  // Get membership with organization
-  const { data: membership } = await supabase
+  // The organization context is stored directly on the membership row.
+  const { data: membership, error } = await supabase
     .from("organization_members")
-    .select(`
-      *,
-      organization:organizations(*)
-    `)
+    .select("profile_id, organization_id, role, approval_limit")
     .eq("profile_id", user.id)
-    .single();
+    .maybeSingle();
+
+  if (error) {
+    console.error("Gagal memuat keanggotaan organisasi:", error);
+    throw new Error("Gagal memuat keanggotaan organisasi.");
+  }
 
   if (!membership) return null;
 

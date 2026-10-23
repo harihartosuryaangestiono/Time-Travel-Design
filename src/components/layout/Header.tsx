@@ -178,12 +178,17 @@ export default function Header({
         if (user) {
           const { data: member } = await supabase
             .from("organization_members")
-            .select("role, profiles(full_name)")
+            .select("role")
             .eq("profile_id", user.id)
-            .single();
+            .maybeSingle();
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("full_name")
+            .eq("id", user.id)
+            .maybeSingle();
 
           const fullName =
-            (member?.profiles as any)?.full_name ||
+            profile?.full_name ||
             user.user_metadata?.full_name ||
             user.email?.split("@")[0] ||
             "User";

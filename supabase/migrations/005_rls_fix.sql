@@ -434,7 +434,7 @@ DROP POLICY IF EXISTS "Users can view advance settlements" ON advance_settlement
 CREATE POLICY "Users can view advance settlements"
   ON advance_settlements FOR SELECT
   USING (
-    advance_id IN (
+    cash_advance_id IN (
       SELECT id FROM cash_advances WHERE organization_id = get_user_organization_id()
     )
   );
@@ -443,12 +443,12 @@ DROP POLICY IF EXISTS "Finance can manage advance settlements" ON advance_settle
 CREATE POLICY "Finance can manage advance settlements"
   ON advance_settlements FOR ALL
   USING (
-    advance_id IN (
+    cash_advance_id IN (
       SELECT id FROM cash_advances WHERE organization_id = get_user_organization_id() AND is_owner_or_finance()
     )
   )
   WITH CHECK (
-    advance_id IN (
+    cash_advance_id IN (
       SELECT id FROM cash_advances WHERE organization_id = get_user_organization_id() AND is_owner_or_finance()
     )
   );
@@ -458,8 +458,11 @@ DROP POLICY IF EXISTS "Users can view budget items" ON budget_items;
 CREATE POLICY "Users can view budget items"
   ON budget_items FOR SELECT
   USING (
-    budget_version_id IN (
-      SELECT id FROM budget_versions WHERE organization_id = get_user_organization_id()
+    budget_id IN (
+      SELECT id FROM budget_versions
+      WHERE project_id IN (
+        SELECT id FROM projects WHERE organization_id = get_user_organization_id()
+      )
     )
   );
 
@@ -467,13 +470,21 @@ DROP POLICY IF EXISTS "Finance can manage budget items" ON budget_items;
 CREATE POLICY "Finance can manage budget items"
   ON budget_items FOR ALL
   USING (
-    budget_version_id IN (
-      SELECT id FROM budget_versions WHERE organization_id = get_user_organization_id() AND is_owner_or_finance()
+    budget_id IN (
+      SELECT id FROM budget_versions
+      WHERE project_id IN (
+        SELECT id FROM projects
+        WHERE organization_id = get_user_organization_id() AND is_owner_or_finance()
+      )
     )
   )
   WITH CHECK (
-    budget_version_id IN (
-      SELECT id FROM budget_versions WHERE organization_id = get_user_organization_id() AND is_owner_or_finance()
+    budget_id IN (
+      SELECT id FROM budget_versions
+      WHERE project_id IN (
+        SELECT id FROM projects
+        WHERE organization_id = get_user_organization_id() AND is_owner_or_finance()
+      )
     )
   );
 
@@ -481,25 +492,53 @@ CREATE POLICY "Finance can manage budget items"
 DROP POLICY IF EXISTS "Users can view contracts" ON contracts;
 CREATE POLICY "Users can view contracts"
   ON contracts FOR SELECT
-  USING (organization_id = get_user_organization_id());
+  USING (
+    client_id IN (
+      SELECT id FROM clients WHERE organization_id = get_user_organization_id()
+    )
+  );
 
 DROP POLICY IF EXISTS "Finance can manage contracts" ON contracts;
 CREATE POLICY "Finance can manage contracts"
   ON contracts FOR ALL
-  USING (organization_id = get_user_organization_id() AND is_owner_or_finance())
-  WITH CHECK (organization_id = get_user_organization_id() AND is_owner_or_finance());
+  USING (
+    client_id IN (
+      SELECT id FROM clients
+      WHERE organization_id = get_user_organization_id() AND is_owner_or_finance()
+    )
+  )
+  WITH CHECK (
+    client_id IN (
+      SELECT id FROM clients
+      WHERE organization_id = get_user_organization_id() AND is_owner_or_finance()
+    )
+  );
 
 -- 9. commitment_items
 DROP POLICY IF EXISTS "Users can view commitment items" ON commitment_items;
 CREATE POLICY "Users can view commitment items"
   ON commitment_items FOR SELECT
-  USING (organization_id = get_user_organization_id());
+  USING (
+    project_id IN (
+      SELECT id FROM projects WHERE organization_id = get_user_organization_id()
+    )
+  );
 
 DROP POLICY IF EXISTS "Finance can manage commitment items" ON commitment_items;
 CREATE POLICY "Finance can manage commitment items"
   ON commitment_items FOR ALL
-  USING (organization_id = get_user_organization_id() AND is_owner_or_finance())
-  WITH CHECK (organization_id = get_user_organization_id() AND is_owner_or_finance());
+  USING (
+    project_id IN (
+      SELECT id FROM projects
+      WHERE organization_id = get_user_organization_id() AND is_owner_or_finance()
+    )
+  )
+  WITH CHECK (
+    project_id IN (
+      SELECT id FROM projects
+      WHERE organization_id = get_user_organization_id() AND is_owner_or_finance()
+    )
+  );
 
 -- 10. import_batches
 DROP POLICY IF EXISTS "Users can view import batches" ON import_batches;
