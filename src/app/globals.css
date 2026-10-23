@@ -62,6 +62,41 @@
   }
 }
 
+@layer components {
+  form input:not([type="checkbox"]):not([type="radio"]),
+  form select,
+  form textarea {
+    border-radius: 0.75rem;
+    color: #18181b;
+    font-size: 0.875rem !important;
+    transition: border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
+  }
+
+  form input:not([type="checkbox"]):not([type="radio"])::placeholder,
+  form textarea::placeholder {
+    color: #a1a1aa;
+  }
+
+  form input:not([type="checkbox"]):not([type="radio"]):focus,
+  form select:focus,
+  form textarea:focus {
+    border-color: #18181b !important;
+    outline: none !important;
+    box-shadow: 0 0 0 3px rgb(24 24 27 / 8%) !important;
+  }
+
+  form input:not([type="checkbox"]):not([type="radio"]):disabled,
+  form select:disabled,
+  form textarea:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+  }
+
+  form textarea {
+    resize: vertical;
+  }
+}
+
 @layer utilities {
   .apple-text { color: var(--apple-text); }
   .apple-text-secondary { color: var(--apple-text-secondary); }

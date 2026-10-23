@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { X, Users, Mail, Phone, MapPin, FileText, Loader2, Check } from "lucide-react";
 import { createClientRecord, updateClientRecord } from "@/app/actions/clientActions";
+import { FormField, FormInput, FormTextarea } from "@/components/ui/FormField";
 
 export interface ClientFormData {
   id?: string;
@@ -150,103 +151,100 @@ export function ClientModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Client Name */}
-          <div>
-            <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-              Nama Klien / Perusahaan *
-            </label>
-            <input
+          <FormField
+            id="client-name"
+            label="Nama klien / perusahaan"
+            required
+            hint="Gunakan nama resmi seperti yang tercantum pada kontrak atau faktur."
+          >
+            <FormInput
+              id="client-name"
               type="text"
               required
+              maxLength={150}
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="Contoh: PT Bali Resort Investama atau Hendra Gunawan"
-              className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 text-xs font-semibold text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
             />
-          </div>
+          </FormField>
 
-          {/* Contact Person */}
-          <div>
-            <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-              Contact Person / PIC
-            </label>
-            <input
+          <FormField id="client-contact-person" label="Nama contact person / PIC">
+            <FormInput
+              id="client-contact-person"
               type="text"
+              maxLength={120}
               value={formData.contact_person || ""}
               onChange={(e) => setFormData({ ...formData, contact_person: e.target.value })}
               placeholder="Contoh: Bpk. Andi Pratama"
-              className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
             />
-          </div>
+          </FormField>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Email */}
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-                Email Kontak
-              </label>
+            <FormField id="client-email" label="Email kontak">
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
-                <input
+                <FormInput
+                  id="client-email"
                   type="email"
+                  maxLength={254}
                   value={formData.email || ""}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   placeholder="kontak@perusahaan.com"
-                  className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
+                  className="pl-9"
                 />
               </div>
-            </div>
+            </FormField>
 
-            {/* Phone */}
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-                Telepon / WhatsApp
-              </label>
+            <FormField id="client-phone" label="Telepon / WhatsApp">
               <div className="relative">
                 <Phone className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
-                <input
+                <FormInput
+                  id="client-phone"
                   type="text"
+                  inputMode="tel"
+                  maxLength={30}
                   value={formData.phone || ""}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   placeholder="+62 811..."
-                  className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
+                  className="pl-9"
                 />
               </div>
-            </div>
+            </FormField>
           </div>
 
-          {/* Address */}
-          <div>
-            <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-              Alamat Lengkap
-            </label>
+          <FormField id="client-address" label="Alamat lengkap">
             <div className="relative">
-              <MapPin className="absolute left-3 top-3 h-3.5 w-3.5 text-zinc-400" />
-              <textarea
-                rows={2}
+              <MapPin className="absolute left-3 top-3 h-4 w-4 text-zinc-400" />
+              <FormTextarea
+                id="client-address"
+                rows={3}
+                maxLength={500}
                 value={formData.address || ""}
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                 placeholder="Jl. Sunset Road No. 88, Kuta, Bali"
-                className="w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 py-2 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none resize-none"
+                className="pl-9"
               />
             </div>
-          </div>
+          </FormField>
 
-          {/* Tax ID */}
-          <div>
-            <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-              Nomor Pokok Wajib Pajak (NPWP)
-            </label>
+          <FormField
+            id="client-tax-id"
+            label="Nomor Pokok Wajib Pajak (NPWP)"
+            hint="Opsional. Masukkan nomor sesuai dokumen pajak klien."
+          >
             <div className="relative">
               <FileText className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
-              <input
+              <FormInput
+                id="client-tax-id"
                 type="text"
+                maxLength={30}
                 value={formData.tax_id || ""}
                 onChange={(e) => setFormData({ ...formData, tax_id: e.target.value })}
                 placeholder="01.234.567.8-901.000"
-                className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 font-mono text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
+                className="pl-9 font-mono"
               />
             </div>
-          </div>
+          </FormField>
 
           {/* Footer Controls */}
           <div className="mt-6 flex items-center justify-end gap-2.5 border-t border-zinc-100 pt-4">

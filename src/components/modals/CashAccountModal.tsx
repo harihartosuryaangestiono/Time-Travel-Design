@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { X, Wallet, Building2, CreditCard, DollarSign, Loader2, Check } from "lucide-react";
 import { createCashAccountRecord, updateCashAccountRecord } from "@/app/actions/cashAccountActions";
+import { FormField } from "@/components/ui/FormField";
 
 export interface CashAccountFormData {
   id?: string;
@@ -144,27 +145,24 @@ export function CashAccountModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Account Name */}
-          <div>
-            <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-              Account Display Name *
-            </label>
+          <FormField id="cash-account-name" label="Nama akun kas / rekening" required>
             <input
+              id="cash-account-name"
               type="text"
               required
+              maxLength={100}
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="e.g. BCA Corporate Checking or Jakarta Studio Vault"
+              placeholder="Contoh: BCA Operasional atau Kas Kecil"
               className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 text-xs font-semibold text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
             />
-          </div>
+          </FormField>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Account Type */}
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-                Account Type
-              </label>
+            <FormField id="cash-account-type" label="Jenis akun">
               <select
+                id="cash-account-type"
                 value={formData.type}
                 onChange={(e) =>
                   setFormData({
@@ -178,18 +176,17 @@ export function CashAccountModal({
                 }
                 className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
               >
-                <option value="BANK">Commercial Bank (BANK)</option>
-                <option value="CASH">Physical Cash Vault (CASH)</option>
+                <option value="BANK">Rekening bank</option>
+                <option value="CASH">Kas tunai</option>
               </select>
-            </div>
+            </FormField>
 
             {/* Institution / Bank */}
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-                Financial Institution
-              </label>
+            <FormField id="cash-account-bank" label="Nama bank / lembaga keuangan">
               <input
+                id="cash-account-bank"
                 type="text"
+                maxLength={100}
                 value={formData.bank_name}
                 onChange={(e) =>
                   setFormData({ ...formData, bank_name: e.target.value })
@@ -197,39 +194,40 @@ export function CashAccountModal({
                 placeholder="e.g. Bank Central Asia (BCA)"
                 className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
               />
-            </div>
+            </FormField>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Account / Vault ID */}
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-                Account Number / Reference
-              </label>
+            <FormField id="cash-account-number" label="Nomor rekening / referensi">
               <input
+                id="cash-account-number"
                 type="text"
+                maxLength={50}
                 value={formData.account_number}
                 onChange={(e) =>
                   setFormData({ ...formData, account_number: e.target.value })
                 }
-                placeholder="e.g. 8912-3344-01 or VAULT-01"
+                placeholder="Contoh: 8912334401 atau KAS-01"
                 className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 font-mono text-xs font-semibold text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
               />
-            </div>
+            </FormField>
 
             {/* Opening Balance */}
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-                Initial / Available Balance (IDR)
-              </label>
+            <FormField
+              id="cash-account-opening-balance"
+              label="Saldo awal (IDR)"
+              hint="Saldo pada tanggal mulai pencatatan. Gunakan 0 jika belum ada saldo."
+            >
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-xs font-bold text-zinc-400">
                   Rp
                 </span>
                 <input
+                  id="cash-account-opening-balance"
                   type="number"
                   min="0"
-                  step="1000000"
+                  step="1"
                   value={formData.opening_balance || ""}
                   onChange={(e) =>
                     setFormData({
@@ -241,7 +239,7 @@ export function CashAccountModal({
                   className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-10 pr-3 font-mono text-xs font-bold text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
                 />
               </div>
-            </div>
+            </FormField>
           </div>
 
           {/* Footer Controls */}

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { X, Building2, Calendar, DollarSign, FolderKanban, Tag, Loader2, Check } from "lucide-react";
 import { createProject, updateProject } from "@/app/actions/projectActions";
+import { FormField, FormInput, FormSelect, FormTextarea } from "@/components/ui/FormField";
 
 export interface ProjectFormData {
   id?: string;
@@ -159,86 +160,76 @@ export function ProjectModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Project Code */}
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-                Project Code Ref *
-              </label>
-              <input
+            <FormField id="project-code" label="Kode proyek" required hint="Kode unik untuk pencarian dan laporan.">
+              <FormInput
+                id="project-code"
                 type="text"
                 required
+                maxLength={30}
                 value={formData.code}
                 onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                placeholder="e.g. PRJ-24-008"
-                className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 font-mono text-xs font-semibold text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
+                placeholder="Contoh: PRJ-26-008"
+                className="font-mono"
               />
-            </div>
+            </FormField>
 
             {/* Status */}
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-                Project Status
-              </label>
-              <select
+            <FormField id="project-status" label="Status proyek">
+              <FormSelect
+                id="project-status"
                 value={formData.status}
                 onChange={(e) =>
                   setFormData({ ...formData, status: e.target.value as any })
                 }
-                className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
               >
-                <option value="ACTIVE">In Progress (Active)</option>
-                <option value="PLANNING">Planning &amp; Concept</option>
-                <option value="COMPLETED">Completed &amp; Handed Over</option>
-                <option value="ON_HOLD">On Hold</option>
-              </select>
-            </div>
+                <option value="ACTIVE">Berjalan</option>
+                <option value="PLANNING">Perencanaan</option>
+                <option value="COMPLETED">Selesai</option>
+                <option value="ON_HOLD">Ditunda</option>
+              </FormSelect>
+            </FormField>
           </div>
 
           {/* Project Title */}
-          <div>
-            <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-              Project Name / Title *
-            </label>
-            <input
+          <FormField id="project-name" label="Nama proyek" required>
+            <FormInput
+              id="project-name"
               type="text"
               required
+              maxLength={150}
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="e.g. Modern Cliffside Residence Jimbaran"
-              className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 text-xs font-medium text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
+              placeholder="Contoh: Hunian Modern Jimbaran"
             />
-          </div>
+          </FormField>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Client Name */}
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-                Client / Commissioning Entity
-              </label>
+            <FormField id="project-client" label="Klien / pemberi kerja">
               <div className="relative">
                 <Building2 className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
-                <input
+                <FormInput
+                  id="project-client"
                   type="text"
+                  maxLength={150}
                   value={formData.client_name}
                   onChange={(e) =>
                     setFormData({ ...formData, client_name: e.target.value })
                   }
-                  placeholder="e.g. PT Bali Resort Investama"
-                  className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
+                  placeholder="Contoh: PT Bali Resort Investama"
+                  className="pl-9"
                 />
               </div>
-            </div>
+            </FormField>
 
             {/* Scope / Category */}
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-                Architectural Category
-              </label>
-              <select
+            <FormField id="project-category" label="Kategori proyek">
+              <FormSelect
+                id="project-category"
                 value={formData.category}
                 onChange={(e) =>
                   setFormData({ ...formData, category: e.target.value })
                 }
-                className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
               >
                 <option value="Architecture & Interior">Architecture &amp; Interior</option>
                 <option value="Commercial F&B">Commercial F&amp;B</option>
@@ -246,24 +237,22 @@ export function ProjectModal({
                 <option value="Luxury Residential">Luxury Residential</option>
                 <option value="Hospitality & Landscape">Hospitality &amp; Landscape</option>
                 <option value="Renovation & Fit-Out">Renovation &amp; Fit-Out</option>
-              </select>
-            </div>
+              </FormSelect>
+            </FormField>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Contract Value */}
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-                Contract Value (IDR)
-              </label>
+            <FormField id="project-contract-value" label="Nilai kontrak (IDR)" hint="Isi 0 jika nilai belum ditentukan.">
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-xs font-bold text-zinc-400">
                   Rp
                 </span>
-                <input
+                <FormInput
+                  id="project-contract-value"
                   type="number"
                   min="0"
-                  step="1000000"
+                  step="1000"
                   value={formData.contract_value || ""}
                   onChange={(e) =>
                     setFormData({
@@ -272,46 +261,43 @@ export function ProjectModal({
                     })
                   }
                   placeholder="350000000"
-                  className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-10 pr-3 font-mono text-xs font-bold text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
+                  className="pl-10 font-mono"
                 />
               </div>
-            </div>
+            </FormField>
 
             {/* Target Delivery */}
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-                Target Handover Date
-              </label>
+            <FormField id="project-deadline" label="Target serah terima" hint="Contoh: Desember 2026.">
               <div className="relative">
                 <Calendar className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
-                <input
+                <FormInput
+                  id="project-deadline"
                   type="text"
+                  maxLength={80}
                   value={formData.deadline}
                   onChange={(e) =>
                     setFormData({ ...formData, deadline: e.target.value })
                   }
-                  placeholder="e.g. December 2025"
-                  className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
+                  placeholder="Contoh: Desember 2026"
+                  className="pl-9"
                 />
               </div>
-            </div>
+            </FormField>
           </div>
 
           {/* Scope Description */}
-          <div>
-            <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-              Project Description &amp; Scope Summary
-            </label>
-            <textarea
-              rows={2}
+          <FormField id="project-description" label="Deskripsi dan ruang lingkup" hint="Ringkas pekerjaan, target, atau catatan penting proyek.">
+            <FormTextarea
+              id="project-description"
+              rows={3}
+              maxLength={2000}
               value={formData.description}
               onChange={(e) =>
                 setFormData({ ...formData, description: e.target.value })
               }
-              placeholder="Outline structural design milestones, site logistics, and finish specifications..."
-              className="w-full rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
+              placeholder="Tuliskan ruang lingkup pekerjaan, target, dan catatan penting..."
             />
-          </div>
+          </FormField>
 
           {/* Footer Controls */}
           <div className="mt-6 flex items-center justify-end gap-2.5 border-t border-zinc-100 pt-4">
