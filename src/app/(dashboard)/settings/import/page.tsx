@@ -15,9 +15,11 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import {
-  executeImportBatch,
+  executeImportBatchRows,
+  finishImportBatch,
   getImportBatches,
   ImportBatchSummary,
+  startImportBatch,
 } from "@/app/actions/importActions";
 import {
   parseCsv,
@@ -50,6 +52,7 @@ export default function ImportPage() {
   const [isLoadingBatches, setIsLoadingBatches] = useState(true);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
   const [isExecutingImport, setIsExecutingImport] = useState(false);
+  const [importProgress, setImportProgress] = useState<{ done: number; total: number } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -60,6 +63,7 @@ export default function ImportPage() {
       setBatches(res);
     } catch (err) {
       console.error("Gagal memuat batch impor:", err);
+      setErrorMsg(err instanceof Error ? err.message : "Gagal memuat riwayat impor.");
     } finally {
       setIsLoadingBatches(false);
     }
@@ -139,15 +143,33 @@ export default function ImportPage() {
       return;
     }
 
+    let importStarted = false;
+    let processedRows = 0;
+
     try {
       setIsExecutingImport(true);
       setErrorMsg(null);
 
-      // Hanya kirim baris yang valid dan tidak dilewati
-      const res = await executeImportBatch({
+      const { batchId } = await startImportBatch({
         fileName,
-        rows: importResult.rows,
+        totalRows: importResult.rows.length,
       });
+      importStarted = true;
+
+      const chunkSize = 10;
+      setImportProgress({ done: 0, total: importResult.rows.length });
+
+      for (let offset = 0; offset < importResult.rows.length; offset += chunkSize) {
+        const rows = importResult.rows.slice(offset, offset + chunkSize);
+        await executeImportBatchRows({ batchId, rows });
+        processedRows += rows.length;
+        setImportProgress({ done: processedRows, total: importResult.rows.length });
+      }
+
+      const res = await finishImportBatch(batchId);
+      if (!res || typeof res.successRows !== "number") {
+        throw new Error("Server tidak mengembalikan ringkasan hasil impor. Muat ulang riwayat batch untuk memeriksa statusnya.");
+      }
 
       setSuccessMsg(
         `Impor selesai! Berhasil menyimpan ${res.successRows} baris transaksi${
@@ -161,9 +183,14 @@ export default function ImportPage() {
       await fetchBatches();
     } catch (err: any) {
       console.error("Gagal mengeksekusi impor:", err);
-      setErrorMsg(err?.message || "Terjadi kesalahan saat memproses impor.");
+      const detail = err?.message || "Terjadi kesalahan saat memproses impor.";
+      const progressMessage = importStarted
+        ? ` Batch mungkin sudah menyimpan sebagian data (${processedRows} dari ${importResult.rows.length} baris terkonfirmasi). Periksa riwayat impor sebelum mencoba kembali.`
+        : "";
+      setErrorMsg(`${detail}${progressMessage}`);
     } finally {
       setIsExecutingImport(false);
+      setImportProgress(null);
     }
   };
 
@@ -347,6 +374,27 @@ export default function ImportPage() {
               </button>
             </div>
           </div>
+
+          {importProgress && (
+            <div className="space-y-2" aria-live="polite">
+              <div className="flex justify-between text-xs text-zinc-500">
+                <span>Menyimpan transaksi secara bertahap...</span>
+                <span>{importProgress.done} / {importProgress.total}</span>
+              </div>
+              <div
+                className="h-1.5 overflow-hidden rounded-full bg-zinc-100"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={importProgress.total}
+                aria-valuenow={importProgress.done}
+              >
+                <div
+                  className="h-full bg-emerald-500 transition-all"
+                  style={{ width: `${(importProgress.done / importProgress.total) * 100}%` }}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Kartu Ringkasan Statistik */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">

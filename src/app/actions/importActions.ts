@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAuthUser } from "@/lib/auth/auth";
 import { revalidatePath } from "next/cache";
 import { logAudit } from "@/lib/audit/auditLogger";
-import { ParsedRow, ParsedImportResult } from "@/lib/import/excelParser";
+import { ParsedRow } from "@/lib/import/excelParser";
 
 export interface ImportBatchSummary {
   id: string;
@@ -16,21 +16,37 @@ export interface ImportBatchSummary {
   created_at: string;
 }
 
-export async function executeImportBatch(input: {
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error) return error.message;
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+  return fallback;
+}
+
+export async function startImportBatch(input: {
   fileName: string;
-  rows: ParsedRow[];
+  totalRows: number;
 }) {
+  if (!Number.isInteger(input.totalRows) || input.totalRows < 1) {
+    throw new Error("Jumlah baris impor tidak valid.");
+  }
+
   const user = await requireAuthUser();
   const supabase = await createClient();
 
-  // 1. Buat record batch di import_batches
   const { data: batch, error: batchErr } = await supabase
     .from("import_batches")
     .insert({
       organization_id: user.organizationId,
       type: "EXCEL_TRANSACTIONS",
       file_name: input.fileName,
-      total_rows: input.rows.length,
+      total_rows: input.totalRows,
       success_rows: 0,
       error_rows: 0,
       status: "PROCESSING",
@@ -43,31 +59,70 @@ export async function executeImportBatch(input: {
     throw new Error(`Gagal membuat batch impor: ${batchErr?.message}`);
   }
 
-  // 2. Cari akun kas BCA operasional
-  const { data: bca } = await supabase
+  return { batchId: batch.id };
+}
+
+export async function executeImportBatchRows(input: {
+  batchId: string;
+  rows: ParsedRow[];
+}) {
+  if (input.rows.length < 1 || input.rows.length > 10) {
+    throw new Error("Setiap permintaan impor harus berisi 1 sampai 10 baris.");
+  }
+
+  const user = await requireAuthUser();
+  const supabase = await createClient();
+
+  const { data: batch, error: batchErr } = await supabase
+    .from("import_batches")
+    .select("id, success_rows, error_rows, status")
+    .eq("id", input.batchId)
+    .eq("organization_id", user.organizationId)
+    .maybeSingle();
+
+  if (batchErr || !batch) {
+    throw new Error(`Gagal memuat batch impor: ${batchErr?.message || "Batch tidak ditemukan."}`);
+  }
+  if (batch.status !== "PROCESSING") {
+    throw new Error("Batch impor ini sudah tidak dalam status pemrosesan.");
+  }
+
+  const { data: bca, error: cashAccountErr } = await supabase
     .from("cash_accounts")
     .select("id")
     .eq("organization_id", user.organizationId)
     .ilike("name", "%BCA%")
     .maybeSingle();
 
+  if (cashAccountErr) {
+    throw new Error(`Gagal memuat akun kas: ${cashAccountErr.message}`);
+  }
+
   const cashAccountId = bca?.id || null;
 
-  // 3. Cache proyek dan klien yang ada di organisasi
-  const { data: existingProjects } = await supabase
+  const { data: existingProjects, error: projectsErr } = await supabase
     .from("projects")
     .select("id, name, code")
     .eq("organization_id", user.organizationId);
 
-  const projectMap = new Map<string, string>(); // sheet/project name -> id
-  (existingProjects || []).forEach((p: any) => {
+  if (projectsErr) {
+    throw new Error(`Gagal memuat daftar proyek: ${projectsErr.message}`);
+  }
+
+  const projectMap = new Map<string, string>();
+  (existingProjects || []).forEach((p) => {
     projectMap.set(p.name.toLowerCase().trim(), p.id);
     if (p.code) projectMap.set(p.code.toLowerCase().trim(), p.id);
   });
 
   let successCount = 0;
   let errorCount = 0;
-  const errorsToInsert: any[] = [];
+  const errorsToInsert: {
+    batch_id: string;
+    row_number: number;
+    error_message: string;
+    raw_data: ParsedRow;
+  }[] = [];
 
   for (const row of input.rows) {
     if (!row.isValid) {
@@ -88,10 +143,8 @@ export async function executeImportBatch(input: {
     }
 
     try {
-      // Idempoten lewat external_ref = sheet_asal + "_" + baris_excel
-      const extRef = `${row.sheetAsal}_${row.barisExcel}`;
+      const extRef = row.externalRef;
 
-      // Resolusi Project ID jika transaksi terkait proyek
       let resolvedProjectId: string | null = null;
       if (row.buku === "PROYEK") {
         const cleanProjName = row.sheetAsal.trim();
@@ -100,9 +153,8 @@ export async function executeImportBatch(input: {
         if (projectMap.has(lowerProj)) {
           resolvedProjectId = projectMap.get(lowerProj)!;
         } else {
-          // Cari atau buat klien
           const clientName = cleanProjName.includes(" - ") ? cleanProjName.split(" - ")[1].trim() : cleanProjName;
-          const { data: newClient } = await supabase
+          const { data: newClient, error: clientErr } = await supabase
             .from("clients")
             .insert({
               organization_id: user.organizationId,
@@ -111,42 +163,49 @@ export async function executeImportBatch(input: {
             .select("id")
             .single();
 
+          if (clientErr || !newClient) {
+            throw new Error(`Gagal membuat klien: ${clientErr?.message || "Data klien tidak tersedia."}`);
+          }
+
           const code = cleanProjName.includes(" - ") ? cleanProjName.split(" - ")[0].trim() : cleanProjName.slice(0, 8).toUpperCase();
 
-          const { data: newProject } = await supabase
+          const { data: newProject, error: projectErr } = await supabase
             .from("projects")
             .insert({
               organization_id: user.organizationId,
               name: cleanProjName,
               code,
-              client_id: newClient?.id || null,
+              client_id: newClient.id,
               type: "ARCHITECTURE",
               status: "ACTIVE",
             })
             .select("id")
             .single();
 
-          if (newProject) {
-            resolvedProjectId = newProject.id;
-            projectMap.set(lowerProj, newProject.id);
+          if (projectErr || !newProject) {
+            throw new Error(`Gagal membuat proyek: ${projectErr?.message || "Data proyek tidak tersedia."}`);
           }
+
+          resolvedProjectId = newProject.id;
+          projectMap.set(lowerProj, newProject.id);
         }
       }
 
       if (row.jenis === "TERMIN_KLIEN") {
-        // Cek idempoten di project_revenues
-        const { data: existingRevenue } = await supabase
+        const { data: existingRevenue, error: revenueLookupErr } = await supabase
           .from("project_revenues")
           .select("id")
           .eq("external_ref", extRef)
           .maybeSingle();
+
+        if (revenueLookupErr) throw revenueLookupErr;
 
         if (!existingRevenue) {
           if (!resolvedProjectId) {
             throw new Error(`Proyek untuk termin klien '${row.sheetAsal}' tidak ditemukan.`);
           }
 
-          await supabase.from("project_revenues").insert({
+          const { error: revenueInsertErr } = await supabase.from("project_revenues").insert({
             organization_id: user.organizationId,
             project_id: resolvedProjectId,
             cash_account_id: cashAccountId,
@@ -156,25 +215,27 @@ export async function executeImportBatch(input: {
             source: "IMPORT_EXCEL",
             external_ref: extRef,
           });
+          if (revenueInsertErr) throw revenueInsertErr;
         }
       } else if (row.jenis === "MODAL_AWAL") {
-        // Modal awal kas 2025: update opening_balance jika belum ada
         if (cashAccountId) {
-          await supabase
+          const { error: openingBalanceErr } = await supabase
             .from("cash_accounts")
             .update({
               opening_balance: row.debit,
               opening_date: new Date(row.date).toISOString(),
             })
             .eq("id", cashAccountId);
+          if (openingBalanceErr) throw openingBalanceErr;
         }
       } else {
-        // PENGELUARAN_PROYEK, PENGELUARAN_KANTOR, BUNGA_BANK
-        const { data: existingExpense } = await supabase
+        const { data: existingExpense, error: expenseLookupErr } = await supabase
           .from("expenses")
           .select("id")
           .eq("external_ref", extRef)
           .maybeSingle();
+
+        if (expenseLookupErr) throw expenseLookupErr;
 
         if (!existingExpense) {
           const randNum = String(Math.floor(1000 + Math.random() * 9000));
@@ -182,7 +243,7 @@ export async function executeImportBatch(input: {
           const finalCategory = row.needsCategory ? "Perlu dikategorikan" : row.category;
           const finalAmount = row.kredit > 0 ? row.kredit : row.amount;
 
-          await supabase.from("expenses").insert({
+          const { error: expenseInsertErr } = await supabase.from("expenses").insert({
             organization_id: user.organizationId,
             number: expNum,
             date: new Date(row.date).toISOString(),
@@ -200,45 +261,80 @@ export async function executeImportBatch(input: {
             external_ref: extRef,
             submitted_by: user.profileId || user.id,
           });
+          if (expenseInsertErr) throw expenseInsertErr;
         }
       }
 
       successCount++;
-    } catch (err: any) {
+    } catch (err) {
       errorCount++;
       errorsToInsert.push({
         batch_id: batch.id,
         row_number: row.rowNumber,
-        error_message: err?.message || "Gagal menyimpan baris transaksi",
+        error_message: getErrorMessage(err, "Gagal menyimpan baris transaksi"),
         raw_data: row,
       });
     }
   }
 
-  // Simpan error rows jika ada
   if (errorsToInsert.length > 0) {
-    await supabase.from("import_errors").insert(errorsToInsert);
+    const { error: insertErrorsErr } = await supabase.from("import_errors").insert(errorsToInsert);
+    if (insertErrorsErr) {
+      throw new Error(`Gagal menyimpan detail baris error: ${insertErrorsErr.message}`);
+    }
   }
 
-  // Update status batch
-  await supabase
+  const { error: updateBatchErr } = await supabase
     .from("import_batches")
     .update({
-      status: errorCount === 0 ? "COMPLETED" : "COMPLETED_WITH_ERRORS",
-      success_rows: successCount,
-      error_rows: errorCount,
+      success_rows: (batch.success_rows || 0) + successCount,
+      error_rows: (batch.error_rows || 0) + errorCount,
     })
     .eq("id", batch.id);
 
-  // Catat Audit Log
+  if (updateBatchErr) {
+    throw new Error(`Gagal memperbarui ringkasan batch impor: ${updateBatchErr.message}`);
+  }
+
+  return { successRows: successCount, errorRows: errorCount };
+}
+
+export async function finishImportBatch(batchId: string) {
+  const user = await requireAuthUser();
+  const supabase = await createClient();
+  const { data: batch, error: batchErr } = await supabase
+    .from("import_batches")
+    .select("id, file_name, success_rows, error_rows, status")
+    .eq("id", batchId)
+    .eq("organization_id", user.organizationId)
+    .maybeSingle();
+
+  if (batchErr || !batch) {
+    throw new Error(`Gagal memuat batch impor: ${batchErr?.message || "Batch tidak ditemukan."}`);
+  }
+  if (batch.status !== "PROCESSING") {
+    throw new Error("Batch impor ini sudah tidak dalam status pemrosesan.");
+  }
+
+  const { error: updateErr } = await supabase
+    .from("import_batches")
+    .update({
+      status: batch.error_rows === 0 ? "COMPLETED" : "COMPLETED_WITH_ERRORS",
+    })
+    .eq("id", batch.id);
+
+  if (updateErr) {
+    throw new Error(`Gagal menyelesaikan batch impor: ${updateErr.message}`);
+  }
+
   await logAudit(user, {
     action: "EXECUTE_UI_IMPORT",
     entityType: "IMPORT_BATCH",
     entityId: batch.id,
     metadata: {
-      fileName: input.fileName,
-      successRows: successCount,
-      errorRows: errorCount,
+      fileName: batch.file_name,
+      successRows: batch.success_rows,
+      errorRows: batch.error_rows,
     },
   });
 
@@ -249,8 +345,8 @@ export async function executeImportBatch(input: {
 
   return {
     batchId: batch.id,
-    successRows: successCount,
-    errorRows: errorCount,
+    successRows: batch.success_rows || 0,
+    errorRows: batch.error_rows || 0,
   };
 }
 
@@ -258,14 +354,18 @@ export async function getImportBatches(): Promise<ImportBatchSummary[]> {
   const user = await requireAuthUser();
   const supabase = await createClient();
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("import_batches")
     .select("id, file_name, total_rows, success_rows, error_rows, status, created_at")
     .eq("organization_id", user.organizationId)
     .order("created_at", { ascending: false })
     .limit(20);
 
-  return (data || []).map((b: any) => ({
+  if (error) {
+    throw new Error(`Gagal memuat riwayat impor: ${error.message}`);
+  }
+
+  return (data || []).map((b) => ({
     id: b.id,
     file_name: b.file_name,
     total_rows: b.total_rows || 0,
