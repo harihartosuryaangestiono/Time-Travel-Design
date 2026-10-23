@@ -1,8 +1,9 @@
 -- Manual, destructive reset. Run only after taking a database backup.
--- Keeps the specified organization, its members/profiles, settings, and master
--- data so the organization remains usable. Clears its transaction/history data,
--- and removes all data/configuration for every other organization.
--- Supabase Auth users and user-scoped notifications are intentionally retained.
+-- Keeps the specified organization, its members/profiles, settings, and chart
+-- of accounts. Clears its transactions and demo master data, and removes all
+-- data/configuration for every other organization.
+-- Supabase Auth users are intentionally retained; notifications for the target
+-- organization's members are cleared.
 
 BEGIN;
 
@@ -42,9 +43,15 @@ BEGIN
   DELETE FROM public.invoice_payments
   WHERE invoice_id IN (SELECT id FROM public.invoices);
 
-  DELETE FROM public.approvals
-  WHERE expense_id IN (SELECT id FROM public.expenses)
-     OR reimbursement_id IN (SELECT id FROM public.reimbursements);
+  -- Approval records have no organization_id; all transactions are being reset.
+  DELETE FROM public.approvals;
+
+  DELETE FROM public.notifications
+  WHERE user_id::text IN (
+    SELECT profile_id::text
+    FROM public.organization_members
+    WHERE organization_id::text = target_org_id
+  );
 
   DELETE FROM public.journal_lines
   WHERE journal_id IN (SELECT id FROM public.journal_entries)
@@ -74,9 +81,7 @@ BEGIN
   WHERE project_id IN (SELECT id FROM public.projects);
 
   DELETE FROM public.project_members
-  WHERE project_id IN (
-    SELECT id FROM public.projects WHERE organization_id::text <> target_org_id
-  );
+  WHERE project_id IN (SELECT id FROM public.projects);
 
   -- Clear all transactions for the target and every other organization.
   DELETE FROM public.expenses WHERE organization_id IS NOT NULL;
@@ -91,25 +96,24 @@ BEGIN
   DELETE FROM public.audit_logs WHERE organization_id IS NOT NULL;
   DELETE FROM public.import_batches WHERE organization_id IS NOT NULL;
 
-  -- Clear project budgets for every organization; retain target projects.
+  -- Clear project setup and demo master data for every organization.
   DELETE FROM public.budget_versions
   WHERE project_id IN (SELECT id FROM public.projects);
 
-  -- Delete non-target organization setup and master data.
   DELETE FROM public.advance_recipients
-  WHERE organization_id::text <> target_org_id;
+  WHERE organization_id IS NOT NULL;
 
   DELETE FROM public.projects
-  WHERE organization_id::text <> target_org_id;
+  WHERE organization_id IS NOT NULL;
 
   DELETE FROM public.clients
-  WHERE organization_id::text <> target_org_id;
+  WHERE organization_id IS NOT NULL;
 
   DELETE FROM public.vendors
-  WHERE organization_id::text <> target_org_id;
+  WHERE organization_id IS NOT NULL;
 
   DELETE FROM public.cash_accounts
-  WHERE organization_id::text <> target_org_id;
+  WHERE organization_id IS NOT NULL;
 
   UPDATE public.accounts
   SET parent_id = NULL

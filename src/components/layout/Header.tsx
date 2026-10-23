@@ -10,9 +10,6 @@ import {
   FileText,
   Coins,
   ArrowRightLeft,
-  CheckCircle2,
-  AlertCircle,
-  Clock,
   Sparkles,
   Camera,
   Menu,
@@ -335,74 +332,18 @@ export default function Header({
             onClick={() => setShowNotifications(!showNotifications)}
             className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 transition-colors"
             title="Notifications"
+            aria-label="Notifikasi"
           >
             <Bell className="h-4 w-4" />
-            <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[9px] font-bold text-white ring-2 ring-white">
-              3
-            </span>
           </button>
 
           {showNotifications && (
             <div className="absolute right-0 top-full mt-2 w-80 rounded-2xl border border-zinc-200/90 bg-white shadow-2xl ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-100 z-50">
-              <div className="flex items-center justify-between border-b border-zinc-100 px-4 py-3">
-                <span className="text-xs font-bold text-zinc-900">
-                  Financial Notifications
-                </span>
-                <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-800">
-                  3 Pending
-                </span>
+              <div className="border-b border-zinc-100 px-4 py-3">
+                <span className="text-xs font-bold text-zinc-900">Notifikasi</span>
               </div>
-              <div className="divide-y divide-zinc-100 max-h-80 overflow-y-auto">
-                <Link
-                  href="/approvals"
-                  onClick={() => setShowNotifications(false)}
-                  className="flex items-start gap-3 p-3.5 hover:bg-zinc-50 transition-colors"
-                >
-                  <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs font-semibold text-zinc-900">
-                      Expenditure Awaiting Approval
-                    </p>
-                    <p className="text-[11px] text-zinc-500 mt-0.5">
-                      Marble procurement for Villa Canggu project IDR 12,500,000
-                    </p>
-                    <span className="text-[10px] text-zinc-400">10 mins ago</span>
-                  </div>
-                </Link>
-
-                <Link
-                  href="/invoices"
-                  onClick={() => setShowNotifications(false)}
-                  className="flex items-start gap-3 p-3.5 hover:bg-zinc-50 transition-colors"
-                >
-                  <Clock className="h-4 w-4 text-rose-500 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs font-semibold text-zinc-900">
-                      Invoice Overdue Alert
-                    </p>
-                    <p className="text-[11px] text-zinc-500 mt-0.5">
-                      INV-2024-009 PT Mega Realty (IDR 45,000,000)
-                    </p>
-                    <span className="text-[10px] text-zinc-400">1 day ago</span>
-                  </div>
-                </Link>
-
-                <Link
-                  href="/cash-advances"
-                  onClick={() => setShowNotifications(false)}
-                  className="flex items-start gap-3 p-3.5 hover:bg-zinc-50 transition-colors"
-                >
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs font-semibold text-zinc-900">
-                      Cash Advance Settlement Ready
-                    </p>
-                    <p className="text-[11px] text-zinc-500 mt-0.5">
-                      Bandung site visit operational cash advance verified
-                    </p>
-                    <span className="text-[10px] text-zinc-400">3 hours ago</span>
-                  </div>
-                </Link>
+              <div className="px-4 py-8 text-center text-xs text-zinc-500">
+                Belum ada notifikasi.
               </div>
             </div>
           )}

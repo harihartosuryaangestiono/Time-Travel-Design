@@ -32,8 +32,6 @@ interface NavItem {
   name: string;
   href: string;
   icon: React.ElementType;
-  badge?: string;
-  badgeVariant?: "white" | "amber" | "rose" | "neutral";
 }
 
 interface NavGroup {
@@ -66,8 +64,6 @@ const navigationGroups: NavGroup[] = [
         name: "Approvals",
         href: "/approvals",
         icon: CheckSquare,
-        badge: "3",
-        badgeVariant: "white",
       },
       { name: "Treasury & Bank Accounts", href: "/cash-accounts", icon: Wallet },
       { name: "Fund Transfers", href: "/transfers", icon: ArrowRightLeft },
@@ -274,21 +270,7 @@ export default function Sidebar({
                           />
 
                           {!isCollapsed && (
-                            <>
-                              <span className="flex-1 truncate">{item.name}</span>
-                              {item.badge && (
-                                <span
-                                  className={cn(
-                                    "rounded-full px-1.5 py-0.2 text-[9px] font-black tabular-nums shadow-sm",
-                                    active
-                                      ? "bg-zinc-950 text-white"
-                                      : "bg-zinc-800 text-zinc-200 border border-zinc-700"
-                                  )}
-                                >
-                                  {item.badge}
-                                </span>
-                              )}
-                            </>
+                            <span className="flex-1 truncate">{item.name}</span>
                           )}
                         </Link>
                       </li>
