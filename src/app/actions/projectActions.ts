@@ -5,6 +5,11 @@ import { requireAuthUser } from "@/lib/auth/auth";
 import { revalidatePath } from "next/cache";
 import type { ProjectType, ProjectStatus } from "@prisma/client";
 
+type ProjectActionResult<T> = { data: T; error?: never } | { data?: never; error: string };
+
+const canManageProjects = (role: string) =>
+  ["OWNER", "FINANCE", "PROJECT_MANAGER"].includes(role);
+
 export async function getProjects() {
   const user = await requireAuthUser();
   const supabase = await createClient();
@@ -66,11 +71,11 @@ export async function createProject(input: {
   end_date?: string;
   contract_value?: number;
   description?: string;
-}) {
+}): Promise<ProjectActionResult<Record<string, unknown>>> {
   const user = await requireAuthUser();
 
-  if (!["OWNER", "FINANCE", "PROJECT_MANAGER"].includes(user.role)) {
-    throw new Error("Forbidden - You do not have permission to create projects");
+  if (!canManageProjects(user.role)) {
+    return { error: "Anda tidak memiliki izin untuk membuat proyek." };
   }
 
   const supabase = await createClient();
@@ -86,13 +91,13 @@ export async function createProject(input: {
 
   if (error) {
     if (error.code === "23505") {
-      throw new Error("Project code is already in use");
+      return { error: "Kode proyek sudah digunakan. Gunakan kode lain." };
     }
-    throw new Error(error.message);
+    return { error: `Gagal membuat proyek: ${error.message}` };
   }
 
   revalidatePath("/projects");
-  return data;
+  return { data };
 }
 
 export async function updateProject(
@@ -111,35 +116,46 @@ export async function updateProject(
     contract_value?: number;
     description?: string;
   }
-) {
+): Promise<ProjectActionResult<Record<string, unknown>>> {
   const user = await requireAuthUser();
+  if (!canManageProjects(user.role)) {
+    return { error: "Anda tidak memiliki izin untuk mengubah proyek." };
+  }
+
   const supabase = await createClient();
 
-  // Check authorization
-  const { data: existing } = await supabase
+  const { data: existing, error: existingError } = await supabase
     .from("projects")
     .select("organization_id")
     .eq("id", id)
-    .single();
+    .eq("organization_id", user.organizationId)
+    .maybeSingle();
 
-  if (!existing || existing.organization_id !== user.organizationId) {
-    throw new Error("Forbidden - Project not found");
+  if (existingError) {
+    return { error: `Gagal memeriksa proyek: ${existingError.message}` };
+  }
+  if (!existing) {
+    return { error: "Proyek tidak ditemukan di organisasi Anda." };
   }
 
   const { data, error } = await supabase
     .from("projects")
     .update(input)
     .eq("id", id)
+    .eq("organization_id", user.organizationId)
     .select()
-    .single();
+    .maybeSingle();
 
   if (error) {
-    throw new Error(error.message);
+    return { error: `Gagal memperbarui proyek: ${error.message}` };
+  }
+  if (!data) {
+    return { error: "Proyek tidak berubah. Periksa izin edit dan kebijakan database organisasi." };
   }
 
   revalidatePath("/projects");
   revalidatePath(`/projects/${id}`);
-  return data;
+  return { data };
 }
 
 export async function deleteProject(id: string) {

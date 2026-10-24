@@ -102,7 +102,7 @@ export function ProjectModal({
 
       let savedRecord: any = null;
       if (isEditing && formData.id) {
-        savedRecord = await updateProject(formData.id, {
+        const result = await updateProject(formData.id, {
           code: formData.code,
           name: formData.name,
           type: legacyProjectType(formData.work_category),
@@ -111,8 +111,13 @@ export function ProjectModal({
           contract_value: Number(formData.contract_value) || 0,
           description: formData.description,
         });
+        if (result.error) {
+          setErrorMsg(result.error);
+          return;
+        }
+        savedRecord = result.data;
       } else {
-        savedRecord = await createProject({
+        const result = await createProject({
           code: formData.code,
           name: formData.name,
           type: legacyProjectType(formData.work_category),
@@ -121,6 +126,11 @@ export function ProjectModal({
           contract_value: Number(formData.contract_value) || 0,
           description: formData.description,
         });
+        if (result.error) {
+          setErrorMsg(result.error);
+          return;
+        }
+        savedRecord = result.data;
       }
 
       onSuccess(savedRecord || formData);
