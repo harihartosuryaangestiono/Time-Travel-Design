@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#fff"/>
+  <image
+    href="/images/Logo%20%26%20Tulisan%20-%20B.png"
+    x="32"
+    y="64"
+    width="448"
+    height="384"
+    preserveAspectRatio="xMidYMid meet"
+  />
+</svg>
