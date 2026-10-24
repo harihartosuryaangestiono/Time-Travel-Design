@@ -11,11 +11,7 @@ export async function getProjects() {
 
   const { data, error } = await supabase
     .from("projects")
-    .select(`
-      *,
-      client:clients(*),
-      budget_versions(*)
-    `)
+    .select("*")
     .eq("organization_id", user.organizationId)
     .order("created_at", { ascending: false });
 

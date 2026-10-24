@@ -59,8 +59,7 @@ export async function getCashBookTransactions(filter?: {
   let expQuery = supabase
     .from("expenses")
     .select(`
-      id, date, number, description, total_amount, category, needs_category, project_id,
-      project:projects!project_id(name)
+      id, date, number, description, total_amount, category, needs_category, project_id
     `)
     .eq("organization_id", user.organizationId)
     .is("project_id", null) // Biaya overhead kantor

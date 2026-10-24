@@ -803,40 +803,65 @@ export async function getCashAdvanceRecap(): Promise<AdvanceRecapItem[]> {
   const supabase = await createClient();
 
   // 1. Ambil semua kasbon yang relevan
-  const { data: advances, error } = await supabase
+  const { data: advanceRows, error } = await supabase
     .from("cash_advances")
-    .select(`
-      id,
-      number,
-      advance_type,
-      recipient_id,
-      employee_id,
-      mandor_name,
-      amount,
-      disbursed_amount,
-      settled_amount,
-      returned_amount,
-      status,
-      employee:profiles!employee_id(id, full_name, email, max_advance_amount),
-      recipient:advance_recipients!recipient_id(id, name, type, max_advance_amount),
-      project:projects!project_id(id, name, code, labor_advance_limit)
-    `)
+    .select("id, number, advance_type, recipient_id, employee_id, mandor_name, project_id, amount, disbursed_amount, settled_amount, returned_amount, status")
     .eq("organization_id", user.organizationId);
 
-  if (error || !advances) {
-    console.error("Error fetching advances for recap:", error?.message);
-    return [];
+  if (error) {
+    throw new Error(`Gagal memuat kasbon untuk rekapitulasi: ${error.message}`);
   }
 
   // 2. Ambil master recipients dan profiles untuk memastikan semua orang terdaftar muncul
-  const { data: registeredRecipients } = await supabase
+  const { data: recipientRows, error: recipientsError } = await supabase
     .from("advance_recipients")
-    .select(`
-      id, name, type, max_advance_amount,
-      project:projects!project_id(name)
-    `)
+    .select("id, name, type, max_advance_amount, project_id")
     .eq("organization_id", user.organizationId)
     .eq("is_active", true);
+  if (recipientsError) {
+    throw new Error(`Gagal memuat penerima kasbon: ${recipientsError.message}`);
+  }
+
+  const employeeIds = Array.from(
+    new Set((advanceRows || []).map((advance) => advance.employee_id).filter(Boolean))
+  ) as string[];
+  const projectIds = Array.from(
+    new Set([
+      ...(advanceRows || []).map((advance) => advance.project_id),
+      ...(recipientRows || []).map((recipient) => recipient.project_id),
+    ].filter(Boolean))
+  ) as string[];
+  const [{ data: employees, error: employeesError }, { data: projects, error: projectsError }] =
+    await Promise.all([
+      employeeIds.length
+        ? supabase
+            .from("profiles")
+            .select("id, full_name, email, max_advance_amount")
+            .in("id", employeeIds)
+        : Promise.resolve({ data: [], error: null }),
+      projectIds.length
+        ? supabase
+            .from("projects")
+            .select("id, name, code, labor_advance_limit")
+            .eq("organization_id", user.organizationId)
+            .in("id", projectIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+  if (employeesError) throw new Error(employeesError.message);
+  if (projectsError) throw new Error(projectsError.message);
+
+  const employeesById = new Map((employees || []).map((employee) => [employee.id, employee]));
+  const projectsById = new Map((projects || []).map((project) => [project.id, project]));
+  const registeredRecipients = (recipientRows || []).map((recipient) => ({
+    ...recipient,
+    project: recipient.project_id ? projectsById.get(recipient.project_id) : null,
+  }));
+  const advances = (advanceRows || []).map((advance) => ({
+    ...advance,
+    employee: advance.employee_id ? employeesById.get(advance.employee_id) : null,
+    project: advance.project_id ? projectsById.get(advance.project_id) : null,
+  }));
 
   const recapMap = new Map<string, AdvanceRecapItem>();
 

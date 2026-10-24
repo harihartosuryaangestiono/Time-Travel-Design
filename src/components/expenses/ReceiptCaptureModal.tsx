@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Camera,
   Upload,
@@ -49,146 +49,6 @@ interface ProjectOption {
   category?: string;
 }
 
-const defaultProjects: ProjectOption[] = [
-  {
-    id: "p1",
-    code: "PRJ-24-001",
-    name: "Luxury Villa Canggu Bali",
-    client: "PT Bali Resort Investama",
-    category: "Architecture & Interior",
-  },
-  {
-    id: "p2",
-    code: "PRJ-24-002",
-    name: "Senopati Modern Industrial Cafe",
-    client: "Kopi Senopati Group",
-    category: "Commercial F&B",
-  },
-  {
-    id: "p3",
-    code: "PRJ-24-003",
-    name: "Masterplan Eco Township BSD",
-    client: "Sinarmas Land Developer",
-    category: "Masterplanning",
-  },
-  {
-    id: "p4",
-    code: "PRJ-24-004",
-    name: "Menteng Classic Residence",
-    client: "Private Client Family",
-    category: "Private Luxury Residential",
-  },
-  {
-    id: "p5",
-    code: "PRJ-24-005",
-    name: "Ubud Sustainable Sanctuary Resort",
-    client: "Aman Group International",
-    category: "Hospitality & Eco Resort",
-  },
-];
-
-const mockReceiptCatalog = [
-  {
-    merchant: "Mitra 10 Building Supplies & Finishes",
-    receiptNumber: "M10-JKT-882194",
-    category: "Project Material",
-    description: "Carrara marble tiles, waterproofing compound & high-strength fasteners",
-    paymentMethod: "BANK_TRANSFER",
-    items: [
-      {
-        id: "item-1",
-        description: "Carrara White Marble Slab 60x120cm",
-        qty: 12,
-        unit: "m²",
-        unit_price: 325000,
-        subtotal: 3900000,
-      },
-      {
-        id: "item-2",
-        description: "SikaTop 107 Waterproofing Compound 5kg",
-        qty: 3,
-        unit: "tins",
-        unit_price: 245000,
-        subtotal: 735000,
-      },
-      {
-        id: "item-3",
-        description: "Stainless Steel Anchor Fasteners M12",
-        qty: 30,
-        unit: "pcs",
-        unit_price: 28000,
-        subtotal: 840000,
-      },
-    ],
-  },
-  {
-    merchant: "Ace Hardware Living World",
-    receiptNumber: "ACE-LIV-093120",
-    category: "Equipment & Tools",
-    description: "Precision laser distance meters & site safety gear",
-    paymentMethod: "DEBIT",
-    items: [
-      {
-        id: "item-1",
-        description: "Bosch GLM 50C Professional Laser Measure",
-        qty: 1,
-        unit: "unit",
-        unit_price: 1850000,
-        subtotal: 1850000,
-      },
-      {
-        id: "item-2",
-        description: "MSA Architectural Site Safety Helmets",
-        qty: 4,
-        unit: "pcs",
-        unit_price: 175000,
-        subtotal: 700000,
-      },
-      {
-        id: "item-3",
-        description: "Stanley Heavy Duty Fiberglass Tape 30m",
-        qty: 2,
-        unit: "pcs",
-        unit_price: 145000,
-        subtotal: 290000,
-      },
-    ],
-  },
-  {
-    merchant: "PT Marmer Indah Sentosa",
-    receiptNumber: "MIS-FAK-2024-0012",
-    category: "Project Material",
-    description: "Statuario marble custom vanity tops & sealant",
-    paymentMethod: "BANK_TRANSFER",
-    items: [
-      {
-        id: "item-1",
-        description: "Custom Statuario Honed Countertop 180x60cm",
-        qty: 2,
-        unit: "slabs",
-        unit_price: 2750000,
-        subtotal: 5500000,
-      },
-      {
-        id: "item-2",
-        description: "Tenax Marble Bonding Adhesive & Hardener",
-        qty: 4,
-        unit: "cans",
-        unit_price: 165000,
-        subtotal: 660000,
-      },
-      {
-        id: "item-3",
-        description: "Expedited Freight & Site Delivery Handling",
-        qty: 1,
-        unit: "trip",
-        unit_price: 850000,
-        subtotal: 850000,
-      },
-    ],
-  },
-];
-
 interface ReceiptCaptureModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -214,15 +74,10 @@ export function ReceiptCaptureModal({
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
   // Projects State
-  const [projects, setProjects] = useState<ProjectOption[]>(defaultProjects);
-  const [selectedProjectId, setSelectedProjectId] = useState<string>(
-    initialProjectId || "p1"
-  );
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(initialProjectId || "");
   const [isSplitAllocation, setIsSplitAllocation] = useState(false);
-  const [splitAllocations, setSplitAllocations] = useState<Record<string, number>>({
-    p1: 60,
-    p2: 40,
-  });
+  const [firstProjectPercentage, setFirstProjectPercentage] = useState(60);
 
   // Receipt image & OCR scan states
   const [receiptImage, setReceiptImage] = useState<string | null>(null);
@@ -245,6 +100,7 @@ export function ReceiptCaptureModal({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [projectLoadError, setProjectLoadError] = useState<string | null>(null);
   const [customApiKey, setCustomApiKey] = useState(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("gemini_api_key") || "";
@@ -252,52 +108,69 @@ export function ReceiptCaptureModal({
     return "";
   });
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchLiveProjects();
-    }
-  }, [isOpen]);
-
-  const fetchLiveProjects = async () => {
+  const fetchLiveProjects = useCallback(async () => {
     try {
       const supabase = createClient();
       const {
         data: { user },
+        error: userError,
       } = await supabase.auth.getUser();
-      if (!user) return;
+      if (userError) throw new Error(userError.message);
+      if (!user) throw new Error("Sesi login berakhir. Silakan masuk kembali.");
 
-      const { data: membership } = await supabase
+      const { data: membership, error: membershipError } = await supabase
         .from("organization_members")
         .select("organization_id")
         .eq("profile_id", user.id)
         .single();
 
-      if (!membership) return;
+      if (membershipError) throw new Error(membershipError.message);
+      if (!membership) throw new Error("Keanggotaan organisasi tidak ditemukan.");
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("projects")
-        .select("id, code, name, client:clients(name), type")
+        .select("id, code, name, client_id, type")
         .eq("organization_id", membership.organization_id)
         .eq("status", "ACTIVE")
         .order("name");
 
-      if (data && data.length > 0) {
-        const mapped: ProjectOption[] = data.map((p: any) => ({
-          id: p.id,
-          code: p.code,
-          name: p.name,
-          client: p.client?.name || "Client Partner",
-          category: p.type || "General",
-        }));
-        setProjects(mapped);
-        if (!initialProjectId) {
-          setSelectedProjectId(mapped[0].id);
-        }
-      }
+      if (error) throw new Error(error.message);
+
+      const clientIds = Array.from(
+        new Set((data || []).map((project) => project.client_id).filter(Boolean))
+      ) as string[];
+      const { data: clients, error: clientsError } = clientIds.length
+        ? await supabase.from("clients").select("id, name").in("id", clientIds)
+        : { data: [], error: null };
+      if (clientsError) throw new Error(clientsError.message);
+
+      const clientsById = new Map((clients || []).map((client) => [client.id, client.name]));
+      const mapped: ProjectOption[] = (data || []).map((p) => ({
+        id: p.id,
+        code: p.code,
+        name: p.name,
+        client: p.client_id ? clientsById.get(p.client_id) || "" : "",
+        category: p.type || "General",
+      }));
+      setProjects(mapped);
+      const selectedProject = mapped.find((project) => project.id === initialProjectId) || mapped[0];
+      setSelectedProjectId(selectedProject?.id || "");
+      setProjectLoadError(null);
+      if (mapped.length < 2) setIsSplitAllocation(false);
     } catch (e) {
-      // Graceful fallback to defaultProjects
+      console.error("Gagal memuat proyek untuk input struk:", e);
+      setProjects([]);
+      setSelectedProjectId("");
+      setIsSplitAllocation(false);
+      setProjectLoadError(e instanceof Error ? e.message : "Gagal memuat daftar proyek.");
     }
-  };
+  }, [initialProjectId]);
+
+  useEffect(() => {
+    if (isOpen) {
+      void fetchLiveProjects();
+    }
+  }, [isOpen, fetchLiveProjects]);
 
   // Triggered automatically as soon as photo is taken or image chosen
   const handleImageSelected = (file: File) => {
@@ -435,6 +308,14 @@ export function ReceiptCaptureModal({
       setSubmitError("Please ensure the receipt has a valid positive amount.");
       return;
     }
+    if (selectedProjectId && !projects.some((project) => project.id === selectedProjectId)) {
+      setSubmitError("Pilih proyek aktif yang valid sebelum menyimpan pengeluaran.");
+      return;
+    }
+    if (isSplitAllocation && projects.length < 2) {
+      setSubmitError("Pilih mode satu proyek karena minimal dua proyek diperlukan untuk pembagian.");
+      return;
+    }
 
     setIsSubmitting(true);
     setSubmitError(null);
@@ -448,14 +329,20 @@ export function ReceiptCaptureModal({
       }> = [];
 
       if (isSplitAllocation) {
-        allocations = Object.entries(splitAllocations).map(
-          ([projId, percentage]) => ({
-            project_id: projId,
-            amount: Math.round((grandTotal * percentage) / 100),
-            description: `Split allocation (${percentage}%) for ${description}`,
-          })
-        );
-      } else {
+        const [firstProject, secondProject] = projects;
+        allocations = [
+          {
+            project_id: firstProject.id,
+            amount: Math.round((grandTotal * firstProjectPercentage) / 100),
+            description: `Split allocation (${firstProjectPercentage}%) for ${description}`,
+          },
+          {
+            project_id: secondProject.id,
+            amount: grandTotal - Math.round((grandTotal * firstProjectPercentage) / 100),
+            description: `Split allocation (${100 - firstProjectPercentage}%) for ${description}`,
+          },
+        ];
+      } else if (selectedProjectId) {
         allocations = [
           {
             project_id: selectedProjectId,
@@ -465,36 +352,31 @@ export function ReceiptCaptureModal({
         ];
       }
 
-      // Try server action
-      try {
-        await createExpense({
-          date,
-          merchant: merchant || "Retail Vendor",
-          description: description || "Receipt Voucher Expenditure",
-          amount: subtotalAmount,
-          tax_amount: taxAmount,
-          payment_method: paymentMethod,
-          category,
-          project_allocations: allocations,
-          notes: notes || undefined,
-        });
-      } catch (err) {
-        console.warn("Server action fallback for showcase mode", err);
-      }
+      const createdExpense = await createExpense({
+        date,
+        merchant: merchant || "Retail Vendor",
+        description: description || "Receipt Voucher Expenditure",
+        amount: subtotalAmount,
+        tax_amount: taxAmount,
+        payment_method: paymentMethod,
+        category,
+        project_allocations: allocations,
+        notes: notes || undefined,
+      });
 
       // Notify parent
       const selectedProjectObj = projects.find((p) => p.id === selectedProjectId);
       if (onSuccess) {
         onSuccess({
-          id: `exp-${Date.now()}`,
-          number: receiptNumber || `EXP-2024-${Math.floor(1000 + Math.random() * 9000)}`,
+          id: createdExpense.id,
+          number: createdExpense.number,
           date,
           merchant: merchant || "Retail Vendor",
           description: description || "Receipt Voucher Expenditure",
           total_amount: grandTotal,
           category,
           status: "POSTED",
-          projectName: selectedProjectObj?.name || "Project Allocation",
+          projectName: selectedProjectObj?.name || "Biaya Kantor (Tanpa Proyek)",
           receiptUrl: receiptImage,
           lineItems,
         });
@@ -543,6 +425,11 @@ export function ReceiptCaptureModal({
         </div>
 
         <form onSubmit={handleSubmit} className="p-3.5 sm:p-6 space-y-5 overflow-y-auto">
+          {projectLoadError && (
+            <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-300">
+              Gagal memuat daftar proyek: {projectLoadError}
+            </div>
+          )}
           {submitError && (
             <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-300 flex items-start gap-3">
               <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
@@ -908,11 +795,13 @@ export function ReceiptCaptureModal({
               <button
                 type="button"
                 onClick={() => setIsSplitAllocation(!isSplitAllocation)}
+                disabled={projects.length < 2}
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1 text-xs transition-colors",
                   isSplitAllocation
                     ? "bg-white text-zinc-950 border-white font-bold"
-                    : "border-zinc-700 text-zinc-400 hover:text-white"
+                    : "border-zinc-700 text-zinc-400 hover:text-white",
+                  projects.length < 2 && "cursor-not-allowed opacity-50"
                 )}
               >
                 <Sliders className="h-3 w-3" />
@@ -923,7 +812,20 @@ export function ReceiptCaptureModal({
             {!isSplitAllocation ? (
               /* One-Click Project Cards Grid: Proyek A, B, C... */
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {projects.slice(0, 3).map((proj, idx) => {
+                <button
+                  type="button"
+                  onClick={() => setSelectedProjectId("")}
+                  className={cn(
+                    "relative flex flex-col justify-between rounded-2xl p-4 border text-left transition-all duration-150",
+                    !selectedProjectId
+                      ? "border-white bg-zinc-800/90 shadow-xl ring-2 ring-white/20"
+                      : "border-zinc-800 bg-zinc-900/40 hover:border-zinc-700 hover:bg-zinc-900"
+                  )}
+                >
+                  <span className="text-xs font-bold text-white">Biaya Kantor</span>
+                  <span className="mt-1 text-[11px] text-zinc-400">Tidak dialokasikan ke proyek</span>
+                </button>
+                {projects.length > 0 ? projects.slice(0, 3).map((proj, idx) => {
                   const isSelected = selectedProjectId === proj.id;
                   const projectLetter = ["Project A", "Project B", "Project C"][idx] || `Project ${idx + 1}`;
 
@@ -971,7 +873,11 @@ export function ReceiptCaptureModal({
                       </div>
                     </div>
                   );
-                })}
+                }) : (
+                  <p className="col-span-full rounded-xl border border-zinc-800 p-4 text-xs text-zinc-400">
+                    Belum ada proyek aktif. Pengeluaran dapat dicatat sebagai biaya kantor.
+                  </p>
+                )}
               </div>
             ) : (
               /* Multi-Project Split Mode */
@@ -982,9 +888,9 @@ export function ReceiptCaptureModal({
                 <div className="space-y-3">
                   <div className="flex items-center justify-between gap-4 text-xs">
                     <div>
-                      <span className="font-bold text-white block">Project A: PRJ-24-001 Villa Canggu</span>
+                      <span className="font-bold text-white block">{projects[0]?.name}</span>
                       <span className="text-[11px] font-mono text-emerald-400">
-                        {formatCurrency(Math.round((grandTotal * (splitAllocations.p1 || 60)) / 100))}
+                            {formatCurrency(Math.round((grandTotal * firstProjectPercentage) / 100))}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -992,27 +898,21 @@ export function ReceiptCaptureModal({
                         type="range"
                         min="0"
                         max="100"
-                        value={splitAllocations.p1 || 60}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value);
-                          setSplitAllocations({
-                            p1: val,
-                            p2: 100 - val,
-                          });
-                        }}
+                        value={firstProjectPercentage}
+                        onChange={(e) => setFirstProjectPercentage(parseInt(e.target.value, 10))}
                         className="accent-white w-32 cursor-pointer"
                       />
                       <span className="font-mono font-bold text-white w-12 text-right">
-                        {splitAllocations.p1}%
+                        {firstProjectPercentage}%
                       </span>
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between gap-4 text-xs">
                     <div>
-                      <span className="font-bold text-white block">Project B: PRJ-24-002 Senopati Cafe</span>
+                      <span className="font-bold text-white block">{projects[1]?.name}</span>
                       <span className="text-[11px] font-mono text-emerald-400">
-                        {formatCurrency(Math.round((grandTotal * (splitAllocations.p2 || 40)) / 100))}
+                        {formatCurrency(grandTotal - Math.round((grandTotal * firstProjectPercentage) / 100))}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1020,18 +920,12 @@ export function ReceiptCaptureModal({
                         type="range"
                         min="0"
                         max="100"
-                        value={splitAllocations.p2 || 40}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value);
-                          setSplitAllocations({
-                            p1: 100 - val,
-                            p2: val,
-                          });
-                        }}
+                        value={100 - firstProjectPercentage}
+                        onChange={(e) => setFirstProjectPercentage(100 - parseInt(e.target.value, 10))}
                         className="accent-white w-32 cursor-pointer"
                       />
                       <span className="font-mono font-bold text-white w-12 text-right">
-                        {splitAllocations.p2}%
+                        {100 - firstProjectPercentage}%
                       </span>
                     </div>
                   </div>

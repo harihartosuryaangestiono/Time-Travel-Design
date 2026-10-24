@@ -110,11 +110,7 @@ export default function CashAdvancesContent() {
 
       const { data, error: fetchErr } = await supabase
         .from("cash_advances")
-        .select(`
-          *,
-          employee:profiles!employee_id(id, full_name, email),
-          project:projects!project_id(id, name, code)
-        `)
+        .select("*")
         .eq("organization_id", membership.organization_id)
         .order("date", { ascending: false });
 
@@ -122,11 +118,39 @@ export default function CashAdvancesContent() {
         throw new Error(fetchErr.message);
       }
 
+      const employeeIds = Array.from(
+        new Set((data || []).map((advance) => advance.employee_id).filter(Boolean))
+      ) as string[];
+      const projectIds = Array.from(
+        new Set((data || []).map((advance) => advance.project_id).filter(Boolean))
+      ) as string[];
+      const [{ data: employees, error: employeesError }, { data: projects, error: projectsError }] =
+        await Promise.all([
+          employeeIds.length
+            ? supabase.from("profiles").select("id, full_name, email").in("id", employeeIds)
+            : Promise.resolve({ data: [], error: null }),
+          projectIds.length
+            ? supabase
+                .from("projects")
+                .select("id, name, code")
+                .eq("organization_id", membership.organization_id)
+                .in("id", projectIds)
+            : Promise.resolve({ data: [], error: null }),
+        ]);
+
+      if (employeesError) throw new Error(employeesError.message);
+      if (projectsError) throw new Error(projectsError.message);
+
+      const employeesById = new Map((employees || []).map((employee) => [employee.id, employee]));
+      const projectsById = new Map((projects || []).map((project) => [project.id, project]));
+
       const mapped: CashAdvanceItem[] = (data || []).map((ca: any) => {
+        const employee = employeesById.get(ca.employee_id);
+        const project = ca.project_id ? projectsById.get(ca.project_id) : undefined;
         const isMandor = ca.advance_type === "MANDOR";
         const empName = isMandor
           ? ca.mandor_name || "Mandor Proyek"
-          : ca.employee?.full_name || ca.employee?.email || "Karyawan";
+          : employee?.full_name || employee?.email || "Karyawan";
 
         const amt = parseFloat(ca.amount || "0");
         const disb = parseFloat(ca.disbursed_amount || ca.amount || "0");
@@ -142,7 +166,7 @@ export default function CashAdvancesContent() {
           purpose: ca.purpose,
           employee: empName,
           mandor_name: ca.mandor_name,
-          projectName: ca.project?.name,
+          projectName: project?.name,
           project_id: ca.project_id,
           amount: isNaN(amt) ? 0 : amt,
           disbursed_amount: isNaN(disb) ? 0 : disb,

@@ -75,20 +75,37 @@ export default function ClientsPage() {
 
       if (!membership) return;
 
-      // Ambil klien beserta daftar proyek terkait
-      const { data, error } = await supabase
-        .from("clients")
-        .select("*, projects(id, contract_value)")
-        .eq("organization_id", membership.organization_id)
-        .order("name");
+      const [{ data, error }, { data: projects, error: projectsError }] =
+        await Promise.all([
+          supabase
+            .from("clients")
+            .select("*")
+            .eq("organization_id", membership.organization_id)
+            .order("name"),
+          supabase
+            .from("projects")
+            .select("client_id, contract_value")
+            .eq("organization_id", membership.organization_id),
+        ]);
 
       if (error) {
         throw new Error(error.message);
       }
+      if (projectsError) {
+        throw new Error(projectsError.message);
+      }
 
       if (data) {
-        const mapped: ClientItem[] = data.map((c: any) => {
-          const projectList = c.projects || [];
+        const projectsByClient = new Map<string, { contract_value: number | string | null }[]>();
+        (projects || []).forEach((project) => {
+          if (!project.client_id) return;
+          const clientProjects = projectsByClient.get(project.client_id) || [];
+          clientProjects.push(project);
+          projectsByClient.set(project.client_id, clientProjects);
+        });
+
+        const mapped: ClientItem[] = data.map((c) => {
+          const projectList = projectsByClient.get(c.id) || [];
           const totalBilling = projectList.reduce((sum: number, p: any) => {
             const val = parseFloat(p.contract_value || "0");
             return sum + (isNaN(val) ? 0 : val);

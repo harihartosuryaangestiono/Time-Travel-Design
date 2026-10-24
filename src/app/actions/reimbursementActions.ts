@@ -22,10 +22,7 @@ export async function getReimbursements() {
 
   const { data, error } = await supabase
     .from("reimbursements")
-    .select(`
-      *,
-      employee:profiles!employee_id(full_name, email)
-    `)
+    .select("*")
     .eq("organization_id", user.organizationId)
     .order("created_at", { ascending: false });
 
@@ -33,7 +30,24 @@ export async function getReimbursements() {
     throw new Error(error.message);
   }
 
-  return data || [];
+  const employeeIds = Array.from(
+    new Set((data || []).map((reimbursement) => reimbursement.employee_id).filter(Boolean))
+  ) as string[];
+  const { data: profiles, error: profilesError } = employeeIds.length
+    ? await supabase.from("profiles").select("id, full_name, email").in("id", employeeIds)
+    : { data: [], error: null };
+
+  if (profilesError) {
+    throw new Error(`Gagal memuat profil anggota tim: ${profilesError.message}`);
+  }
+
+  const profilesById = new Map((profiles || []).map((profile) => [profile.id, profile]));
+  return (data || []).map((reimbursement) => ({
+    ...reimbursement,
+    employee: reimbursement.employee_id
+      ? profilesById.get(reimbursement.employee_id) || null
+      : null,
+  }));
 }
 
 export async function saveReimbursementRecord(input: ReimbursementInput) {
@@ -57,10 +71,7 @@ export async function saveReimbursementRecord(input: ReimbursementInput) {
       })
       .eq("id", input.id)
       .eq("organization_id", user.organizationId)
-      .select(`
-        *,
-        employee:profiles!employee_id(full_name, email)
-      `)
+      .select("*")
       .single();
 
     if (error) {
@@ -97,10 +108,7 @@ export async function saveReimbursementRecord(input: ReimbursementInput) {
         notes: input.notes || null,
         paid_amount: 0,
       })
-      .select(`
-        *,
-        employee:profiles!employee_id(full_name, email)
-      `)
+      .select("*")
       .single();
 
     if (error) {

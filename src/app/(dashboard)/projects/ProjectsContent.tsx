@@ -84,18 +84,38 @@ export default function ProjectsContent() {
         return;
       }
 
-      const [{ data: projectsData, error: projErr }, { data: allocationsData }] =
-        await Promise.all([
-          supabase
-            .from("projects")
-            .select("*, client:clients(name)")
-            .eq("organization_id", membership.organization_id)
-            .order("created_at", { ascending: false }),
-          supabase.from("expense_allocations").select("project_id, amount"),
-        ]);
+      const [
+        { data: projectsData, error: projErr },
+        { data: clientsData, error: clientsErr },
+      ] = await Promise.all([
+        supabase
+          .from("projects")
+          .select("*")
+          .eq("organization_id", membership.organization_id)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("clients")
+          .select("id, name")
+          .eq("organization_id", membership.organization_id),
+      ]);
 
       if (projErr) {
         throw new Error(projErr.message);
+      }
+      if (clientsErr) {
+        throw new Error(clientsErr.message);
+      }
+
+      const projectIds = (projectsData || []).map((project) => project.id);
+      const { data: allocationsData, error: allocationsErr } = projectIds.length
+        ? await supabase
+            .from("expense_allocations")
+            .select("project_id, amount")
+            .in("project_id", projectIds)
+        : { data: [], error: null };
+
+      if (allocationsErr) {
+        throw new Error(allocationsErr.message);
       }
 
       // Calculate real cost spend per project from expense_allocations
@@ -107,9 +127,14 @@ export default function ProjectsContent() {
         }
       });
 
+      const clientNames = new Map(
+        (clientsData || []).map((client) => [client.id, client.name])
+      );
+
       const mapped: ProjectItem[] = (projectsData || []).map((p: any) => {
         const cVal = parseFloat(p.contract_value || "0");
         const realSpent = spendByProject[p.id] || 0;
+        const clientName = p.client_id ? clientNames.get(p.client_id) : undefined;
 
         return {
           id: p.id,
@@ -118,7 +143,7 @@ export default function ProjectsContent() {
           status: p.status || "ACTIVE",
           contract_value: isNaN(cVal) ? 0 : cVal,
           spent_amount: realSpent,
-          client: p.client ? { name: p.client.name } : undefined,
+          client: clientName ? { name: clientName } : undefined,
           category: p.type ? p.type.replace(/_/g, " ") : "Arsitektur",
           deadline: p.end_date ? new Date(p.end_date).toLocaleDateString("id-ID", { month: "short", year: "numeric" }) : "Berjalan",
         };

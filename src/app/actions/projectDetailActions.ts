@@ -54,16 +54,26 @@ export async function getProjectDetailData(projectId: string): Promise<ProjectDe
   // 1. Ambil Data Proyek
   const { data: project, error: projErr } = await supabase
     .from("projects")
-    .select(`
-      id, name, code, status, contract_value, labor_advance_limit,
-      client:clients!client_id(name)
-    `)
+    .select("id, name, code, status, contract_value, labor_advance_limit, client_id")
     .eq("id", projectId)
     .eq("organization_id", user.organizationId)
     .single();
 
   if (projErr || !project) {
     throw new Error("Proyek tidak ditemukan.");
+  }
+
+  const { data: client, error: clientError } = project.client_id
+    ? await supabase
+        .from("clients")
+        .select("name")
+        .eq("id", project.client_id)
+        .eq("organization_id", user.organizationId)
+        .maybeSingle()
+    : { data: null, error: null };
+
+  if (clientError) {
+    throw new Error(`Gagal memuat data klien proyek: ${clientError.message}`);
   }
 
   // 2. Ambil Termin Klien (project_revenues)
@@ -83,11 +93,26 @@ export async function getProjectDetailData(projectId: string): Promise<ProjectDe
 
   const { data: allocatedExpenses } = await supabase
     .from("expense_allocations")
-    .select(`
-      id, amount, description,
-      expense:expenses!expense_id(id, date, number, description, category, needs_category, status)
-    `)
+    .select("id, amount, description, expense_id")
     .eq("project_id", projectId);
+
+  const allocatedExpenseIds = Array.from(
+    new Set((allocatedExpenses || []).map((allocation) => allocation.expense_id))
+  );
+  const { data: allocatedExpenseDetails, error: allocatedExpenseError } = allocatedExpenseIds.length
+    ? await supabase
+        .from("expenses")
+        .select("id, date, number, description, category, needs_category, status")
+        .in("id", allocatedExpenseIds)
+        .eq("organization_id", user.organizationId)
+    : { data: [], error: null };
+
+  if (allocatedExpenseError) {
+    throw new Error(`Gagal memuat pengeluaran alokasi proyek: ${allocatedExpenseError.message}`);
+  }
+  const allocatedExpensesById = new Map(
+    (allocatedExpenseDetails || []).map((expense) => [expense.id, expense])
+  );
 
   // 4. Ambil Kasbon Mandor pada Proyek Ini
   const { data: advances } = await supabase
@@ -118,14 +143,15 @@ export async function getProjectDetailData(projectId: string): Promise<ProjectDe
   });
 
   (allocatedExpenses || []).forEach((a: any) => {
-    if (a.expense && (a.expense.status === "APPROVED" || a.expense.status === "POSTED")) {
+    const expense = allocatedExpensesById.get(a.expense_id);
+    if (expense && (expense.status === "APPROVED" || expense.status === "POSTED")) {
       expenseMap.set(a.id, {
         id: a.id,
-        date: a.expense.date,
-        description: a.description || a.expense.description,
+        date: expense.date,
+        description: a.description || expense.description,
         amount: parseFloat(a.amount || "0") || 0,
-        category: a.expense.category || "Perlu dikategorikan",
-        needs_category: a.expense.needs_category || !a.expense.category,
+        category: expense.category || "Perlu dikategorikan",
+        needs_category: expense.needs_category || !expense.category,
       });
     }
   });
@@ -224,16 +250,13 @@ export async function getProjectDetailData(projectId: string): Promise<ProjectDe
     };
   });
 
-  const clientObj = project.client as unknown as { name?: string } | Array<{ name?: string }> | null;
-  const clientName = (Array.isArray(clientObj) ? clientObj[0]?.name : clientObj?.name) || "-";
-
   return {
     project: {
       id: project.id,
       name: project.name,
       code: project.code,
       status: project.status,
-      clientName,
+      clientName: client?.name || "-",
       laborAdvanceLimit: parseFloat(project.labor_advance_limit || "0") || 0,
       contractValue: parseFloat(project.contract_value || "0") || totalReceived,
     },

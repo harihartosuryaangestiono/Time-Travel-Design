@@ -5,6 +5,55 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireAuthUser } from "@/lib/auth/auth";
 
+async function getPostedJournalLines(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  organizationId: string,
+  filters: {
+    before?: string;
+    startDate?: string;
+    endDate?: string;
+    accountIds?: string[];
+  } = {}
+) {
+  let journalQuery = supabase
+    .from("journal_entries")
+    .select("id, source_type")
+    .eq("organization_id", organizationId)
+    .eq("status", "POSTED");
+
+  if (filters.before) journalQuery = journalQuery.lt("date", filters.before);
+  if (filters.startDate) journalQuery = journalQuery.gte("date", filters.startDate);
+  if (filters.endDate) journalQuery = journalQuery.lte("date", filters.endDate);
+
+  const { data: journals, error: journalError } = await journalQuery;
+  if (journalError) {
+    throw new Error(`Gagal memuat jurnal terposting: ${journalError.message}`);
+  }
+
+  const journalIds = (journals || []).map((journal) => journal.id);
+  if (journalIds.length === 0 || filters.accountIds?.length === 0) return [];
+
+  let lineQuery = supabase
+    .from("journal_lines")
+    .select("journal_id, account_id, debit, credit")
+    .in("journal_id", journalIds);
+
+  if (filters.accountIds?.length) {
+    lineQuery = lineQuery.in("account_id", filters.accountIds);
+  }
+
+  const { data: lines, error: lineError } = await lineQuery;
+  if (lineError) {
+    throw new Error(`Gagal memuat baris jurnal: ${lineError.message}`);
+  }
+
+  const sourceTypes = new Map((journals || []).map((journal) => [journal.id, journal.source_type]));
+  return (lines || []).map((line) => ({
+    ...line,
+    source_type: sourceTypes.get(line.journal_id) || null,
+  }));
+}
+
 // ============================================
 // GENERAL LEDGER
 // ============================================
@@ -34,20 +83,15 @@ export async function getTrialBalanceData(startDate: string, endDate: string) {
   if (!accounts) return [];
 
   // Get opening balances (before start date)
-  const { data: openingLines } = await supabase
-    .from("journal_lines")
-    .select("account_id, debit, credit")
-    .eq("journal_entries.status", "POSTED")
-    .eq("journal_entries.organization_id", user.organizationId)
-    .lt("journal_entries.date", startDate);
+  const openingLines = await getPostedJournalLines(supabase, user.organizationId, {
+    before: startDate,
+  });
 
   // Get period lines
-  const { data: periodLines } = await supabase
-    .from("journal_lines")
-    .select("account_id, debit, credit, journal_entries!inner(date, organization_id)")
-    .eq("journal_entries.status", "POSTED")
-    .gte("journal_entries.date", startDate)
-    .lte("journal_entries.date", endDate);
+  const periodLines = await getPostedJournalLines(supabase, user.organizationId, {
+    startDate,
+    endDate,
+  });
 
   // Calculate balances
   const opening: Record<string, { debit: number; credit: number }> = {};
@@ -58,8 +102,8 @@ export async function getTrialBalanceData(startDate: string, endDate: string) {
     period[acc.id] = { debit: 0, credit: 0 };
   }
 
-  const openingLinesData = openingLines || [];
-  const periodLinesData = periodLines || [];
+  const openingLinesData = openingLines;
+  const periodLinesData = periodLines;
 
   for (const line of openingLinesData) {
     if (opening[line.account_id]) {
@@ -116,13 +160,10 @@ export async function getIncomeStatementData(startDate: string, endDate: string)
     .eq("organization_id", user.organizationId)
     .eq("is_active", true);
 
-  const { data: lines } = await supabase
-    .from("journal_lines")
-    .select("account_id, debit, credit")
-    .eq("journal_entries.status", "POSTED")
-    .eq("journal_entries.organization_id", user.organizationId)
-    .gte("journal_entries.date", startDate)
-    .lte("journal_entries.date", endDate);
+  const lines = await getPostedJournalLines(supabase, user.organizationId, {
+    startDate,
+    endDate,
+  });
 
   const balances: Record<string, number> = {};
   const accountMap: Record<string, { code: string; name: string; type: string }> = {};
@@ -181,12 +222,9 @@ export async function getBalanceSheetData(asOfDate: string) {
     .eq("organization_id", user.organizationId)
     .eq("is_active", true);
 
-  const { data: lines } = await supabase
-    .from("journal_lines")
-    .select("account_id, debit, credit")
-    .eq("journal_entries.status", "POSTED")
-    .eq("journal_entries.organization_id", user.organizationId)
-    .lte("journal_entries.date", asOfDate);
+  const lines = await getPostedJournalLines(supabase, user.organizationId, {
+    endDate: asOfDate,
+  });
 
   const balances: Record<string, number> = {};
   const accountMap: Record<string, { code: string; name: string; type: string }> = {};
@@ -244,22 +282,19 @@ export async function getCashFlowData(startDate: string, endDate: string) {
 
   const openingBalance = (cashAccounts || []).reduce((s, a) => s + Number(a.opening_balance || 0), 0);
 
-  const { data: lines } = await supabase
-    .from("journal_lines")
-    .select("account_id, debit, credit, journal_entries!inner(source_type)")
-    .eq("journal_entries.status", "POSTED")
-    .eq("journal_entries.organization_id", user.organizationId)
-    .in("account_id", (cashAccounts || []).map(a => a.id))
-    .gte("journal_entries.date", startDate)
-    .lte("journal_entries.date", endDate);
+  const lines = await getPostedJournalLines(supabase, user.organizationId, {
+    startDate,
+    endDate,
+    accountIds: (cashAccounts || []).map((account) => account.id),
+  });
 
   let netChange = 0;
   const activities: { description: string; amount: number }[] = [];
 
-  for (const line of lines || []) {
+  for (const line of lines) {
     const amount = Number(line.debit || 0) - Number(line.credit || 0);
     netChange += amount;
-    const sourceType = (line as any).journal_entries?.source_type || 'JOURNAL';
+    const sourceType = line.source_type || "JOURNAL";
     activities.push({
       description: `${sourceType} - ${line.account_id}`,
       amount,

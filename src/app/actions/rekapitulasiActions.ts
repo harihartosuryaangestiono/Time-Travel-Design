@@ -55,12 +55,21 @@ export async function getRekapitulasiData(year: number = 2026): Promise<Rekapitu
   // 1. Ambil Semua Proyek & Pendapatan (project_revenues)
   const { data: projects } = await supabase
     .from("projects")
-    .select(`
-      id, name, code,
-      client:clients!client_id(name)
-    `)
+    .select("id, name, code, client_id")
     .eq("organization_id", user.organizationId)
     .order("name");
+
+  const clientIds = Array.from(
+    new Set((projects || []).map((project) => project.client_id).filter(Boolean))
+  ) as string[];
+  const { data: clients, error: clientsError } = clientIds.length
+    ? await supabase.from("clients").select("id, name").in("id", clientIds)
+    : { data: [], error: null };
+  if (clientsError) {
+    throw new Error(`Gagal memuat klien untuk rekapitulasi: ${clientsError.message}`);
+  }
+  const clientsById = new Map((clients || []).map((client) => [client.id, client.name]));
+  const projectsById = new Map((projects || []).map((project) => [project.id, project]));
 
   const { data: revenues } = await supabase
     .from("project_revenues")
@@ -78,7 +87,7 @@ export async function getRekapitulasiData(year: number = 2026): Promise<Rekapitu
   const revenuesList: ProjectRevenueSummary[] = (projects || []).map((p: any) => ({
     projectId: p.id,
     projectName: p.name,
-    clientName: p.client?.name || p.code || "-",
+    clientName: (p.client_id && clientsById.get(p.client_id)) || p.code || "-",
     totalReceived: revenueMap.get(p.id) || 0,
   }));
 
@@ -87,10 +96,7 @@ export async function getRekapitulasiData(year: number = 2026): Promise<Rekapitu
   // 2. Ambil Semua Pengeluaran (expenses)
   const { data: expenses } = await supabase
     .from("expenses")
-    .select(`
-      id, date, description, total_amount, category, needs_category, project_id,
-      project:projects!project_id(name)
-    `)
+    .select("id, date, description, total_amount, category, needs_category, project_id")
     .eq("organization_id", user.organizationId)
     .gte("date", startDate)
     .lte("date", endDate)
@@ -145,7 +151,7 @@ export async function getRekapitulasiData(year: number = 2026): Promise<Rekapitu
         date: e.date ? new Date(e.date).toISOString().split("T")[0] : "",
         desc: e.description,
         amount: amt,
-        projectName: e.project?.name,
+        projectName: e.project_id ? projectsById.get(e.project_id)?.name : undefined,
       });
     } else {
       const prev = categoryTotals.get(cat) || 0;

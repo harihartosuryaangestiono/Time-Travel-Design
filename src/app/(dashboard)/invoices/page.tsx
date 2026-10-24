@@ -87,7 +87,7 @@ export default function InvoicesPage() {
 
       const { data, error: fetchErr } = await supabase
         .from("invoices")
-        .select("*, client:clients(id, name), project:projects(id, name)")
+        .select("*")
         .eq("organization_id", membership.organization_id)
         .order("created_at", { ascending: false });
 
@@ -95,9 +95,35 @@ export default function InvoicesPage() {
         throw new Error(fetchErr.message);
       }
 
+      const clientIds = Array.from(new Set((data || []).map((invoice) => invoice.client_id)));
+      const projectIds = [
+        ...Array.from(new Set((data || []).map((invoice) => invoice.project_id).filter(Boolean))),
+      ] as string[];
+      const [{ data: clients, error: clientsErr }, { data: projects, error: projectsErr }] =
+        await Promise.all([
+          clientIds.length
+            ? supabase.from("clients").select("id, name").in("id", clientIds)
+            : Promise.resolve({ data: [], error: null }),
+          projectIds.length
+            ? supabase.from("projects").select("id, name").in("id", projectIds)
+            : Promise.resolve({ data: [], error: null }),
+        ]);
+
+      if (clientsErr) {
+        throw new Error(clientsErr.message);
+      }
+      if (projectsErr) {
+        throw new Error(projectsErr.message);
+      }
+
+      const clientsById = new Map((clients || []).map((client) => [client.id, client]));
+      const projectsById = new Map((projects || []).map((project) => [project.id, project]));
+
       const mapped: InvoiceItem[] = (data || []).map((inv: any) => {
         const tot = parseFloat(inv.total || "0");
         const paid = parseFloat(inv.amount_paid || "0");
+        const client = clientsById.get(inv.client_id);
+        const project = inv.project_id ? projectsById.get(inv.project_id) : undefined;
         return {
           id: inv.id,
           number: inv.number,
@@ -106,8 +132,8 @@ export default function InvoicesPage() {
           total: isNaN(tot) ? 0 : tot,
           amount_paid: isNaN(paid) ? 0 : paid,
           status: inv.status || "ISSUED",
-          client: inv.client ? { id: inv.client.id, name: inv.client.name } : undefined,
-          project: inv.project?.name || undefined,
+          client: client ? { id: client.id, name: client.name } : undefined,
+          project: project?.name || undefined,
           project_id: inv.project_id || undefined,
         };
       });
