@@ -425,7 +425,8 @@ export function InvoiceModal({
                 <input
                   type="number"
                   min="0"
-                  step="50000"
+                  step="1"
+                  inputMode="numeric"
                   required
                   value={formData.total || ""}
                   onChange={(e) =>
@@ -452,7 +453,8 @@ export function InvoiceModal({
                 <input
                   type="number"
                   min="0"
-                  step="50000"
+                  step="1"
+                  inputMode="numeric"
                   value={formData.amount_paid || ""}
                   onChange={(e) =>
                     setFormData({

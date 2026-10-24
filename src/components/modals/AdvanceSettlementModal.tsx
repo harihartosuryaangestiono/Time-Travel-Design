@@ -196,6 +196,8 @@ export function AdvanceSettlementModal({
                 type="number"
                 min="1"
                 max={openBalance}
+                step="1"
+                inputMode="numeric"
                 value={amount || ""}
                 onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
                 placeholder="0"

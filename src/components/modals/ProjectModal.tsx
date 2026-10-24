@@ -286,7 +286,8 @@ export function ProjectModal({
                   id="project-contract-value"
                   type="number"
                   min="0"
-                  step="1000"
+                  step="1"
+                  inputMode="numeric"
                   value={formData.contract_value || ""}
                   onChange={(e) =>
                     setFormData({

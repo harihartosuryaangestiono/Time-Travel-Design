@@ -409,7 +409,8 @@ export function CashAdvanceModal({
                 <input
                   type="number"
                   min="0"
-                  step="50000"
+                  step="1"
+                  inputMode="numeric"
                   value={formData.disbursed_amount || ""}
                   onChange={(e) => handleAmountChange(Number(e.target.value) || 0)}
                   placeholder="2500000"
@@ -433,7 +434,8 @@ export function CashAdvanceModal({
                   <input
                     type="number"
                     min="0"
-                    step="50000"
+                    step="1"
+                    inputMode="numeric"
                     value={formData.settled_amount || ""}
                     onChange={(e) =>
                       setFormData({
@@ -457,7 +459,8 @@ export function CashAdvanceModal({
                   <input
                     type="number"
                     min="0"
-                    step="50000"
+                    step="1"
+                    inputMode="numeric"
                     value={formData.returned_amount || ""}
                     onChange={(e) =>
                       setFormData({

@@ -418,7 +418,8 @@ export function FastTransactionEntry({
           <input
             type="number"
             min="1"
-            step="1000"
+            step="1"
+            inputMode="numeric"
             required
             placeholder="0"
             value={amount}

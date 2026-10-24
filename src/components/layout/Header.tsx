@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import {
   Bell,
   LogOut,
@@ -12,6 +13,7 @@ import {
   Sparkles,
   Camera,
   Menu,
+  UserRound,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { signOut } from "@/lib/auth/actions";
@@ -101,8 +103,8 @@ const pageTitles: Record<string, { title: string; description: string }> = {
     description: "Hierarchical accounting classification and ledger account definitions",
   },
   "/settings/users": {
-    title: "Team & Access Control",
-    description: "Staff directory, role permissions, and financial authorization limits",
+    title: "My Profile",
+    description: "Update your name, profile picture, and account password",
   },
 };
 
@@ -123,6 +125,7 @@ export default function Header({
     name: string;
     email: string;
     role: string;
+    avatarUrl?: string;
   }>({
     name: propUser?.name || "Finance Director",
     email: propUser?.email || "finance@timetraveldesign.com",
@@ -175,7 +178,7 @@ export default function Header({
             .maybeSingle();
           const { data: profile } = await supabase
             .from("profiles")
-            .select("full_name")
+            .select("full_name, avatar_url")
             .eq("id", user.id)
             .maybeSingle();
 
@@ -189,13 +192,16 @@ export default function Header({
             name: fullName,
             email: user.email || "",
             role: member?.role || "Administrator",
+            avatarUrl: profile?.avatar_url || undefined,
           });
         }
       } catch {
         // fallback to default
       }
     };
-    fetchUser();
+    void fetchUser();
+    window.addEventListener("profile-updated", fetchUser);
+    return () => window.removeEventListener("profile-updated", fetchUser);
   }, []);
 
   const handleLogout = async () => {
@@ -343,8 +349,19 @@ export default function Header({
             onClick={() => setShowUserMenu(!showUserMenu)}
             className="flex items-center gap-2 rounded-xl p-1 hover:bg-zinc-100 transition-colors"
           >
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-950 text-xs font-bold text-white shadow-sm ring-1 ring-black/10">
-              {initials}
+            <div className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-zinc-950 text-xs font-bold text-white shadow-sm ring-1 ring-black/10">
+              {userInfo.avatarUrl ? (
+                <Image
+                  src={userInfo.avatarUrl}
+                  alt=""
+                  fill
+                  unoptimized
+                  className="object-cover"
+                  sizes="36px"
+                />
+              ) : (
+                initials || <UserRound className="h-4 w-4" />
+              )}
             </div>
             <div className="hidden text-left xl:block pr-1">
               <div className="text-xs font-bold text-zinc-900 truncate max-w-[120px]">
@@ -385,7 +402,8 @@ export default function Header({
                   className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-100 transition-colors"
                   onClick={() => setShowUserMenu(false)}
                 >
-                  Team & Permissions
+                  <UserRound className="h-3.5 w-3.5" />
+                  My Profile
                 </Link>
                 <button
                   type="button"

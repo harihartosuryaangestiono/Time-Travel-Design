@@ -301,7 +301,8 @@ export function ReimbursementModal({
                 <input
                   type="number"
                   min="0"
-                  step="1000"
+                  step="1"
+                  inputMode="numeric"
                   required
                   value={formData.amount || ""}
                   onChange={(e) =>

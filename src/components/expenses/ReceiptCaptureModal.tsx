@@ -716,6 +716,8 @@ export function ReceiptCaptureModal({
                           <input
                             type="number"
                             min="1"
+                            step="1"
+                            inputMode="numeric"
                             value={item.qty}
                             onChange={(e) =>
                               handleUpdateItem(idx, "qty", e.target.value)
@@ -737,7 +739,8 @@ export function ReceiptCaptureModal({
                         <td className="py-2.5 px-1 text-right">
                           <input
                             type="number"
-                            step="1000"
+                            step="1"
+                            inputMode="numeric"
                             value={item.unit_price}
                             onChange={(e) =>
                               handleUpdateItem(idx, "unit_price", e.target.value)

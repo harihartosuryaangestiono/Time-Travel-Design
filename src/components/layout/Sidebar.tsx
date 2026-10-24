@@ -20,7 +20,7 @@ import {
   BookOpen,
   ChevronRight,
   ChevronDown,
-  ShieldCheck,
+  UserRound,
   Building,
   X,
 } from "lucide-react";
@@ -91,7 +91,7 @@ const navigationGroups: NavGroup[] = [
       { name: "Impor Data Excel", href: "/settings/import", icon: FileText },
       { name: "Organization Profile", href: "/settings/organization", icon: Building },
       { name: "Chart of Accounts (COA)", href: "/settings/accounts", icon: BarChart3 },
-      { name: "Users & Permissions", href: "/settings/users", icon: ShieldCheck },
+      { name: "My Profile", href: "/settings/users", icon: UserRound },
     ],
   },
 ];

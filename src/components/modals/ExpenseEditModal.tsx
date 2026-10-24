@@ -338,7 +338,8 @@ export function ExpenseEditModal({
                 <input
                   type="number"
                   min="1"
-                  step="50000"
+                  step="1"
+                  inputMode="numeric"
                   required
                   value={formData.total_amount || ""}
                   onChange={(e) =>
