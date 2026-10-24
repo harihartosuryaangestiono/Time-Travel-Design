@@ -23,6 +23,7 @@ import {
   getProjectDetailData,
   ProjectDetailData,
 } from "@/app/actions/projectDetailActions";
+import { getCashAccountsWithBalances } from "@/app/actions/cashAccountActions";
 
 function formatCurrency(amount: number) {
   const safe = isNaN(amount) ? 0 : amount;
@@ -39,6 +40,7 @@ export default function ProjectDetailPage() {
   const projectId = params.id as string;
 
   const [data, setData] = useState<ProjectDetailData | null>(null);
+  const [accounts, setAccounts] = useState<Array<{ id: string; name: string; opening_balance: number }>>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,8 +48,12 @@ export default function ProjectDetailPage() {
     try {
       setIsLoading(true);
       setError(null);
-      const res = await getProjectDetailData(projectId);
+      const [res, cashAccounts] = await Promise.all([
+        getProjectDetailData(projectId),
+        getCashAccountsWithBalances(),
+      ]);
       setData(res);
+      setAccounts(cashAccounts);
     } catch (err: any) {
       console.error("Gagal memuat detail proyek:", err);
       setError(err?.message || "Gagal memuat data detail proyek.");
@@ -298,6 +304,7 @@ export default function ProjectDetailPage() {
       {/* ── Fast Transaction Entry Khusus Proyek ── */}
       <FastTransactionEntry
         onSuccess={fetchProjectDetail}
+        accounts={accounts}
         defaultProjectId={projectId}
         allowProjectSelection={false}
       />

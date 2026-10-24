@@ -15,7 +15,6 @@ import {
   AlertTriangle,
   Building2,
   FolderKanban,
-  ArrowRightLeft,
   Calendar,
   Filter,
   Download,
@@ -949,15 +948,6 @@ export default function DashboardContent() {
             </div>
           </div>
 
-          <div className="mt-6 pt-4 border-t border-zinc-100">
-            <Link
-              href="/transfers"
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white py-2.5 text-xs font-semibold text-zinc-900 hover:bg-zinc-50 transition-colors shadow-sm"
-            >
-              <ArrowRightLeft className="h-4 w-4 text-zinc-950" />
-              Transfer Antar Rekening
-            </Link>
-          </div>
         </div>
 
         {/* Right: Recent Transaction Activity (8 cols) */}

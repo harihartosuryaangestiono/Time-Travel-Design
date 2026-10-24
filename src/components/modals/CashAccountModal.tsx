@@ -50,6 +50,7 @@ export function CashAccountModal({
         account_number: accountToEdit.account_number || "",
         opening_balance: accountToEdit.opening_balance || 0,
       });
+    } else {
       setFormData({
         name: "",
         type: "BANK",

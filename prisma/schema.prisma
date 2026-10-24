@@ -129,6 +129,8 @@ model Project {
   name           String
   client_id      String?
   type           ProjectType @default(OTHER)
+  building_function String?
+  work_category  String?
   status         ProjectStatus @default(PLANNING)
   location       String?
   start_date     DateTime?
@@ -336,6 +338,20 @@ model CashTransfer {
   created_by      String
   created_at      DateTime @default(now())
   @@map("cash_transfers")
+}
+
+model CashReceipt {
+  id              String   @id @default(uuid())
+  organization_id String
+  cash_account_id String
+  date            DateTime
+  amount          Decimal  @db.Decimal(15, 2)
+  description     String
+  category        String   @default("Pemasukan Lainnya")
+  created_by      String
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+  @@map("cash_receipts")
 }
 
 // ============================================

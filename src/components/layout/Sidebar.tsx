@@ -10,7 +10,6 @@ import {
   Receipt,
   CheckSquare,
   Wallet,
-  ArrowRightLeft,
   Coins,
   FileCheck,
   Building2,
@@ -66,7 +65,6 @@ const navigationGroups: NavGroup[] = [
         icon: CheckSquare,
       },
       { name: "Treasury & Bank Accounts", href: "/cash-accounts", icon: Wallet },
-      { name: "Fund Transfers", href: "/transfers", icon: ArrowRightLeft },
     ],
   },
   {

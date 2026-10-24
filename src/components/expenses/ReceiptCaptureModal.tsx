@@ -49,6 +49,11 @@ interface ProjectOption {
   category?: string;
 }
 
+interface CashAccountOption {
+  id: string;
+  name: string;
+}
+
 interface ReceiptCaptureModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -75,6 +80,8 @@ export function ReceiptCaptureModal({
 
   // Projects State
   const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [cashAccounts, setCashAccounts] = useState<CashAccountOption[]>([]);
+  const [cashAccountId, setCashAccountId] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState<string>(initialProjectId || "");
   const [isSplitAllocation, setIsSplitAllocation] = useState(false);
   const [firstProjectPercentage, setFirstProjectPercentage] = useState(60);
@@ -127,14 +134,29 @@ export function ReceiptCaptureModal({
       if (membershipError) throw new Error(membershipError.message);
       if (!membership) throw new Error("Keanggotaan organisasi tidak ditemukan.");
 
-      const { data, error } = await supabase
+      const [{ data, error }, { data: accountData, error: accountError }] = await Promise.all([
+        supabase
         .from("projects")
         .select("id, code, name, client_id, type")
         .eq("organization_id", membership.organization_id)
         .eq("status", "ACTIVE")
-        .order("name");
+        .order("name"),
+        supabase
+          .from("cash_accounts")
+          .select("id, name")
+          .eq("organization_id", membership.organization_id)
+          .eq("is_active", true)
+          .order("name"),
+      ]);
 
       if (error) throw new Error(error.message);
+      if (accountError) throw new Error(accountError.message);
+      setCashAccounts(accountData || []);
+      setCashAccountId((current) =>
+        current && (accountData || []).some((account) => account.id === current)
+          ? current
+          : ""
+      );
 
       const clientIds = Array.from(
         new Set((data || []).map((project) => project.client_id).filter(Boolean))
@@ -153,7 +175,7 @@ export function ReceiptCaptureModal({
         category: p.type || "General",
       }));
       setProjects(mapped);
-      const selectedProject = mapped.find((project) => project.id === initialProjectId) || mapped[0];
+      const selectedProject = mapped.find((project) => project.id === initialProjectId);
       setSelectedProjectId(selectedProject?.id || "");
       setProjectLoadError(null);
       if (mapped.length < 2) setIsSplitAllocation(false);
@@ -308,6 +330,10 @@ export function ReceiptCaptureModal({
       setSubmitError("Please ensure the receipt has a valid positive amount.");
       return;
     }
+    if (!cashAccountId) {
+      setSubmitError("Pilih rekening atau kas yang digunakan untuk membayar pengeluaran.");
+      return;
+    }
     if (selectedProjectId && !projects.some((project) => project.id === selectedProjectId)) {
       setSubmitError("Pilih proyek aktif yang valid sebelum menyimpan pengeluaran.");
       return;
@@ -359,6 +385,7 @@ export function ReceiptCaptureModal({
         amount: subtotalAmount,
         tax_amount: taxAmount,
         payment_method: paymentMethod,
+        cash_account_id: cashAccountId,
         category,
         project_allocations: allocations,
         notes: notes || undefined,
@@ -825,7 +852,7 @@ export function ReceiptCaptureModal({
                   <span className="text-xs font-bold text-white">Biaya Kantor</span>
                   <span className="mt-1 text-[11px] text-zinc-400">Tidak dialokasikan ke proyek</span>
                 </button>
-                {projects.length > 0 ? projects.slice(0, 3).map((proj, idx) => {
+                {projects.length > 0 ? projects.map((proj, idx) => {
                   const isSelected = selectedProjectId === proj.id;
                   const projectLetter = ["Project A", "Project B", "Project C"][idx] || `Project ${idx + 1}`;
 
@@ -935,7 +962,7 @@ export function ReceiptCaptureModal({
           </div>
 
           {/* STEP 4: Accounting Details & Settlement */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-2 border-t border-zinc-800">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-2 border-t border-zinc-800">
             <div>
               <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
                 Category
@@ -979,6 +1006,22 @@ export function ReceiptCaptureModal({
                 onChange={(e) => setDate(e.target.value)}
                 className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-white focus:border-white focus:outline-none font-mono"
               />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
+                Dibayar dari rekening / kas *
+              </label>
+              <select
+                required
+                value={cashAccountId}
+                onChange={(e) => setCashAccountId(e.target.value)}
+                className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-white focus:border-white focus:outline-none"
+              >
+                <option value="">Pilih rekening / kas</option>
+                {cashAccounts.map((account) => (
+                  <option key={account.id} value={account.id}>{account.name}</option>
+                ))}
+              </select>
             </div>
           </div>
 

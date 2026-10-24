@@ -126,6 +126,21 @@ export async function createExpense(input: {
 
   // Calculate total
   const totalAmount = input.amount + (input.tax_amount || 0);
+  const projectIds = Array.from(new Set(input.project_allocations.map((allocation) => allocation.project_id)));
+  if (projectIds.length) {
+    const { data: validProjects, error: projectError } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("organization_id", user.organizationId)
+      .in("id", projectIds);
+
+    if (projectError) {
+      throw new Error(`Gagal memvalidasi proyek pengeluaran: ${projectError.message}`);
+    }
+    if ((validProjects || []).length !== projectIds.length) {
+      throw new Error("Satu atau lebih proyek pengeluaran tidak valid atau bukan milik organisasi ini.");
+    }
+  }
 
   // Create expense
   const { data: expense, error: expenseError } = await supabase
@@ -216,6 +231,25 @@ export async function updateExpense(
     throw new Error("Only draft expense vouchers can be modified");
   }
 
+  const { project_allocations, ...expenseInput } = input;
+  if (project_allocations) {
+    const projectIds = Array.from(new Set(project_allocations.map((allocation) => allocation.project_id)));
+    if (projectIds.length) {
+      const { data: validProjects, error: projectError } = await supabase
+        .from("projects")
+        .select("id")
+        .eq("organization_id", user.organizationId)
+        .in("id", projectIds);
+
+      if (projectError) {
+        throw new Error(`Gagal memvalidasi proyek pengeluaran: ${projectError.message}`);
+      }
+      if ((validProjects || []).length !== projectIds.length) {
+        throw new Error("Satu atau lebih proyek pengeluaran tidak valid atau bukan milik organisasi ini.");
+      }
+    }
+  }
+
   // Calculate total if amount changes
   let totalAmount = undefined;
   if (input.amount !== undefined) {
@@ -227,7 +261,7 @@ export async function updateExpense(
   const { data: expense, error: expenseError } = await supabase
     .from("expenses")
     .update({
-      ...input,
+      ...expenseInput,
       total_amount: totalAmount,
     })
     .eq("id", id)
@@ -239,20 +273,30 @@ export async function updateExpense(
   }
 
   // Update allocations if provided
-  if (input.project_allocations) {
+  if (project_allocations) {
     // Delete existing allocations
-    await supabase.from("expense_allocations").delete().eq("expense_id", id);
+    const { error: deleteAllocationsError } = await supabase
+      .from("expense_allocations")
+      .delete()
+      .eq("expense_id", id);
+
+    if (deleteAllocationsError) {
+      throw new Error(`Pengeluaran tersimpan, tetapi alokasi proyek lama gagal dihapus: ${deleteAllocationsError.message}`);
+    }
 
     // Create new allocations
-    if (input.project_allocations.length > 0) {
-      await supabase.from("expense_allocations").insert(
-        input.project_allocations.map((alloc) => ({
+    if (project_allocations.length > 0) {
+      const { error: allocationError } = await supabase.from("expense_allocations").insert(
+        project_allocations.map((alloc) => ({
           expense_id: id,
           project_id: alloc.project_id,
           amount: alloc.amount,
           description: alloc.description,
         }))
       );
+      if (allocationError) {
+        throw new Error(`Pengeluaran tersimpan, tetapi alokasi proyek gagal diperbarui: ${allocationError.message}`);
+      }
     }
   }
 
@@ -423,4 +467,3 @@ export async function deleteExpense(id: string) {
   revalidatePath("/expenses");
   return { success: true };
 }
-

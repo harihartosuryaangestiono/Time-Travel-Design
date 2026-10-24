@@ -32,7 +32,8 @@ interface ProjectItem {
   contract_value: number;
   spent_amount: number;
   client?: { name: string };
-  category?: string;
+  building_function?: string | null;
+  work_category?: string | null;
   deadline?: string;
 }
 
@@ -144,7 +145,16 @@ export default function ProjectsContent() {
           contract_value: isNaN(cVal) ? 0 : cVal,
           spent_amount: realSpent,
           client: clientName ? { name: clientName } : undefined,
-          category: p.type ? p.type.replace(/_/g, " ") : "Arsitektur",
+          building_function: p.building_function || null,
+          work_category:
+            p.work_category ||
+            (p.type === "INTERIOR_DESIGN"
+              ? "Interior & Furniture"
+              : p.type === "RENOVATION"
+              ? "Renovation"
+              : p.type === "CONSTRUCTION"
+              ? "Build From Scratch"
+              : null),
           deadline: p.end_date ? new Date(p.end_date).toLocaleDateString("id-ID", { month: "short", year: "numeric" }) : "Berjalan",
         };
       });
@@ -394,6 +404,15 @@ export default function ProjectsContent() {
                     {project.name}
                   </h4>
 
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <span className="rounded-md bg-violet-50 px-2 py-1 text-[10px] font-medium text-violet-700">
+                      Fungsi: {project.building_function || "Belum diatur"}
+                    </span>
+                    <span className="rounded-md bg-sky-50 px-2 py-1 text-[10px] font-medium text-sky-700">
+                      Pekerjaan: {project.work_category || "Belum diatur"}
+                    </span>
+                  </div>
+
                   {/* Client & Category */}
                   <div className="mt-2 space-y-1 text-xs text-zinc-500">
                     <div className="flex items-center gap-1.5">
@@ -451,7 +470,8 @@ export default function ProjectsContent() {
                           code: project.code,
                           name: project.name,
                           client_name: project.client?.name,
-                          category: project.category || "Architecture & Interior",
+                          building_function: project.building_function || "",
+                          work_category: project.work_category || "",
                           contract_value: project.contract_value,
                           status: project.status as any,
                           deadline: project.deadline || "",

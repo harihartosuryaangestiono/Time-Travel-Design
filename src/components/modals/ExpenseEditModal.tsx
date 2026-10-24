@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { X, Receipt, Tag, Building2, Calendar, DollarSign, Loader2, Check } from "lucide-react";
-import { updateExpense } from "@/app/actions/expenseActions";
+import { createExpense, updateExpense } from "@/app/actions/expenseActions";
 
 export interface ExpenseFormData {
   id?: string;
@@ -13,6 +13,8 @@ export interface ExpenseFormData {
   category: string;
   total_amount: number;
   status: "POSTED" | "APPROVED" | "SUBMITTED" | "DRAFT" | "REJECTED";
+  project_id?: string | null;
+  cash_account_id?: string | null;
 }
 
 interface ExpenseEditModalProps {
@@ -20,6 +22,8 @@ interface ExpenseEditModalProps {
   onClose: () => void;
   onSuccess: (expense: ExpenseFormData) => void;
   expenseToEdit?: ExpenseFormData | null;
+  projects: Array<{ id: string; name: string; code: string }>;
+  accounts: Array<{ id: string; name: string }>;
 }
 
 export function ExpenseEditModal({
@@ -27,6 +31,8 @@ export function ExpenseEditModal({
   onClose,
   onSuccess,
   expenseToEdit,
+  projects,
+  accounts,
 }: ExpenseEditModalProps) {
   const isEditing = Boolean(expenseToEdit && expenseToEdit.id);
 
@@ -38,8 +44,11 @@ export function ExpenseEditModal({
     category: "Project Material",
     total_amount: 0,
     status: "POSTED",
+    project_id: "",
+    cash_account_id: "",
   });
 
+  const [originalProjectId, setOriginalProjectId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -54,7 +63,10 @@ export function ExpenseEditModal({
         category: expenseToEdit.category || "Project Material",
         total_amount: expenseToEdit.total_amount || 0,
         status: expenseToEdit.status || "POSTED",
+        project_id: expenseToEdit.project_id || "",
+        cash_account_id: expenseToEdit.cash_account_id || "",
       });
+      setOriginalProjectId(expenseToEdit.project_id || "");
     } else {
       const year = new Date().getFullYear();
       const randNum = String(Math.floor(Math.random() * 9000) + 1000);
@@ -64,9 +76,12 @@ export function ExpenseEditModal({
         description: "",
         merchant: "",
         category: "Project Material",
-        total_amount: 15000000,
+        total_amount: 0,
         status: "POSTED",
+        project_id: "",
+        cash_account_id: "",
       });
+      setOriginalProjectId("");
     }
     setErrorMsg(null);
   }, [expenseToEdit, isOpen]);
@@ -79,6 +94,10 @@ export function ExpenseEditModal({
       setErrorMsg("Expense Description & Purpose is required.");
       return;
     }
+    if (formData.total_amount <= 0) {
+      setErrorMsg("Nominal pengeluaran harus lebih besar dari 0.");
+      return;
+    }
 
     try {
       setIsSubmitting(true);
@@ -86,11 +105,43 @@ export function ExpenseEditModal({
 
       if (isEditing && formData.id) {
         await updateExpense(formData.id, {
+          date: formData.date,
           description: formData.description,
           merchant: formData.merchant || undefined,
           category: formData.category,
           amount: formData.total_amount,
+          cash_account_id: formData.cash_account_id || undefined,
+          ...(formData.project_id !== originalProjectId
+            ? {
+                project_allocations: formData.project_id
+                  ? [{
+                      project_id: formData.project_id,
+                      amount: formData.total_amount,
+                      description: formData.description,
+                    }]
+                  : [],
+              }
+            : {}),
         });
+      } else {
+        const createdExpense = await createExpense({
+          date: formData.date,
+          description: formData.description,
+          merchant: formData.merchant || undefined,
+          category: formData.category,
+          amount: formData.total_amount,
+          cash_account_id: formData.cash_account_id || undefined,
+          project_allocations: formData.project_id
+            ? [{
+                project_id: formData.project_id,
+                amount: formData.total_amount,
+                description: formData.description,
+              }]
+            : [],
+        });
+        formData.id = createdExpense.id;
+        formData.number = createdExpense.number;
+        formData.status = "DRAFT";
       }
 
       onSuccess(formData);
@@ -137,6 +188,23 @@ export function ExpenseEditModal({
           </div>
         </div>
 
+        <div>
+          <label htmlFor="expense-cash-account" className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
+            Dibayar dari rekening / kas
+          </label>
+          <select
+            id="expense-cash-account"
+            value={formData.cash_account_id || ""}
+            onChange={(e) => setFormData({ ...formData, cash_account_id: e.target.value })}
+            className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
+          >
+            <option value="">Belum dibayar / belum ditentukan</option>
+            {accounts.map((account) => (
+              <option key={account.id} value={account.id}>{account.name}</option>
+            ))}
+          </select>
+        </div>
+
         {errorMsg && (
           <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
             {errorMsg}
@@ -158,23 +226,28 @@ export function ExpenseEditModal({
               />
             </div>
 
-            {/* Status */}
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-                Status
-              </label>
-              <select
-                value={formData.status}
-                onChange={(e) =>
-                  setFormData({ ...formData, status: e.target.value as any })
-                }
-                className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
-              >
-                <option value="POSTED">POSTED (Journalized)</option>
-                <option value="APPROVED">APPROVED (Authorized)</option>
-                <option value="SUBMITTED">SUBMITTED (Pending)</option>
-              </select>
-            </div>
+          </div>
+
+          <div>
+            <label htmlFor="expense-project" className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
+              Proyek
+            </label>
+            <select
+              id="expense-project"
+              value={formData.project_id || ""}
+              onChange={(e) => setFormData({ ...formData, project_id: e.target.value })}
+              className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
+            >
+              <option value="">Pengeluaran operasional (tanpa proyek)</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.code} — {project.name}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-[10px] text-zinc-500">
+              Pengeluaran yang dialokasikan ke proyek akan masuk ke realisasi biaya proyek.
+            </p>
           </div>
 
           {/* Description */}
@@ -264,8 +337,9 @@ export function ExpenseEditModal({
                 </span>
                 <input
                   type="number"
-                  min="0"
+                  min="1"
                   step="50000"
+                  required
                   value={formData.total_amount || ""}
                   onChange={(e) =>
                     setFormData({

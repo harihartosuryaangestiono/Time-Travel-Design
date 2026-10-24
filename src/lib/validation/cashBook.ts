@@ -5,9 +5,9 @@ export const CreateFastTransactionSchema = z.object({
   description: z.string().min(1, "Keterangan transaksi wajib diisi"),
   category: z.string().min(1, "Kategori wajib dipilih untuk setiap transaksi"),
   amount: z.number().positive("Nominal harus lebih dari 0"),
-  type: z.enum(["DEBIT", "KREDIT"]).default("KREDIT"),
+  type: z.enum(["INCOME", "EXPENSE"]).default("EXPENSE"),
   project_id: z.string().optional().nullable(),
-  cash_account_id: z.string().optional().nullable(),
+  cash_account_id: z.string().min(1, "Rekening kas/bank wajib dipilih"),
   notes: z.string().optional().nullable(),
 });
 
@@ -25,4 +25,5 @@ export interface CashBookEntry {
   needs_category: boolean;
   project_id?: string | null;
   projectName?: string | null;
+  type: "INCOME" | "EXPENSE" | "OPENING";
 }

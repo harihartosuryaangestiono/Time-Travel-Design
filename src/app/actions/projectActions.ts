@@ -58,6 +58,8 @@ export async function createProject(input: {
   name: string;
   client_id?: string;
   type: ProjectType;
+  building_function?: string;
+  work_category?: string;
   status?: ProjectStatus;
   location?: string;
   start_date?: string;
@@ -100,6 +102,8 @@ export async function updateProject(
     name?: string;
     client_id?: string;
     type?: ProjectType;
+    building_function?: string;
+    work_category?: string;
     status?: ProjectStatus;
     location?: string;
     start_date?: string;

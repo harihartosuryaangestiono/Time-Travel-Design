@@ -9,7 +9,6 @@ import {
   Receipt,
   FileText,
   Coins,
-  ArrowRightLeft,
   Sparkles,
   Camera,
   Menu,
@@ -64,10 +63,6 @@ const pageTitles: Record<string, { title: string; description: string }> = {
   "/cash-accounts": {
     title: "Treasury & Bank Accounts",
     description: "Corporate bank balances, checking accounts, and petty cash vaults",
-  },
-  "/transfers": {
-    title: "Internal Fund Transfers",
-    description: "Multi-account liquidity rebalancing and zero-discrepancy reconciliation",
   },
   "/invoices": {
     title: "Client Billing & Invoices",
@@ -312,14 +307,6 @@ export default function Header({
               >
                 <Coins className="h-4 w-4 text-zinc-900" />
                 Request Cash Advance
-              </Link>
-              <Link
-                href="/transfers"
-                onClick={() => setShowQuickAction(false)}
-                className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950 transition-colors"
-              >
-                <ArrowRightLeft className="h-4 w-4 text-zinc-900" />
-                Transfer Funds
               </Link>
             </div>
           )}

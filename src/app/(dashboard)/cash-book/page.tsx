@@ -15,6 +15,8 @@ import {
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import { FastTransactionEntry } from "@/components/cash-book/FastTransactionEntry";
+import { getCashAccountsWithBalances } from "@/app/actions/cashAccountActions";
+import { getProjects } from "@/app/actions/projectActions";
 import {
   getCashBookTransactions,
   getRecentDescriptions,
@@ -48,6 +50,9 @@ const MONTH_NAMES = [
 
 export default function CashBookPage() {
   const [entries, setEntries] = useState<CashBookEntry[]>([]);
+  const [accounts, setAccounts] = useState<Array<{ id: string; name: string; opening_balance: number }>>([]);
+  const [projects, setProjects] = useState<Array<{ id: string; name: string; code: string }>>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState("");
   const [currentBalance, setCurrentBalance] = useState<number>(0);
   const [openingBalance, setOpeningBalance] = useState<number>(0);
   const [selectedMonth, setSelectedMonth] = useState<number>(0); // 0 = Semua
@@ -63,7 +68,9 @@ export default function CashBookPage() {
       const res = await getCashBookTransactions({
         month: selectedMonth > 0 ? selectedMonth : undefined,
         category: selectedCategory,
+        cashAccountId: selectedAccountId,
       });
+      setAccounts(res.accounts);
       setEntries(res.entries);
       setCurrentBalance(res.currentBalance);
       setOpeningBalance(res.openingBalance);
@@ -79,8 +86,27 @@ export default function CashBookPage() {
   };
 
   useEffect(() => {
-    fetchBookData();
-  }, [selectedMonth, selectedCategory]);
+    Promise.all([getCashAccountsWithBalances(), getProjects()])
+      .then(([cashAccounts, projectRows]) => {
+        setAccounts(cashAccounts);
+        setSelectedAccountId((current) => current || cashAccounts[0]?.id || "");
+        setProjects(projectRows.map((project) => ({
+          id: project.id,
+          name: project.name,
+          code: project.code,
+        })));
+        setIsLoading(false);
+      })
+      .catch((err) => {
+        console.error("Gagal memuat pilihan rekening/proyek:", err);
+        setError(err instanceof Error ? err.message : "Gagal memuat pilihan transaksi.");
+        setIsLoading(false);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (selectedAccountId) void fetchBookData();
+  }, [selectedMonth, selectedCategory, selectedAccountId]);
 
   const handleExportCSV = () => {
     const headers = ["Tanggal", "Nomor Ref", "Keterangan", "Kategori", "Debit", "Kredit", "Saldo Berjalan"];
@@ -150,15 +176,15 @@ export default function CashBookPage() {
           gradient
         />
         <StatCard
-          title="Kas Modal Awal 2025"
+          title="Saldo Awal Rekening"
           value={isLoading ? "..." : formatCurrency(openingBalance)}
-          subtitle="Saldo awal pembukuan"
+          subtitle="Saldo pada tanggal mulai pencatatan"
           icon={Calendar}
           iconBgColor="bg-zinc-100"
           iconColor="text-zinc-950"
         />
         <StatCard
-          title="Total Pemasukan / Bunga"
+          title="Total Uang Masuk"
           value={isLoading ? "..." : formatCurrency(totalIn)}
           subtitle={`${entries.filter((e) => e.debit > 0).length} transaksi masuk`}
           icon={ArrowDownLeft}
@@ -166,7 +192,7 @@ export default function CashBookPage() {
           iconColor="text-blue-700"
         />
         <StatCard
-          title="Total Beban Kantor"
+          title="Total Uang Keluar"
           value={isLoading ? "..." : formatCurrency(totalOut)}
           subtitle={`${entries.filter((e) => e.kredit > 0).length} pengeluaran kantor`}
           icon={ArrowUpRight}
@@ -175,12 +201,39 @@ export default function CashBookPage() {
         />
       </div>
 
+      {accounts.length > 0 && (
+        <div className="flex flex-col gap-2 rounded-2xl border border-zinc-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-xs font-bold text-zinc-900">Rekening yang dicatat</h3>
+            <p className="text-[11px] text-zinc-500">Pilih rekening untuk melihat mutasi dan saldo rekening tersebut.</p>
+          </div>
+          <select
+            value={selectedAccountId}
+            onChange={(event) => setSelectedAccountId(event.target.value)}
+            className="h-10 rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs font-semibold text-zinc-900"
+          >
+            {accounts.map((account) => (
+              <option key={account.id} value={account.id}>{account.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* ── Input Cepat Ala Excel ── */}
-      <FastTransactionEntry
-        onSuccess={fetchBookData}
-        recentDescriptions={recentDescriptions}
-        allowProjectSelection={false}
-      />
+      {accounts.length > 0 ? (
+        <FastTransactionEntry
+          onSuccess={fetchBookData}
+          recentDescriptions={recentDescriptions}
+          accounts={accounts}
+          projects={projects}
+          defaultProjectId={undefined}
+          allowProjectSelection
+        />
+      ) : !isLoading && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800">
+          Buat rekening atau akun kas terlebih dahulu di Treasury &amp; Bank Accounts sebelum mencatat mutasi.
+        </div>
+      )}
 
       {/* ── Filter Controls ── */}
       <div className="flex flex-col sm:flex-row items-center justify-between rounded-2xl border border-zinc-200 bg-white p-3.5 shadow-sm gap-3">
@@ -207,7 +260,12 @@ export default function CashBookPage() {
               onChange={(e) => setSelectedCategory(e.target.value)}
               className="bg-transparent font-medium text-zinc-900 focus:outline-none max-w-xs truncate"
             >
-              <option value="ALL">Semua 11 Kategori Kantor</option>
+              <option value="ALL">Semua kategori transaksi</option>
+              <option value="Pendapatan Proyek">Pendapatan Proyek</option>
+              <option value="Setoran Modal">Setoran Modal</option>
+              <option value="Bunga Bank">Bunga Bank</option>
+              <option value="Pemasukan Lainnya">Pemasukan Lainnya</option>
+              <option value="Pembayaran Invoice">Pembayaran Invoice</option>
               <option value="Gaji dan Upah Karyawan">Gaji dan Upah Karyawan</option>
               <option value="Transportasi Operasional">Transportasi Operasional</option>
               <option value="Biaya Konsumsi Kantor">Biaya Konsumsi Kantor</option>
@@ -279,7 +337,15 @@ export default function CashBookPage() {
                     {ent.date}
                   </td>
                   <td className="py-3 pr-2">
-                    <p className="font-semibold text-zinc-900">{ent.description}</p>
+                    <p className="font-semibold text-zinc-900">
+                      {ent.description}
+                      {ent.type === "INCOME" && (
+                        <span className="ml-2 rounded bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-emerald-700">Masuk</span>
+                      )}
+                      {ent.type === "EXPENSE" && (
+                        <span className="ml-2 rounded bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-rose-700">Keluar</span>
+                      )}
+                    </p>
                     {ent.number && (
                       <p className="font-mono text-[10px] text-zinc-400">{ent.number}</p>
                     )}

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import {
   Plus,
   Wallet,
@@ -113,13 +112,6 @@ export default function CashAccountsPage() {
         </div>
 
         <div className="flex items-center gap-2.5">
-          <Link
-            href="/transfers"
-            className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-xs font-semibold text-zinc-700 shadow-sm hover:bg-zinc-50 transition-all"
-          >
-            <ArrowRightLeft className="h-4 w-4 text-zinc-500" />
-            <span>Transfer Antar Rekening</span>
-          </Link>
           <button
             type="button"
             onClick={() => {
@@ -319,13 +311,6 @@ export default function CashAccountsPage() {
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
-                    <Link
-                      href="/transfers"
-                      className="inline-flex items-center gap-1 font-bold text-white hover:text-zinc-300 transition-colors pl-1"
-                    >
-                      <ArrowRightLeft className="h-3.5 w-3.5" />
-                      <span>Transfer</span>
-                    </Link>
                   </div>
                 </div>
               </div>

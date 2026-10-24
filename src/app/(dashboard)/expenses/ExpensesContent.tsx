@@ -23,6 +23,7 @@ import { ExpenseEditModal, ExpenseFormData } from "@/components/modals/ExpenseEd
 import { DeleteConfirmDialog } from "@/components/modals/DeleteConfirmDialog";
 import { deleteExpense } from "@/app/actions/expenseActions";
 import { DEFAULT_CHART_OF_ACCOUNTS } from "@/lib/accounting/defaultCoa";
+import { getCashAccountsWithBalances } from "@/app/actions/cashAccountActions";
 
 interface ExpenseItem {
   id: string;
@@ -34,6 +35,9 @@ interface ExpenseItem {
   category: string;
   status: "POSTED" | "APPROVED" | "SUBMITTED" | "DRAFT" | "REJECTED";
   receiptUrl?: string | null;
+  project_id?: string | null;
+  projectName?: string;
+  cash_account_id?: string | null;
 }
 
 function formatCurrency(amount: number) {
@@ -47,6 +51,8 @@ function formatCurrency(amount: number) {
 
 export default function ExpensesContent() {
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
+  const [accounts, setAccounts] = useState<Array<{ id: string; name: string }>>([]);
+  const [projects, setProjects] = useState<Array<{ id: string; name: string; code: string }>>([]);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -96,8 +102,47 @@ export default function ExpensesContent() {
         throw new Error(fetchErr.message);
       }
 
+      const [cashAccounts, { data: projectsData, error: projectsError }, { data: allocationData, error: allocationError }] =
+        await Promise.all([
+          getCashAccountsWithBalances(),
+          supabase
+            .from("projects")
+            .select("id, name, code")
+            .eq("organization_id", membership.organization_id)
+            .order("name"),
+          (data || []).length
+            ? supabase
+                .from("expense_allocations")
+                .select("expense_id, project_id")
+                .in("expense_id", (data || []).map((expense) => expense.id))
+            : Promise.resolve({ data: [], error: null }),
+        ]);
+
+      if (projectsError) throw new Error(projectsError.message);
+      if (allocationError) throw new Error(allocationError.message);
+
+      const projectOptions = projectsData || [];
+      setAccounts(cashAccounts);
+      setProjects(projectOptions);
+      const projectById = new Map(projectOptions.map((project) => [project.id, project]));
+      const allocationsByExpense = new Map<string, string[]>();
+      (allocationData || []).forEach((allocation) => {
+        const projectIds = allocationsByExpense.get(allocation.expense_id) || [];
+        projectIds.push(allocation.project_id);
+        allocationsByExpense.set(allocation.expense_id, projectIds);
+      });
+
       const mapped: ExpenseItem[] = (data || []).map((e) => {
         const amt = parseFloat(e.total_amount || "0");
+        const allocatedProjectIds = allocationsByExpense.get(e.id) || [];
+        const selectedProjectId =
+          allocatedProjectIds.length === 1 ? allocatedProjectIds[0] : e.project_id || null;
+        const projectName =
+          allocatedProjectIds.length > 1
+            ? `Dialokasikan ke ${allocatedProjectIds.length} proyek`
+            : selectedProjectId
+            ? projectById.get(selectedProjectId)?.name || "Proyek"
+            : "Operasional (tanpa proyek)";
         return {
           id: e.id,
           number: e.number || `EXP-${e.id.slice(0, 8)}`,
@@ -107,6 +152,9 @@ export default function ExpensesContent() {
           category: e.category || "Lain-lain",
           total_amount: isNaN(amt) ? 0 : amt,
           status: e.status || "POSTED",
+          project_id: selectedProjectId,
+          projectName,
+          cash_account_id: e.cash_account_id || null,
         };
       });
       setExpenses(mapped);
@@ -393,6 +441,7 @@ export default function ExpensesContent() {
                   <th className="pb-3">Tanggal</th>
                   <th className="pb-3">Deskripsi &amp; Toko</th>
                   <th className="pb-3">Kategori</th>
+                  <th className="pb-3">Proyek</th>
                   <th className="pb-3 text-right">Nominal</th>
                   <th className="pb-3 text-center">Status</th>
                   <th className="pb-3 pr-2 text-right">Aksi</th>
@@ -424,6 +473,9 @@ export default function ExpensesContent() {
                       <span className="inline-flex items-center rounded-lg bg-zinc-100 px-2.5 py-1 text-[11px] font-medium text-zinc-700">
                         {exp.category}
                       </span>
+                    </td>
+                    <td className="py-3.5 text-zinc-600">
+                      {exp.projectName}
                     </td>
                     <td className="py-3.5 font-mono font-bold text-zinc-950 tabular-nums whitespace-nowrap text-right">
                       {formatCurrency(exp.total_amount)}
@@ -469,6 +521,8 @@ export default function ExpensesContent() {
                               category: exp.category,
                               total_amount: exp.total_amount,
                               status: exp.status,
+                              project_id: exp.project_id,
+                              cash_account_id: exp.cash_account_id,
                             });
                             setShowEditModal(true);
                           }}
@@ -514,6 +568,8 @@ export default function ExpensesContent() {
         }}
         onSuccess={handleSaveExpense}
         expenseToEdit={selectedExpense}
+        projects={projects}
+        accounts={accounts}
       />
 
       {/* ── Delete Confirmation Dialog ── */}

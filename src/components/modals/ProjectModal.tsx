@@ -10,11 +10,19 @@ export interface ProjectFormData {
   code: string;
   name: string;
   client_name?: string;
-  category: string;
+  building_function: string;
+  work_category: string;
   contract_value: number;
   status: "ACTIVE" | "PLANNING" | "COMPLETED" | "ON_HOLD";
   deadline: string;
   description?: string;
+}
+
+function legacyProjectType(workCategory: string) {
+  if (workCategory === "Interior & Furniture") return "INTERIOR_DESIGN";
+  if (workCategory === "Renovation") return "RENOVATION";
+  if (workCategory === "Build From Scratch") return "CONSTRUCTION";
+  return "ARCHITECTURE";
 }
 
 interface ProjectModalProps {
@@ -36,7 +44,8 @@ export function ProjectModal({
     code: "",
     name: "",
     client_name: "",
-    category: "Architecture & Interior",
+    building_function: "",
+    work_category: "",
     contract_value: 0,
     status: "ACTIVE",
     deadline: "",
@@ -53,7 +62,8 @@ export function ProjectModal({
         code: projectToEdit.code || "",
         name: projectToEdit.name || "",
         client_name: projectToEdit.client_name || "",
-        category: projectToEdit.category || "Architecture & Interior",
+        building_function: projectToEdit.building_function || "",
+        work_category: projectToEdit.work_category || "",
         contract_value: projectToEdit.contract_value || 0,
         status: projectToEdit.status || "ACTIVE",
         deadline: projectToEdit.deadline || "",
@@ -66,7 +76,8 @@ export function ProjectModal({
         code: `PRJ-${year}-${randNum}`,
         name: "",
         client_name: "",
-        category: "Architecture & Interior",
+        building_function: "",
+        work_category: "",
         contract_value: 0,
         status: "ACTIVE",
         deadline: "",
@@ -94,6 +105,9 @@ export function ProjectModal({
         savedRecord = await updateProject(formData.id, {
           code: formData.code,
           name: formData.name,
+          type: legacyProjectType(formData.work_category),
+          building_function: formData.building_function,
+          work_category: formData.work_category,
           contract_value: Number(formData.contract_value) || 0,
           description: formData.description,
         });
@@ -101,7 +115,9 @@ export function ProjectModal({
         savedRecord = await createProject({
           code: formData.code,
           name: formData.name,
-          type: "ARCHITECTURE",
+          type: legacyProjectType(formData.work_category),
+          building_function: formData.building_function,
+          work_category: formData.work_category,
           contract_value: Number(formData.contract_value) || 0,
           description: formData.description,
         });
@@ -223,20 +239,38 @@ export function ProjectModal({
             </FormField>
 
             {/* Scope / Category */}
-            <FormField id="project-category" label="Kategori proyek">
+            <FormField id="project-building-function" label="Kategori fungsi bangunan" required>
               <FormSelect
-                id="project-category"
-                value={formData.category}
+                id="project-building-function"
+                required
+                value={formData.building_function}
                 onChange={(e) =>
-                  setFormData({ ...formData, category: e.target.value })
+                  setFormData({ ...formData, building_function: e.target.value })
                 }
               >
-                <option value="Architecture & Interior">Architecture &amp; Interior</option>
-                <option value="Commercial F&B">Commercial F&amp;B</option>
-                <option value="Masterplanning">Masterplanning</option>
+                <option value="" disabled>Pilih fungsi bangunan</option>
+                <option value="Commercial">Commercial</option>
+                <option value="Premium Residential">Premium Residential</option>
                 <option value="Luxury Residential">Luxury Residential</option>
-                <option value="Hospitality & Landscape">Hospitality &amp; Landscape</option>
-                <option value="Renovation & Fit-Out">Renovation &amp; Fit-Out</option>
+                <option value="High End Residential">High End Residential</option>
+                <option value="Office">Office</option>
+              </FormSelect>
+            </FormField>
+
+            <FormField id="project-work-category" label="Kategori pekerjaan" required>
+              <FormSelect
+                id="project-work-category"
+                required
+                value={formData.work_category}
+                onChange={(e) =>
+                  setFormData({ ...formData, work_category: e.target.value })
+                }
+              >
+                <option value="" disabled>Pilih kategori pekerjaan</option>
+                <option value="Design Development">Design Development</option>
+                <option value="Interior & Furniture">Interior &amp; Furniture</option>
+                <option value="Renovation">Renovation</option>
+                <option value="Build From Scratch">Build From Scratch</option>
               </FormSelect>
             </FormField>
           </div>

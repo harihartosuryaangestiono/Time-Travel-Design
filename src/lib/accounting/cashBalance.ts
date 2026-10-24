@@ -41,20 +41,26 @@ export async function getAccountsWithCalculatedBalance(
     .from("invoice_payments")
     .select("cash_account_id, amount");
 
-  // 4. Ambil transfer masuk & keluar
+  // 4. Ambil pemasukan non-proyek yang dicatat langsung di Buku Kas
+  const { data: cashReceipts } = await supabase
+    .from("cash_receipts")
+    .select("cash_account_id, amount")
+    .eq("organization_id", organizationId);
+
+  // 5. Ambil transfer masuk & keluar
   const { data: transfers } = await supabase
     .from("cash_transfers")
     .select("from_account_id, to_account_id, amount")
     .eq("organization_id", organizationId);
 
-  // 5. Ambil pengeluaran yang terbayar dari akun kas (expenses)
+  // 6. Ambil pengeluaran yang terbayar dari akun kas (expenses)
   const { data: expenses } = await supabase
     .from("expenses")
     .select("cash_account_id, total_amount, status")
     .eq("organization_id", organizationId)
     .in("status", ["APPROVED", "POSTED"]);
 
-  // 6. Ambil kasbon dicairkan & pengembalian (cash_advances)
+  // 7. Ambil kasbon dicairkan & pengembalian (cash_advances)
   // Aturan Fase 2B: Kasbon owner yang bertanda is_opening_balance tidak mengurangi kas riil
   const { data: advances } = await supabase
     .from("cash_advances")
@@ -62,7 +68,7 @@ export async function getAccountsWithCalculatedBalance(
     .eq("organization_id", organizationId)
     .in("status", ["DISBURSED", "PARTIALLY_SETTLED", "SETTLED"]);
 
-  // 7. Ambil reimbursement terbayar
+  // 8. Ambil reimbursement terbayar
   const { data: reimbursements } = await supabase
     .from("reimbursements")
     .select("cash_account_id, paid_amount, status")
@@ -85,6 +91,12 @@ export async function getAccountsWithCalculatedBalance(
     (invoicePayments || []).forEach((ip: any) => {
       if (ip.cash_account_id === acc.id) {
         totalIn += parseFloat(ip.amount || "0") || 0;
+      }
+    });
+
+    (cashReceipts || []).forEach((receipt: any) => {
+      if (receipt.cash_account_id === acc.id) {
+        totalIn += parseFloat(receipt.amount || "0") || 0;
       }
     });
 

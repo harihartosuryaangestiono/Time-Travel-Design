@@ -20,6 +20,7 @@ interface FastTransactionEntryProps {
   onSuccess: () => void;
   recentDescriptions?: string[];
   projects?: Array<{ id: string; name: string }>;
+  accounts: Array<{ id: string; name: string; opening_balance: number }>;
   defaultProjectId?: string;
   allowProjectSelection?: boolean;
 }
@@ -91,6 +92,7 @@ export function FastTransactionEntry({
   onSuccess,
   recentDescriptions = [],
   projects = [],
+  accounts,
   defaultProjectId,
   allowProjectSelection = true,
 }: FastTransactionEntryProps) {
@@ -98,6 +100,8 @@ export function FastTransactionEntry({
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
   const [amount, setAmount] = useState<number | "">("");
+  const [type, setType] = useState<"INCOME" | "EXPENSE">("EXPENSE");
+  const [cashAccountId, setCashAccountId] = useState("");
   const [projectId, setProjectId] = useState(defaultProjectId || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [smartSuggestion, setSmartSuggestion] = useState<string | null>(null);
@@ -106,6 +110,12 @@ export function FastTransactionEntry({
   const [pasteText, setPasteText] = useState("");
 
   const descInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!accounts.some((account) => account.id === cashAccountId)) {
+      setCashAccountId(accounts[0]?.id || "");
+    }
+  }, [accounts, cashAccountId]);
 
   const handleDescChange = (val: string) => {
     setDescription(val);
@@ -127,7 +137,11 @@ export function FastTransactionEntry({
       return;
     }
     if (!category) {
-      setErrorMsg("Kategori wajib dipilih untuk setiap pengeluaran (standar TTD).");
+      setErrorMsg("Kategori transaksi wajib dipilih.");
+      return;
+    }
+    if (!cashAccountId) {
+      setErrorMsg("Pilih rekening atau kas yang menerima atau membayar transaksi.");
       return;
     }
     if (!amount || Number(amount) <= 0) {
@@ -144,13 +158,15 @@ export function FastTransactionEntry({
         description: description.trim(),
         category,
         amount: Number(amount),
-        type: "KREDIT",
+        type,
         project_id: projectId || null,
+        cash_account_id: cashAccountId,
       });
 
       // Reset form dan fokus kembali ke input keterangan agar siap input baris berikutnya
       setDescription("");
       setAmount("");
+      setCategory("");
       setSmartSuggestion(null);
       if (descInputRef.current) {
         descInputRef.current.focus();
@@ -189,8 +205,9 @@ export function FastTransactionEntry({
               description: rowDesc,
               category: rowCat,
               amount: rowAmt,
-              type: "KREDIT",
+              type: "EXPENSE",
               project_id: projectId || null,
+              cash_account_id: cashAccountId,
             });
             successCount++;
           }
@@ -256,6 +273,59 @@ export function FastTransactionEntry({
       )}
 
       {/* Baris Input Inline Ala Excel */}
+      <div className="mb-3 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+        <div>
+          <label className="mb-0.5 block text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+            Jenis transaksi
+          </label>
+          <select
+            value={type}
+            onChange={(e) => {
+              setType(e.target.value as "INCOME" | "EXPENSE");
+              setCategory("");
+              setSmartSuggestion(null);
+            }}
+            className="h-9 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 text-xs font-semibold text-zinc-900"
+          >
+            <option value="EXPENSE">Uang keluar</option>
+            <option value="INCOME">Uang masuk</option>
+          </select>
+        </div>
+        <div>
+          <label className="mb-0.5 block text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+            Rekening / kas *
+          </label>
+          <select
+            required
+            value={cashAccountId}
+            onChange={(e) => setCashAccountId(e.target.value)}
+            className="h-9 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 text-xs font-semibold text-zinc-900"
+          >
+            <option value="">Pilih rekening / kas</option>
+            {accounts.map((account) => (
+              <option key={account.id} value={account.id}>{account.name}</option>
+            ))}
+          </select>
+        </div>
+        {allowProjectSelection && (
+          <div>
+            <label className="mb-0.5 block text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+              Proyek (opsional)
+            </label>
+            <select
+              value={projectId}
+              onChange={(e) => setProjectId(e.target.value)}
+              className="h-9 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 text-xs font-semibold text-zinc-900"
+            >
+              <option value="">Tidak terkait proyek</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>{project.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+
       <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-2.5 sm:grid-cols-12 items-center">
         {/* Tanggal */}
         <div className="sm:col-span-2">
@@ -281,7 +351,7 @@ export function FastTransactionEntry({
             type="text"
             required
             list="recent-descriptions"
-            placeholder="Misal: Biaya konsumsi lembur kantor..."
+            placeholder={type === "INCOME" ? "Misal: Pembayaran termin proyek..." : "Misal: Pembelian material proyek..."}
             value={description}
             onChange={(e) => handleDescChange(e.target.value)}
             className="h-9 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs font-medium text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
@@ -307,6 +377,14 @@ export function FastTransactionEntry({
             }`}
           >
             <option value="">-- Pilih Kategori --</option>
+            {type === "INCOME" ? (
+              <optgroup label="Kategori pemasukan">
+                <option value="Pendapatan Proyek">Pendapatan Proyek</option>
+                <option value="Setoran Modal">Setoran Modal</option>
+                <option value="Bunga Bank">Bunga Bank</option>
+                <option value="Pemasukan Lainnya">Pemasukan Lainnya</option>
+              </optgroup>
+            ) : <>
             <optgroup label="Harga Pokok Penjualan (HPP)">
               <option value="Bahan Baku Utama / Material">Bahan Baku Utama / Material</option>
               <option value="Upah Tukang">Upah Tukang</option>
@@ -328,6 +406,7 @@ export function FastTransactionEntry({
               <option value="Inventaris">Inventaris</option>
               <option value="Perangkat Gadget">Perangkat Gadget</option>
             </optgroup>
+            </>}
           </select>
         </div>
 
@@ -374,7 +453,7 @@ export function FastTransactionEntry({
               Paste Baris Transaksi dari Excel
             </h3>
             <p className="text-xs text-zinc-500 mb-4">
-              Salin baris dari Excel (Format kolom: <code>Tanggal [Tab] Keterangan [Tab] Kategori [Tab] Nominal</code>) lalu tempel di kotak berikut.
+              Salin baris pengeluaran dari Excel (Format kolom: <code>Tanggal [Tab] Keterangan [Tab] Kategori [Tab] Nominal</code>) lalu tempel di kotak berikut.
             </p>
 
             <textarea
