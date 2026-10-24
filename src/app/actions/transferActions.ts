@@ -18,14 +18,9 @@ export async function getCashTransfers() {
   const user = await requireAuthUser();
   const supabase = await createClient();
 
-  const { data, error } = await supabase
+  const { data: transfers, error } = await supabase
     .from("cash_transfers")
-    .select(`
-      *,
-      from_account:cash_accounts!from_account_id(id, name, account_number),
-      to_account:cash_accounts!to_account_id(id, name, account_number),
-      creator:profiles!created_by(full_name, email)
-    `)
+    .select("*")
     .eq("organization_id", user.organizationId)
     .order("created_at", { ascending: false });
 
@@ -33,7 +28,48 @@ export async function getCashTransfers() {
     throw new Error(error.message);
   }
 
-  return data || [];
+  const accountIds = Array.from(
+    new Set(
+      (transfers || []).flatMap((transfer) => [
+        transfer.from_account_id,
+        transfer.to_account_id,
+      ])
+    )
+  );
+  const creatorIds = Array.from(
+    new Set((transfers || []).map((transfer) => transfer.created_by).filter(Boolean))
+  ) as string[];
+
+  const [{ data: accounts, error: accountsError }, { data: creators, error: creatorsError }] =
+    await Promise.all([
+      accountIds.length
+        ? supabase
+            .from("cash_accounts")
+            .select("id, name, account_number")
+            .eq("organization_id", user.organizationId)
+            .in("id", accountIds)
+        : Promise.resolve({ data: [], error: null }),
+      creatorIds.length
+        ? supabase.from("profiles").select("id, full_name, email").in("id", creatorIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+  if (accountsError) {
+    throw new Error(`Gagal memuat rekening transfer: ${accountsError.message}`);
+  }
+  if (creatorsError) {
+    throw new Error(`Gagal memuat pembuat transfer: ${creatorsError.message}`);
+  }
+
+  const accountsById = new Map((accounts || []).map((account) => [account.id, account]));
+  const creatorsById = new Map((creators || []).map((creator) => [creator.id, creator]));
+
+  return (transfers || []).map((transfer) => ({
+    ...transfer,
+    from_account: accountsById.get(transfer.from_account_id) || null,
+    to_account: accountsById.get(transfer.to_account_id) || null,
+    creator: transfer.created_by ? creatorsById.get(transfer.created_by) || null : null,
+  }));
 }
 
 export async function createCashTransfer(input: CreateTransferInput) {

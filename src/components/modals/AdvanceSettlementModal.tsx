@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { X, CheckCircle, DollarSign, Calendar, FileText, Loader2, CreditCard } from "lucide-react";
-import { settleCashAdvanceRecord, SettleAdvanceInput } from "@/app/actions/cashAdvanceActions";
+import { settleCashAdvanceRecord } from "@/app/actions/cashAdvanceActions";
+import type { SettleAdvanceInput } from "@/lib/validation/cashAdvance";
 
 interface AdvanceSettlementModalProps {
   isOpen: boolean;

@@ -18,8 +18,8 @@ import { FastTransactionEntry } from "@/components/cash-book/FastTransactionEntr
 import {
   getCashBookTransactions,
   getRecentDescriptions,
-  CashBookEntry,
 } from "@/app/actions/cashBookActions";
+import type { CashBookEntry } from "@/lib/validation/cashBook";
 
 function formatCurrency(amount: number) {
   const safe = isNaN(amount) ? 0 : amount;

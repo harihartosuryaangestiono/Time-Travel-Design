@@ -30,8 +30,8 @@ import {
   deleteCashAdvance,
   approveCashAdvance,
   getCashAdvanceRecap,
-  AdvanceRecapItem,
 } from "@/app/actions/cashAdvanceActions";
+import type { AdvanceRecapItem } from "@/lib/validation/cashAdvance";
 
 interface CashAdvanceItem {
   id: string;
