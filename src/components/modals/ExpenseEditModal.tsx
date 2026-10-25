@@ -3,6 +3,10 @@
 import { useState, useEffect } from "react";
 import { X, Receipt, Tag, Building2, Calendar, DollarSign, Loader2, Check } from "lucide-react";
 import { createExpense, updateExpense } from "@/app/actions/expenseActions";
+import {
+  getExpenseBookCategories,
+  type ExpenseBook,
+} from "@/lib/accounting/expenseCategories";
 
 export interface ExpenseFormData {
   id?: string;
@@ -14,6 +18,7 @@ export interface ExpenseFormData {
   total_amount: number;
   status: "POSTED" | "APPROVED" | "SUBMITTED" | "DRAFT" | "REJECTED";
   project_id?: string | null;
+  book_type?: ExpenseBook;
   cash_account_id?: string | null;
 }
 
@@ -41,14 +46,16 @@ export function ExpenseEditModal({
     date: "",
     description: "",
     merchant: "",
-    category: "Project Material",
+    category: "",
     total_amount: 0,
     status: "POSTED",
     project_id: "",
+    book_type: "PROJECT",
     cash_account_id: "",
   });
 
   const [originalProjectId, setOriginalProjectId] = useState("");
+  const [originalBookType, setOriginalBookType] = useState<ExpenseBook>("PROJECT");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -60,13 +67,15 @@ export function ExpenseEditModal({
         date: expenseToEdit.date || "",
         description: expenseToEdit.description || "",
         merchant: expenseToEdit.merchant || "",
-        category: expenseToEdit.category || "Project Material",
+        category: expenseToEdit.category || "",
         total_amount: expenseToEdit.total_amount || 0,
         status: expenseToEdit.status || "POSTED",
         project_id: expenseToEdit.project_id || "",
+        book_type: expenseToEdit.book_type || (expenseToEdit.project_id ? "PROJECT" : "GENERAL"),
         cash_account_id: expenseToEdit.cash_account_id || "",
       });
       setOriginalProjectId(expenseToEdit.project_id || "");
+      setOriginalBookType(expenseToEdit.book_type || (expenseToEdit.project_id ? "PROJECT" : "GENERAL"));
     } else {
       const year = new Date().getFullYear();
       const randNum = String(Math.floor(Math.random() * 9000) + 1000);
@@ -75,13 +84,15 @@ export function ExpenseEditModal({
         date: new Date().toISOString().split("T")[0],
         description: "",
         merchant: "",
-        category: "Project Material",
+        category: "",
         total_amount: 0,
         status: "POSTED",
         project_id: "",
+        book_type: "PROJECT",
         cash_account_id: "",
       });
       setOriginalProjectId("");
+      setOriginalBookType("PROJECT");
     }
     setErrorMsg(null);
   }, [expenseToEdit, isOpen]);
@@ -98,6 +109,10 @@ export function ExpenseEditModal({
       setErrorMsg("Nominal pengeluaran harus lebih besar dari 0.");
       return;
     }
+    if (formData.book_type === "PROJECT" && !formData.project_id) {
+      setErrorMsg("Pilih proyek untuk mencatat pengeluaran Buku Kecil.");
+      return;
+    }
 
     try {
       setIsSubmitting(true);
@@ -111,8 +126,9 @@ export function ExpenseEditModal({
           category: formData.category,
           amount: formData.total_amount,
           cash_account_id: formData.cash_account_id || undefined,
-          ...(formData.project_id !== originalProjectId
+          ...(formData.project_id !== originalProjectId || formData.book_type !== originalBookType
             ? {
+                project_id: formData.project_id || null,
                 project_allocations: formData.project_id
                   ? [{
                       project_id: formData.project_id,
@@ -130,6 +146,7 @@ export function ExpenseEditModal({
           merchant: formData.merchant || undefined,
           category: formData.category,
           amount: formData.total_amount,
+          project_id: formData.project_id || null,
           cash_account_id: formData.cash_account_id || undefined,
           project_allocations: formData.project_id
             ? [{
@@ -229,26 +246,52 @@ export function ExpenseEditModal({
           </div>
 
           <div>
-            <label htmlFor="expense-project" className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-              Proyek
+            <label htmlFor="expense-book-type" className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
+              Buku pengeluaran
             </label>
             <select
-              id="expense-project"
-              value={formData.project_id || ""}
-              onChange={(e) => setFormData({ ...formData, project_id: e.target.value })}
+              id="expense-book-type"
+              value={formData.book_type}
+              onChange={(e) => {
+                const bookType = e.target.value as ExpenseBook;
+                setFormData({
+                  ...formData,
+                  book_type: bookType,
+                  project_id: bookType === "GENERAL" ? "" : formData.project_id,
+                  category: "",
+                });
+              }}
               className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
             >
-              <option value="">Pengeluaran operasional (tanpa proyek)</option>
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.code} — {project.name}
-                </option>
-              ))}
+              <option value="PROJECT">Buku Kecil — Pengeluaran Proyek</option>
+              <option value="GENERAL">Buku Besar — Pengeluaran Umum</option>
             </select>
-            <p className="mt-1 text-[10px] text-zinc-500">
-              Pengeluaran yang dialokasikan ke proyek akan masuk ke realisasi biaya proyek.
-            </p>
           </div>
+
+          {formData.book_type === "PROJECT" && (
+            <div>
+              <label htmlFor="expense-project" className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
+                Proyek *
+              </label>
+              <select
+                id="expense-project"
+                required
+                value={formData.project_id || ""}
+                onChange={(e) => setFormData({ ...formData, project_id: e.target.value })}
+                className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
+              >
+                <option value="">Pilih proyek</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.code} — {project.name}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[10px] text-zinc-500">
+                Pengeluaran Buku Kecil wajib dialokasikan ke proyek.
+              </p>
+            </div>
+          )}
 
           {/* Description */}
           <div>
@@ -290,21 +333,20 @@ export function ExpenseEditModal({
             {/* Category */}
             <div>
               <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-                Expense Category
+                Kategori {formData.book_type === "PROJECT" ? "Buku Kecil" : "Buku Besar"} *
               </label>
               <select
                 value={formData.category}
+                required
                 onChange={(e) =>
                   setFormData({ ...formData, category: e.target.value })
                 }
                 className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
               >
-                <option value="Project Material">Project Material</option>
-                <option value="Subcontractor">Subcontractor</option>
-                <option value="Rent & Utilities">Rent &amp; Utilities</option>
-                <option value="Software & CAD">Software &amp; CAD</option>
-                <option value="Travel & Survey">Travel &amp; Survey</option>
-                <option value="Operations">Operations</option>
+                <option value="">Pilih kategori</option>
+                {getExpenseBookCategories(formData.book_type || "PROJECT").map((category) => (
+                  <option key={category} value={category}>{category}</option>
+                ))}
               </select>
             </div>
           </div>

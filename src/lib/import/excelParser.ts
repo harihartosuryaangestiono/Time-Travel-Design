@@ -8,6 +8,11 @@ export type TransactionType =
   | "BUNGA_BANK"
   | "SETORAN_PROYEK";
 
+import {
+  normalizeExpenseCategory,
+  type ExpenseBook,
+} from "@/lib/accounting/expenseCategories";
+
 export interface ParsedRow {
   rowNumber: number;
   sheetAsal: string;
@@ -395,6 +400,27 @@ function processGridRows(
       if (isExplicitNeeds || !category || category.toLowerCase() === "perlu dikategorikan") {
         needsCategory = true;
         category = "Perlu dikategorikan";
+      } else if (
+        jenis === "PENGELUARAN_PROYEK" ||
+        jenis === "PENGELUARAN_KANTOR" ||
+        jenis === "BUNGA_BANK"
+      ) {
+        const expenseBook: ExpenseBook = buku === "PROYEK" ? "PROJECT" : "GENERAL";
+        const normalizedCategory = normalizeExpenseCategory(category, expenseBook);
+        if (normalizedCategory) {
+          category = normalizedCategory;
+        } else {
+          isValid = false;
+          validationError =
+            `Kategori '${category}' tidak sesuai untuk ${
+              expenseBook === "PROJECT" ? "Buku Kecil" : "Buku Besar"
+            }.`;
+        }
+      }
+
+      if (needsCategory) {
+        isValid = false;
+        validationError = "Kategori pengeluaran wajib diisi sebelum impor.";
       }
     }
 
@@ -523,7 +549,7 @@ export function generateCsvTemplate(): string {
       "2026-10-04",
       "Material Semen & Pasir",
       "PENGELUARAN_PROYEK",
-      "Bahan Baku Utama / Material",
+      "Project Material Procurement",
       "0",
       "3513000",
       "",
@@ -536,7 +562,7 @@ export function generateCsvTemplate(): string {
       "2026-10-04",
       "Kasbon Mang Rian",
       "PENGELUARAN_PROYEK",
-      "Upah Tukang",
+      "Worker Salary",
       "0",
       "1000000",
       "Mang Rian",
@@ -562,7 +588,7 @@ export function generateCsvTemplate(): string {
       "2026-01-24",
       "Gaji Kantor - Januari",
       "PENGELUARAN_KANTOR",
-      "Gaji dan Upah Karyawan",
+      "Staff Salary",
       "0",
       "5000000",
       "",
@@ -573,24 +599,24 @@ export function generateCsvTemplate(): string {
       "Lapkeu Perusahaan",
       "7",
       "2026-01-10",
-      "WPC Kebutuhan Kantor",
+      "Konsumsi rapat kantor",
       "PENGELUARAN_KANTOR",
-      "Perlu dikategorikan",
+      "Office Consumption & Refreshment",
       "0",
       "359990",
       "",
-      "YA",
+      "TIDAK",
     ],
     [
       "KAS_PERUSAHAAN",
       "Lapkeu Perusahaan",
       "17",
       "2026-01-30",
-      "Bunga Bank BCA",
-      "BUNGA_BANK",
-      "Biaya Administrasi Finansial",
-      "251.4",
+      "Biaya administrasi bank BCA",
+      "PENGELUARAN_KANTOR",
+      "Bank Administration Fee",
       "0",
+      "251.4",
       "",
       "TIDAK",
     ],

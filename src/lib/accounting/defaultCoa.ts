@@ -67,10 +67,34 @@ export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccountDefinition[] = [
   { code: "6800", name: "Beban Operasional Lainnya", type: AccountType.EXPENSE, normal_balance: NormalBalance.DEBIT, is_system: false, category_group: "OPEX" },
 ];
 
-/**
- * Helper mapping category name from Excel directly to account code
- */
+/** Maps expense categories to the closest existing general-ledger account. */
 export const EXCEL_CATEGORY_TO_ACCOUNT_CODE: Record<string, string> = {
+  // Buku Kecil
+  "Document Printing": "5100",
+  "Project Material Procurement": "5100",
+  "Worker Salary": "5200",
+  "Rent & Utilities": "5300",
+  "Project Transportation": "5400",
+  "Subcontractor - Glass & Aluminium": "5100",
+  "Subcontractor - Iron & Steel": "5100",
+  "Subcontractor - Wood Door & Window": "5100",
+  "Subcontractor - MEP": "5200",
+  "Subcontractor - Interior": "5100",
+  "Construction Waste": "5400",
+
+  // Buku Besar
+  "Staff Salary": "6100",
+  "Operational Transportation": "6200",
+  "Office Consumption & Refreshment": "6300",
+  "Hospitality & Representation": "6400",
+  "Marketing & Sales": "6500",
+  "Office Rent & Utilities": "6800",
+  "Bank Administration Fee": "6700",
+  "Office Renovation": "1510",
+  "Company Legal": "1520",
+  Inventory: "1530",
+
+  // Legacy category compatibility
   // HPP
   "Bahan Baku Utama / Material": "5100",
   "Upah Tukang": "5200",

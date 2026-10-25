@@ -22,8 +22,11 @@ import { ReceiptCaptureModal } from "@/components/expenses/ReceiptCaptureModal";
 import { ExpenseEditModal, ExpenseFormData } from "@/components/modals/ExpenseEditModal";
 import { DeleteConfirmDialog } from "@/components/modals/DeleteConfirmDialog";
 import { deleteExpense } from "@/app/actions/expenseActions";
-import { DEFAULT_CHART_OF_ACCOUNTS } from "@/lib/accounting/defaultCoa";
 import { getCashAccountsWithBalances } from "@/app/actions/cashAccountActions";
+import {
+  GENERAL_EXPENSE_CATEGORIES,
+  PROJECT_EXPENSE_CATEGORIES,
+} from "@/lib/accounting/expenseCategories";
 
 interface ExpenseItem {
   id: string;
@@ -153,6 +156,7 @@ export default function ExpensesContent() {
           total_amount: isNaN(amt) ? 0 : amt,
           status: e.status || "POSTED",
           project_id: selectedProjectId,
+          book_type: allocatedProjectIds.length || e.project_id ? "PROJECT" : "GENERAL",
           projectName,
           cash_account_id: e.cash_account_id || null,
         };
@@ -210,9 +214,8 @@ export default function ExpensesContent() {
   // Available categories for filter dropdown
   const availableCategories = Array.from(
     new Set([
-      ...DEFAULT_CHART_OF_ACCOUNTS.filter(
-        (a) => a.category_group === "HPP" || a.category_group === "OPEX"
-      ).map((a) => a.name),
+      ...PROJECT_EXPENSE_CATEGORIES,
+      ...GENERAL_EXPENSE_CATEGORIES,
       ...expenses.map((e) => e.category),
     ])
   ).filter(Boolean);

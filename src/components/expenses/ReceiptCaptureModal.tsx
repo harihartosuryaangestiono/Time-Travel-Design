@@ -31,6 +31,11 @@ import { createClient } from "@/lib/supabase/client";
 import { createExpense } from "@/app/actions/expenseActions";
 import { Badge } from "@/components/ui/Badge";
 import { cn } from "@/lib/utils";
+import {
+  getExpenseBookCategories,
+  type ExpenseBook,
+  validateExpenseBookCategory,
+} from "@/lib/accounting/expenseCategories";
 
 export interface ScannedLineItem {
   id: string;
@@ -83,6 +88,7 @@ export function ReceiptCaptureModal({
   const [cashAccounts, setCashAccounts] = useState<CashAccountOption[]>([]);
   const [cashAccountId, setCashAccountId] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState<string>(initialProjectId || "");
+  const [expenseBook, setExpenseBook] = useState<ExpenseBook>("PROJECT");
   const [isSplitAllocation, setIsSplitAllocation] = useState(false);
   const [firstProjectPercentage, setFirstProjectPercentage] = useState(60);
 
@@ -100,7 +106,7 @@ export function ReceiptCaptureModal({
   const [date, setDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [lineItems, setLineItems] = useState<ScannedLineItem[]>([]);
   const [includeTax, setIncludeTax] = useState(true);
-  const [category, setCategory] = useState("Project Material");
+  const [category, setCategory] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("BANK_TRANSFER");
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
@@ -177,6 +183,7 @@ export function ReceiptCaptureModal({
       setProjects(mapped);
       const selectedProject = mapped.find((project) => project.id === initialProjectId);
       setSelectedProjectId(selectedProject?.id || "");
+      setExpenseBook("PROJECT");
       setProjectLoadError(null);
       if (mapped.length < 2) setIsSplitAllocation(false);
     } catch (e) {
@@ -255,7 +262,12 @@ export function ReceiptCaptureModal({
       setReceiptNumber(data.receiptNumber || "");
       setDate(data.date || new Date().toISOString().split("T")[0]);
       setDescription(data.description || "Pembelian Material / Pengeluaran Proyek");
-      setCategory(data.category || "Project Material");
+      const extractedCategory = data.category || "";
+      setCategory(
+        getExpenseBookCategories(expenseBook).some((option) => option === extractedCategory)
+          ? extractedCategory
+          : ""
+      );
       setPaymentMethod(data.paymentMethod || "CASH");
       setLineItems(data.items || []);
       setNotes(data.notes || "");
@@ -334,6 +346,15 @@ export function ReceiptCaptureModal({
       setSubmitError("Pilih rekening atau kas yang digunakan untuk membayar pengeluaran.");
       return;
     }
+    const categoryError = validateExpenseBookCategory(category, expenseBook);
+    if (categoryError) {
+      setSubmitError(categoryError);
+      return;
+    }
+    if (expenseBook === "PROJECT" && !isSplitAllocation && !selectedProjectId) {
+      setSubmitError("Pilih proyek untuk mencatat pengeluaran Buku Kecil.");
+      return;
+    }
     if (selectedProjectId && !projects.some((project) => project.id === selectedProjectId)) {
       setSubmitError("Pilih proyek aktif yang valid sebelum menyimpan pengeluaran.");
       return;
@@ -368,7 +389,7 @@ export function ReceiptCaptureModal({
             description: `Split allocation (${100 - firstProjectPercentage}%) for ${description}`,
           },
         ];
-      } else if (selectedProjectId) {
+      } else if (expenseBook === "PROJECT" && selectedProjectId) {
         allocations = [
           {
             project_id: selectedProjectId,
@@ -387,6 +408,7 @@ export function ReceiptCaptureModal({
         payment_method: paymentMethod,
         cash_account_id: cashAccountId,
         category,
+        project_id: expenseBook === "PROJECT" && !isSplitAllocation ? selectedProjectId : null,
         project_allocations: allocations,
         notes: notes || undefined,
       });
@@ -813,12 +835,32 @@ export function ReceiptCaptureModal({
 
           {/* STEP 3: Project Allocation (Choose Proyek A, B, C...) */}
           <div>
+            <label className="mb-2 block text-xs font-mono uppercase tracking-wider text-zinc-400 font-bold">
+              Buku pengeluaran
+            </label>
+            <select
+              value={expenseBook}
+              onChange={(event) => {
+                const nextBook = event.target.value as ExpenseBook;
+                setExpenseBook(nextBook);
+                setCategory("");
+                setSelectedProjectId("");
+                setIsSplitAllocation(false);
+              }}
+              className="mb-4 w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-xs text-white focus:border-white focus:outline-none"
+            >
+              <option value="PROJECT">Buku Kecil — Pengeluaran Proyek</option>
+              <option value="GENERAL">Buku Besar — Pengeluaran Umum</option>
+            </select>
+
+            {expenseBook === "PROJECT" ? (
+              <>
             <div className="flex items-center justify-between mb-3">
               <label className="text-xs font-mono uppercase tracking-wider text-zinc-400 flex items-center gap-1.5 font-bold">
                 <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-[11px] font-bold text-zinc-950">
                   3
                 </span>
-                Allocate to Project (Proyek A, B, C...)
+                Pilih proyek wajib
               </label>
 
               {/* Mode Switch: Single Project vs Split */}
@@ -842,19 +884,6 @@ export function ReceiptCaptureModal({
             {!isSplitAllocation ? (
               /* One-Click Project Cards Grid: Proyek A, B, C... */
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setSelectedProjectId("")}
-                  className={cn(
-                    "relative flex flex-col justify-between rounded-2xl p-4 border text-left transition-all duration-150",
-                    !selectedProjectId
-                      ? "border-white bg-zinc-800/90 shadow-xl ring-2 ring-white/20"
-                      : "border-zinc-800 bg-zinc-900/40 hover:border-zinc-700 hover:bg-zinc-900"
-                  )}
-                >
-                  <span className="text-xs font-bold text-white">Biaya Kantor</span>
-                  <span className="mt-1 text-[11px] text-zinc-400">Tidak dialokasikan ke proyek</span>
-                </button>
                 {projects.length > 0 ? projects.map((proj, idx) => {
                   const isSelected = selectedProjectId === proj.id;
                   const projectLetter = ["Project A", "Project B", "Project C"][idx] || `Project ${idx + 1}`;
@@ -962,6 +991,12 @@ export function ReceiptCaptureModal({
                 </div>
               </div>
             )}
+              </>
+            ) : (
+              <div className="rounded-xl border border-zinc-700 bg-zinc-900/60 px-4 py-3 text-xs text-zinc-300">
+                Pengeluaran Buku Besar dicatat tanpa proyek dan menggunakan kategori pengeluaran umum.
+              </div>
+            )}
           </div>
 
           {/* STEP 4: Accounting Details & Settlement */}
@@ -972,14 +1007,16 @@ export function ReceiptCaptureModal({
               </label>
               <select
                 value={category}
+                required
                 onChange={(e) => setCategory(e.target.value)}
                 className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-white focus:border-white focus:outline-none"
               >
-                <option value="Project Material">Project Material &amp; Finishes</option>
-                <option value="Subcontractor">Subcontractor Labor Retainer</option>
-                <option value="Site Logistics">Site Travel &amp; Freight</option>
-                <option value="Equipment & Tools">Tools &amp; Consumables</option>
-                <option value="Hospitality">Client Meeting &amp; Catering</option>
+                <option value="">Pilih kategori</option>
+                {getExpenseBookCategories(expenseBook).map((expenseCategory) => (
+                  <option key={expenseCategory} value={expenseCategory}>
+                    {expenseCategory}
+                  </option>
+                ))}
               </select>
             </div>
 

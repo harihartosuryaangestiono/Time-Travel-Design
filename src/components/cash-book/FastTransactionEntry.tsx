@@ -15,6 +15,10 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { createFastTransaction } from "@/app/actions/cashBookActions";
+import {
+  getExpenseBookCategories,
+  type ExpenseBook,
+} from "@/lib/accounting/expenseCategories";
 
 interface FastTransactionEntryProps {
   onSuccess: () => void;
@@ -25,66 +29,33 @@ interface FastTransactionEntryProps {
   allowProjectSelection?: boolean;
 }
 
-const CATEGORIES_SUGGESTIONS = [
-  // HPP
-  "Bahan Baku Utama / Material",
-  "Upah Tukang",
-  "Sewa Alat Proyek",
-  "Transportasi Lapangan",
-  // OPEX
-  "Gaji dan Upah Karyawan",
-  "Transportasi Operasional",
-  "Biaya Konsumsi Kantor",
-  "Biaya Jamuan / Representasi",
-  "Biaya Marketing",
-  "Kebutuhan Workshop",
-  "Biaya Administrasi Finansial",
-  // CAPEX
-  "Renovasi Kantor",
-  "Legalitas Perusahaan",
-  "Inventaris",
-  "Perangkat Gadget",
-];
-
 // Heuristik Saran Kategori Otomatis berdasarkan kata kunci
-function guessCategory(desc: string): string | null {
+function guessCategory(desc: string, book: ExpenseBook): string | null {
   const lower = desc.toLowerCase();
-  if (lower.includes("gaji") || lower.includes("gajian") || lower.includes("thr") || lower.includes("upah karyawan")) {
-    return "Gaji dan Upah Karyawan";
+  if (book === "PROJECT") {
+    if (lower.includes("print") || lower.includes("cetak")) return "Document Printing";
+    if (lower.includes("gaji") || lower.includes("gajian") || lower.includes("thr") || lower.includes("upah")) return "Worker Salary";
+    if (lower.includes("kaca") || lower.includes("glass") || lower.includes("aluminium") || lower.includes("aluminum")) return "Subcontractor - Glass & Aluminium";
+    if (lower.includes("baja") || lower.includes("besi") || lower.includes("steel")) return "Subcontractor - Iron & Steel";
+    if (lower.includes("pintu") || lower.includes("jendela") || lower.includes("door") || lower.includes("window")) return "Subcontractor - Wood Door & Window";
+    if (lower.includes("mep") || lower.includes("listrik") || lower.includes("plumbing")) return "Subcontractor - MEP";
+    if (lower.includes("interior") || lower.includes("furniture")) return "Subcontractor - Interior";
+    if (lower.includes("sampah") || lower.includes("waste") || lower.includes("puing")) return "Construction Waste";
+    if (lower.includes("grab") || lower.includes("gojek") || lower.includes("bensin") || lower.includes("tol") || lower.includes("parkir") || lower.includes("transport")) return "Project Transportation";
+    if (lower.includes("sewa") || lower.includes("utilitas") || lower.includes("listrik proyek")) return "Rent & Utilities";
+    if (lower.includes("semen") || lower.includes("pasir") || lower.includes("bata") || lower.includes("material") || lower.includes("procurement")) return "Project Material Procurement";
+    return null;
   }
-  if (lower.includes("grab") || lower.includes("gojek") || lower.includes("bensin") || lower.includes("tol") || lower.includes("parkir") || lower.includes("pertalite") || lower.includes("pertamax")) {
-    return "Transportasi Operasional";
-  }
-  if (lower.includes("makan") || lower.includes("kopi") || lower.includes("snack") || lower.includes("konsumsi") || lower.includes("galon") || lower.includes("aqua") || lower.includes("makan siang")) {
-    return "Biaya Konsumsi Kantor";
-  }
-  if (lower.includes("jamuan") || lower.includes("klien") || lower.includes("entertain") || lower.includes("meeting")) {
-    return "Biaya Jamuan / Representasi";
-  }
-  if (lower.includes("ads") || lower.includes("iklan") || lower.includes("instagram") || lower.includes("flyer") || lower.includes("marketing") || lower.includes("brosur")) {
-    return "Biaya Marketing";
-  }
-  if (lower.includes("admin") || lower.includes("pajak bca") || lower.includes("materai") || lower.includes("biaya bca") || lower.includes("bunga")) {
-    return "Biaya Administrasi Finansial";
-  }
-  if (lower.includes("tukang") || lower.includes("mandor") || lower.includes("kenek") || lower.includes("lembur")) {
-    return "Upah Tukang";
-  }
-  if (lower.includes("sewa") || lower.includes("scaffolding") || lower.includes("molen") || lower.includes("jack hammer")) {
-    return "Sewa Alat Proyek";
-  }
-  if (lower.includes("semen") || lower.includes("pasir") || lower.includes("bata") || lower.includes("triplek") || lower.includes("hpl") || lower.includes("cat") || lower.includes("material")) {
-    return "Bahan Baku Utama / Material";
-  }
-  if (lower.includes("renovasi") || lower.includes("cat kantor") || lower.includes("partisi")) {
-    return "Renovasi Kantor";
-  }
-  if (lower.includes("laptop") || lower.includes("hp") || lower.includes("ipad") || lower.includes("gadget")) {
-    return "Perangkat Gadget";
-  }
-  if (lower.includes("meja") || lower.includes("kursi") || lower.includes("lemari") || lower.includes("ac")) {
-    return "Inventaris";
-  }
+  if (lower.includes("gaji") || lower.includes("gajian") || lower.includes("thr")) return "Staff Salary";
+  if (lower.includes("grab") || lower.includes("gojek") || lower.includes("bensin") || lower.includes("tol") || lower.includes("parkir") || lower.includes("transport")) return "Operational Transportation";
+  if (lower.includes("makan") || lower.includes("kopi") || lower.includes("snack") || lower.includes("konsumsi") || lower.includes("refreshment")) return "Office Consumption & Refreshment";
+  if (lower.includes("jamuan") || lower.includes("klien") || lower.includes("entertain") || lower.includes("meeting")) return "Hospitality & Representation";
+  if (lower.includes("ads") || lower.includes("iklan") || lower.includes("instagram") || lower.includes("flyer") || lower.includes("marketing") || lower.includes("brosur")) return "Marketing & Sales";
+  if (lower.includes("admin") || lower.includes("pajak bca") || lower.includes("biaya bca") || lower.includes("bank")) return "Bank Administration Fee";
+  if (lower.includes("renovasi") || lower.includes("cat kantor") || lower.includes("partisi")) return "Office Renovation";
+  if (lower.includes("legal") || lower.includes("notaris") || lower.includes("materai")) return "Company Legal";
+  if (lower.includes("meja") || lower.includes("kursi") || lower.includes("lemari") || lower.includes("inventaris") || lower.includes("laptop") || lower.includes("hp") || lower.includes("ipad")) return "Inventory";
+  if (lower.includes("sewa") || lower.includes("utilitas") || lower.includes("listrik kantor")) return "Office Rent & Utilities";
   return null;
 }
 
@@ -101,6 +72,7 @@ export function FastTransactionEntry({
   const [category, setCategory] = useState("");
   const [amount, setAmount] = useState<number | "">("");
   const [type, setType] = useState<"INCOME" | "EXPENSE">("EXPENSE");
+  const [expenseBook, setExpenseBook] = useState<ExpenseBook>(defaultProjectId ? "PROJECT" : "GENERAL");
   const [cashAccountId, setCashAccountId] = useState("");
   const [projectId, setProjectId] = useState(defaultProjectId || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -117,9 +89,9 @@ export function FastTransactionEntry({
     }
   }, [accounts, cashAccountId]);
 
-  const handleDescChange = (val: string) => {
+  const handleDescChange = (val: string, book = expenseBook) => {
     setDescription(val);
-    const suggested = guessCategory(val);
+    const suggested = type === "EXPENSE" ? guessCategory(val, book) : null;
     if (suggested) {
       setSmartSuggestion(suggested);
       if (!category) {
@@ -159,7 +131,12 @@ export function FastTransactionEntry({
         category,
         amount: Number(amount),
         type,
-        project_id: projectId || null,
+        project_id:
+          type === "INCOME"
+            ? projectId || null
+            : expenseBook === "PROJECT"
+              ? projectId || null
+              : null,
         cash_account_id: cashAccountId,
       });
 
@@ -195,8 +172,8 @@ export function FastTransactionEntry({
         if (cols.length >= 2) {
           const rowDate = cols[0]?.trim() || new Date().toISOString().split("T")[0];
           const rowDesc = cols[1]?.trim() || "";
-          let rowCat = cols[2]?.trim() || guessCategory(rowDesc) || "Biaya Konsumsi Kantor";
-          const rawAmt = (cols[3] || cols[2] || "").replace(/[^0-9.]/g, "");
+          const rowCat = cols[2]?.trim() || guessCategory(rowDesc, expenseBook) || "";
+          const rawAmt = (cols[3] || "").replace(/[^0-9.]/g, "");
           const rowAmt = parseFloat(rawAmt) || 0;
 
           if (rowDesc && rowAmt > 0) {
@@ -206,7 +183,7 @@ export function FastTransactionEntry({
               category: rowCat,
               amount: rowAmt,
               type: "EXPENSE",
-              project_id: projectId || null,
+              project_id: expenseBook === "PROJECT" ? projectId || null : null,
               cash_account_id: cashAccountId,
             });
             successCount++;
@@ -281,10 +258,15 @@ export function FastTransactionEntry({
           <select
             value={type}
             onChange={(e) => {
-              setType(e.target.value as "INCOME" | "EXPENSE");
-              setCategory("");
-              setSmartSuggestion(null);
-            }}
+                const nextType = e.target.value as "INCOME" | "EXPENSE";
+                setType(nextType);
+                setCategory("");
+                setSmartSuggestion(null);
+                if (nextType === "EXPENSE" && defaultProjectId) {
+                  setExpenseBook("PROJECT");
+                  setProjectId(defaultProjectId);
+                }
+              }}
             className="h-9 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 text-xs font-semibold text-zinc-900"
           >
             <option value="EXPENSE">Uang keluar</option>
@@ -307,17 +289,43 @@ export function FastTransactionEntry({
             ))}
           </select>
         </div>
-        {allowProjectSelection && (
+        {type === "EXPENSE" && allowProjectSelection && (
           <div>
             <label className="mb-0.5 block text-[10px] font-bold uppercase tracking-wider text-zinc-400">
-              Proyek (opsional)
+              Buku pengeluaran
             </label>
             <select
-              value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
+              value={expenseBook}
+              onChange={(e) => {
+                const nextBook = e.target.value as ExpenseBook;
+                setExpenseBook(nextBook);
+                setProjectId("");
+                setCategory("");
+                setSmartSuggestion(null);
+              }}
               className="h-9 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 text-xs font-semibold text-zinc-900"
             >
-              <option value="">Tidak terkait proyek</option>
+              <option value="PROJECT">Buku Kecil — Proyek</option>
+              <option value="GENERAL">Buku Besar — Umum</option>
+            </select>
+          </div>
+        )}
+        {allowProjectSelection &&
+          (type === "INCOME" || (type === "EXPENSE" && expenseBook === "PROJECT")) && (
+          <div>
+            <label className="mb-0.5 block text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+              Proyek {type === "EXPENSE" ? "*" : "(opsional)"}
+            </label>
+            <select
+              required={type === "EXPENSE"}
+              value={projectId}
+              onChange={(e) => {
+                setProjectId(e.target.value);
+                if (type === "EXPENSE" && e.target.value) setExpenseBook("PROJECT");
+              }}
+              className="h-9 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 text-xs font-semibold text-zinc-900"
+            >
+              <option value="">{type === "EXPENSE" ? "Pilih proyek" : "Tidak terkait proyek"}</option>
               {projects.map((project) => (
                 <option key={project.id} value={project.id}>{project.name}</option>
               ))}
@@ -351,7 +359,7 @@ export function FastTransactionEntry({
             type="text"
             required
             list="recent-descriptions"
-            placeholder={type === "INCOME" ? "Misal: Pembayaran termin proyek..." : "Misal: Pembelian material proyek..."}
+            placeholder={type === "INCOME" ? "Misal: Pembayaran termin proyek..." : expenseBook === "PROJECT" ? "Misal: Pengadaan material proyek..." : "Misal: Biaya website perusahaan..."}
             value={description}
             onChange={(e) => handleDescChange(e.target.value)}
             className="h-9 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs font-medium text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
@@ -384,29 +392,13 @@ export function FastTransactionEntry({
                 <option value="Bunga Bank">Bunga Bank</option>
                 <option value="Pemasukan Lainnya">Pemasukan Lainnya</option>
               </optgroup>
-            ) : <>
-            <optgroup label="Harga Pokok Penjualan (HPP)">
-              <option value="Bahan Baku Utama / Material">Bahan Baku Utama / Material</option>
-              <option value="Upah Tukang">Upah Tukang</option>
-              <option value="Sewa Alat Proyek">Sewa Alat Proyek</option>
-              <option value="Transportasi Lapangan">Transportasi Lapangan</option>
-            </optgroup>
-            <optgroup label="Biaya Operasional (OPEX)">
-              <option value="Gaji dan Upah Karyawan">Gaji dan Upah Karyawan</option>
-              <option value="Transportasi Operasional">Transportasi Operasional</option>
-              <option value="Biaya Konsumsi Kantor">Biaya Konsumsi Kantor</option>
-              <option value="Biaya Jamuan / Representasi">Biaya Jamuan / Representasi</option>
-              <option value="Biaya Marketing">Biaya Marketing</option>
-              <option value="Kebutuhan Workshop">Kebutuhan Workshop</option>
-              <option value="Biaya Administrasi Finansial">Biaya Administrasi Finansial</option>
-            </optgroup>
-            <optgroup label="Investasi & Aset (CAPEX)">
-              <option value="Renovasi Kantor">Renovasi Kantor</option>
-              <option value="Legalitas Perusahaan">Legalitas Perusahaan</option>
-              <option value="Inventaris">Inventaris</option>
-              <option value="Perangkat Gadget">Perangkat Gadget</option>
-            </optgroup>
-            </>}
+            ) : (
+              <optgroup label={expenseBook === "PROJECT" ? "Buku Kecil — Pengeluaran Proyek" : "Buku Besar — Pengeluaran Umum"}>
+                {getExpenseBookCategories(expenseBook).map((expenseCategory) => (
+                  <option key={expenseCategory} value={expenseCategory}>{expenseCategory}</option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </div>
 
@@ -461,7 +453,7 @@ export function FastTransactionEntry({
               rows={6}
               value={pasteText}
               onChange={(e) => setPasteText(e.target.value)}
-              placeholder="2026-06-12	Beli Karung	Bahan Baku Utama / Material	140000&#10;2026-06-15	Gojek Survey	Transportasi Operasional	45000"
+              placeholder="2026-06-12	Pengadaan material	Project Material Procurement	140000&#10;2026-06-15	Gaji karyawan	Staff Salary	45000"
               className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 p-3 font-mono text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
             />
 

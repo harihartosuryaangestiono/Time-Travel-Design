@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAuthUser } from "@/lib/auth/auth";
 import { revalidatePath } from "next/cache";
 import type { ExpenseStatus } from "@prisma/client";
+import { validateExpenseBookCategory } from "@/lib/accounting/expenseCategories";
 
 export async function getExpenses(filters?: {
   status?: ExpenseStatus;
@@ -95,8 +96,9 @@ export async function createExpense(input: {
   tax_amount?: number;
   payment_method?: string;
   cash_account_id?: string;
-  category?: string;
+  category: string;
   category_id?: string;
+  project_id?: string | null;
   project_allocations: Array<{
     project_id: string;
     amount: number;
@@ -106,6 +108,18 @@ export async function createExpense(input: {
 }) {
   const user = await requireAuthUser();
   const supabase = await createClient();
+
+  const projectIds = Array.from(
+    new Set([
+      ...input.project_allocations.map((allocation) => allocation.project_id),
+      ...(input.project_id ? [input.project_id] : []),
+    ])
+  );
+  const categoryError = validateExpenseBookCategory(
+    input.category,
+    projectIds.length ? "PROJECT" : "GENERAL"
+  );
+  if (categoryError) throw new Error(categoryError);
 
   // Generate expense number
   const date = new Date();
@@ -126,7 +140,6 @@ export async function createExpense(input: {
 
   // Calculate total
   const totalAmount = input.amount + (input.tax_amount || 0);
-  const projectIds = Array.from(new Set(input.project_allocations.map((allocation) => allocation.project_id)));
   if (projectIds.length) {
     const { data: validProjects, error: projectError } = await supabase
       .from("projects")
@@ -158,6 +171,7 @@ export async function createExpense(input: {
       cash_account_id: input.cash_account_id,
       category: input.category,
       category_id: input.category_id,
+      project_id: projectIds.length === 1 ? projectIds[0] : null,
       status: "DRAFT",
       submitted_by: user.profileId,
       notes: input.notes,
@@ -205,6 +219,7 @@ export async function updateExpense(
     cash_account_id?: string;
     category?: string;
     category_id?: string;
+    project_id?: string | null;
     project_allocations?: Array<{
       project_id: string;
       amount: number;
@@ -219,7 +234,7 @@ export async function updateExpense(
   // Check expense exists and is draft
   const { data: existing } = await supabase
     .from("expenses")
-    .select("status, organization_id, submitted_by")
+    .select("status, organization_id, submitted_by, project_id")
     .eq("id", id)
     .single();
 
@@ -232,8 +247,41 @@ export async function updateExpense(
   }
 
   const { project_allocations, ...expenseInput } = input;
+  let existingProjectIds = existing.project_id ? [existing.project_id] : [];
+  if (
+    input.project_id === undefined &&
+    input.project_allocations === undefined &&
+    existingProjectIds.length === 0
+  ) {
+    const { data: existingAllocations, error: allocationsError } = await supabase
+      .from("expense_allocations")
+      .select("project_id")
+      .eq("expense_id", id);
+    if (allocationsError) {
+      throw new Error(`Gagal memeriksa alokasi proyek pengeluaran: ${allocationsError.message}`);
+    }
+    existingProjectIds = Array.from(
+      new Set((existingAllocations || []).map((allocation) => allocation.project_id))
+    );
+  }
+  const projectIds = input.project_allocations !== undefined
+    ? Array.from(
+        new Set([
+          ...input.project_allocations.map((allocation) => allocation.project_id),
+          ...(input.project_id ? [input.project_id] : []),
+        ])
+      )
+    : input.project_id !== undefined
+      ? input.project_id ? [input.project_id] : []
+      : existingProjectIds;
+  if (input.category !== undefined) {
+    const categoryError = validateExpenseBookCategory(
+      input.category,
+      projectIds.length ? "PROJECT" : "GENERAL"
+    );
+    if (categoryError) throw new Error(categoryError);
+  }
   if (project_allocations) {
-    const projectIds = Array.from(new Set(project_allocations.map((allocation) => allocation.project_id)));
     if (projectIds.length) {
       const { data: validProjects, error: projectError } = await supabase
         .from("projects")
@@ -262,6 +310,7 @@ export async function updateExpense(
     .from("expenses")
     .update({
       ...expenseInput,
+      project_id: projectIds.length === 1 ? projectIds[0] : null,
       total_amount: totalAmount,
     })
     .eq("id", id)

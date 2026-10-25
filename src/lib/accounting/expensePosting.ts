@@ -9,6 +9,7 @@ import { requireAuthUser } from "@/lib/auth/auth";
 import { createJournal } from "./journalService";
 import { revalidatePath } from "next/cache";
 import { Decimal } from "decimal.js";
+import { EXCEL_CATEGORY_TO_ACCOUNT_CODE } from "./defaultCoa";
 
 // Map payment method to cash account type
 const PAYMENT_ACCOUNT_MAP: Record<string, string> = {
@@ -20,7 +21,9 @@ const PAYMENT_ACCOUNT_MAP: Record<string, string> = {
 
 // Get expense account mapping
 const getExpenseAccountCode = (category?: string | null): string => {
-  // Default to expense account based on category
+  const mappedAccountCode = category ? EXCEL_CATEGORY_TO_ACCOUNT_CODE[category] : undefined;
+  if (mappedAccountCode) return mappedAccountCode;
+
   const categoryMap: Record<string, string> = {
     MATERIAL: "5100",      // Biaya Material
     LABOR: "5200",         // Biaya Tenaga Kerja

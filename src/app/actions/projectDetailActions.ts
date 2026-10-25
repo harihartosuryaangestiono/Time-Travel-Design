@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { requireAuthUser } from "@/lib/auth/auth";
+import { PROJECT_EXPENSE_CATEGORIES } from "@/lib/accounting/expenseCategories";
 
 export interface ProjectTransactionLine {
   id: string;
@@ -29,13 +30,8 @@ export interface ProjectDetailData {
   netProfit: number;
   profitMargin: number;
   isDeficit: boolean; // Jika biaya > penerimaan
-  hppBreakdown: {
-    material: number;
-    upahTukang: number;
-    sewaAlat: number;
-    transportasi: number;
-    uncategorized: number;
-  };
+  hppBreakdown: Array<{ name: string; amount: number }>;
+  uncategorizedExpenseAmount: number;
   mandorAdvances: Array<{
     id: string;
     mandorName: string;
@@ -156,24 +152,22 @@ export async function getProjectDetailData(projectId: string): Promise<ProjectDe
     }
   });
 
-  // HPP Breakdown
-  let material = 0;
-  let upahTukang = 0;
-  let sewaAlat = 0;
-  let transportasi = 0;
+  const categoryTotals = new Map<string, number>();
   let uncategorized = 0;
 
   expenseMap.forEach((e) => {
     if (e.needs_category || e.category === "Perlu dikategorikan") {
       uncategorized += e.amount;
+    } else if ((PROJECT_EXPENSE_CATEGORIES as readonly string[]).includes(e.category)) {
+      categoryTotals.set(e.category, (categoryTotals.get(e.category) || 0) + e.amount);
     } else if (e.category === "Bahan Baku Utama / Material") {
-      material += e.amount;
+      categoryTotals.set("Project Material Procurement", (categoryTotals.get("Project Material Procurement") || 0) + e.amount);
     } else if (e.category === "Upah Tukang") {
-      upahTukang += e.amount;
+      categoryTotals.set("Worker Salary", (categoryTotals.get("Worker Salary") || 0) + e.amount);
     } else if (e.category === "Sewa Alat Proyek") {
-      sewaAlat += e.amount;
+      categoryTotals.set("Rent & Utilities", (categoryTotals.get("Rent & Utilities") || 0) + e.amount);
     } else if (e.category === "Transportasi Lapangan") {
-      transportasi += e.amount;
+      categoryTotals.set("Project Transportation", (categoryTotals.get("Project Transportation") || 0) + e.amount);
     } else {
       uncategorized += e.amount;
     }
@@ -265,13 +259,11 @@ export async function getProjectDetailData(projectId: string): Promise<ProjectDe
     netProfit,
     profitMargin,
     isDeficit,
-    hppBreakdown: {
-      material,
-      upahTukang,
-      sewaAlat,
-      transportasi,
-      uncategorized,
-    },
+    hppBreakdown: PROJECT_EXPENSE_CATEGORIES.map((name) => ({
+      name,
+      amount: categoryTotals.get(name) || 0,
+    })),
+    uncategorizedExpenseAmount: uncategorized,
     mandorAdvances,
     transactions: transactionLines.reverse(), // Tampilkan transaksi terbaru di atas
   };

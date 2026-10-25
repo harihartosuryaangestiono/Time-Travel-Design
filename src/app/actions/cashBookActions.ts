@@ -9,6 +9,7 @@ import {
   type CashBookEntry,
   type CreateFastTransactionInput,
 } from "@/lib/validation/cashBook";
+import { validateExpenseBookCategory } from "@/lib/accounting/expenseCategories";
 
 /**
  * Mengambil transaksi Buku Kas Perusahaan dengan perhitungan saldo berjalan kumulatif
@@ -192,6 +193,13 @@ export async function createFastTransaction(rawInput: CreateFastTransactionInput
   const supabase = await createClient();
 
   if (!input.category?.trim()) throw new Error("Kategori transaksi wajib dipilih.");
+  if (input.type === "EXPENSE") {
+    const categoryError = validateExpenseBookCategory(
+      input.category,
+      input.project_id ? "PROJECT" : "GENERAL"
+    );
+    if (categoryError) throw new Error(categoryError);
+  }
 
   const { data: account, error: accountError } = await supabase
     .from("cash_accounts")

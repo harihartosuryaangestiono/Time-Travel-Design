@@ -5,6 +5,7 @@ import { requireAuthUser } from "@/lib/auth/auth";
 import { revalidatePath } from "next/cache";
 import { logAudit } from "@/lib/audit/auditLogger";
 import { ParsedRow } from "@/lib/import/excelParser";
+import { normalizeExpenseCategory, type ExpenseBook } from "@/lib/accounting/expenseCategories";
 
 export interface ImportBatchSummary {
   id: string;
@@ -229,6 +230,18 @@ export async function executeImportBatchRows(input: {
           if (openingBalanceErr) throw openingBalanceErr;
         }
       } else {
+        const isProjectExpense = row.jenis === "PENGELUARAN_PROYEK";
+        const isGeneralExpense = row.jenis === "PENGELUARAN_KANTOR" || row.jenis === "BUNGA_BANK";
+        if (isProjectExpense && row.buku !== "PROYEK") {
+          throw new Error("Pengeluaran proyek harus menggunakan Buku Kecil dan mencantumkan proyek.");
+        }
+        if (isGeneralExpense && row.buku === "PROYEK") {
+          throw new Error("Pengeluaran umum harus menggunakan Buku Besar tanpa proyek.");
+        }
+        if ((isProjectExpense || isGeneralExpense) && row.needsCategory) {
+          throw new Error("Kategori wajib diisi sebelum pengeluaran diimpor.");
+        }
+
         const { data: existingExpense, error: expenseLookupErr } = await supabase
           .from("expenses")
           .select("id")
@@ -240,7 +253,15 @@ export async function executeImportBatchRows(input: {
         if (!existingExpense) {
           const randNum = String(Math.floor(1000 + Math.random() * 9000));
           const expNum = `EXP-IMP-${row.barisExcel}-${randNum}`;
-          const finalCategory = row.needsCategory ? "Perlu dikategorikan" : row.category;
+          const expenseBook: ExpenseBook = resolvedProjectId ? "PROJECT" : "GENERAL";
+          const finalCategory = normalizeExpenseCategory(row.category, expenseBook);
+          if (!finalCategory) {
+            throw new Error(
+              `Kategori '${row.category || "-"}' tidak sesuai dengan ${
+                expenseBook === "PROJECT" ? "Buku Kecil" : "Buku Besar"
+              }.`
+            );
+          }
           const finalAmount = row.kredit > 0 ? row.kredit : row.amount;
 
           const { error: expenseInsertErr } = await supabase.from("expenses").insert({

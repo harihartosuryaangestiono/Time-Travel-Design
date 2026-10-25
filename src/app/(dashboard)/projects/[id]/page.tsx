@@ -207,9 +207,9 @@ export default function ProjectDetailPage() {
         />
       </div>
 
-      {/* ── Ringkasan 4 Kategori HPP & Kasbon Mandor ── */}
+      {/* ── Ringkasan kategori Buku Kecil & Kasbon Mandor ── */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Ringkasan 4 Kategori HPP */}
+        {/* Ringkasan kategori pengeluaran proyek */}
         <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm lg:col-span-2">
           <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-950 mb-3 pb-2 border-b border-zinc-100 flex items-center justify-between">
             <span>Ringkasan Biaya HPP Proyek</span>
@@ -217,46 +217,26 @@ export default function ProjectDetailPage() {
               Total: {formatCurrency(data.totalSpent)}
             </span>
           </h3>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-xl bg-zinc-50 p-3 border border-zinc-100">
-              <span className="text-[10px] uppercase font-bold text-zinc-400 block">Material</span>
-              <span className="font-mono text-sm font-bold text-zinc-900 mt-1 block">
-                {formatCurrency(hppBreakdown.material)}
-              </span>
-              <span className="text-[10px] text-zinc-500 mt-0.5 block">
-                {data.totalSpent > 0 ? ((hppBreakdown.material / data.totalSpent) * 100).toFixed(0) : 0}% HPP
-              </span>
-            </div>
-
-            <div className="rounded-xl bg-zinc-50 p-3 border border-zinc-100">
-              <span className="text-[10px] uppercase font-bold text-zinc-400 block">Upah Tukang</span>
-              <span className="font-mono text-sm font-bold text-zinc-900 mt-1 block">
-                {formatCurrency(hppBreakdown.upahTukang)}
-              </span>
-              <span className="text-[10px] text-zinc-500 mt-0.5 block">
-                {data.totalSpent > 0 ? ((hppBreakdown.upahTukang / data.totalSpent) * 100).toFixed(0) : 0}% HPP
-              </span>
-            </div>
-
-            <div className="rounded-xl bg-zinc-50 p-3 border border-zinc-100">
-              <span className="text-[10px] uppercase font-bold text-zinc-400 block">Sewa Alat</span>
-              <span className="font-mono text-sm font-bold text-zinc-900 mt-1 block">
-                {formatCurrency(hppBreakdown.sewaAlat)}
-              </span>
-              <span className="text-[10px] text-zinc-500 mt-0.5 block">
-                {data.totalSpent > 0 ? ((hppBreakdown.sewaAlat / data.totalSpent) * 100).toFixed(0) : 0}% HPP
-              </span>
-            </div>
-
-            <div className="rounded-xl bg-zinc-50 p-3 border border-zinc-100">
-              <span className="text-[10px] uppercase font-bold text-zinc-400 block">Transport Lapangan</span>
-              <span className="font-mono text-sm font-bold text-zinc-900 mt-1 block">
-                {formatCurrency(hppBreakdown.transportasi)}
-              </span>
-              <span className="text-[10px] text-zinc-500 mt-0.5 block">
-                {data.totalSpent > 0 ? ((hppBreakdown.transportasi / data.totalSpent) * 100).toFixed(0) : 0}% HPP
-              </span>
-            </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {hppBreakdown.map(({ name, amount }) => (
+              <div key={name} className="rounded-xl bg-zinc-50 p-3 border border-zinc-100">
+                <span className="text-[10px] uppercase font-bold text-zinc-500 block">{name}</span>
+                <span className="font-mono text-sm font-bold text-zinc-900 mt-1 block">
+                  {formatCurrency(amount)}
+                </span>
+                <span className="text-[10px] text-zinc-500 mt-0.5 block">
+                  {data.totalSpent > 0 ? ((amount / data.totalSpent) * 100).toFixed(0) : 0}% HPP
+                </span>
+              </div>
+            ))}
+            {data.uncategorizedExpenseAmount > 0 && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                <span className="text-[10px] uppercase font-bold text-amber-800 block">Belum Dikategorikan</span>
+                <span className="font-mono text-sm font-bold text-amber-950 mt-1 block">
+                  {formatCurrency(data.uncategorizedExpenseAmount)}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 

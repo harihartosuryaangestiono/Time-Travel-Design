@@ -22,6 +22,10 @@ import {
   getRecentDescriptions,
 } from "@/app/actions/cashBookActions";
 import type { CashBookEntry } from "@/lib/validation/cashBook";
+import {
+  GENERAL_EXPENSE_CATEGORIES,
+  PROJECT_EXPENSE_CATEGORIES,
+} from "@/lib/accounting/expenseCategories";
 
 function formatCurrency(amount: number) {
   const safe = isNaN(amount) ? 0 : amount;
@@ -266,17 +270,16 @@ export default function CashBookPage() {
               <option value="Bunga Bank">Bunga Bank</option>
               <option value="Pemasukan Lainnya">Pemasukan Lainnya</option>
               <option value="Pembayaran Invoice">Pembayaran Invoice</option>
-              <option value="Gaji dan Upah Karyawan">Gaji dan Upah Karyawan</option>
-              <option value="Transportasi Operasional">Transportasi Operasional</option>
-              <option value="Biaya Konsumsi Kantor">Biaya Konsumsi Kantor</option>
-              <option value="Biaya Jamuan / Representasi">Biaya Jamuan / Representasi</option>
-              <option value="Biaya Marketing">Biaya Marketing</option>
-              <option value="Kebutuhan Workshop">Kebutuhan Workshop</option>
-              <option value="Biaya Administrasi Finansial">Biaya Administrasi Finansial</option>
-              <option value="Renovasi Kantor">Renovasi Kantor</option>
-              <option value="Legalitas Perusahaan">Legalitas Perusahaan</option>
-              <option value="Inventaris">Inventaris</option>
-              <option value="Perangkat Gadget">Perangkat Gadget</option>
+              <optgroup label="Buku Kecil — Pengeluaran Proyek">
+                {PROJECT_EXPENSE_CATEGORIES.map((category) => (
+                  <option key={category} value={category}>{category}</option>
+                ))}
+              </optgroup>
+              <optgroup label="Buku Besar — Pengeluaran Umum">
+                {GENERAL_EXPENSE_CATEGORIES.map((category) => (
+                  <option key={category} value={category}>{category}</option>
+                ))}
+              </optgroup>
             </select>
           </div>
         </div>

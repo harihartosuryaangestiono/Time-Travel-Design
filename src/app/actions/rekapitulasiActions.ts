@@ -3,6 +3,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireAuthUser } from "@/lib/auth/auth";
 import { getAccountsWithCalculatedBalance } from "@/lib/accounting/cashBalance";
+import {
+  GENERAL_EXPENSE_CATEGORIES,
+  PROJECT_EXPENSE_CATEGORIES,
+} from "@/lib/accounting/expenseCategories";
 
 export interface ProjectRevenueSummary {
   projectId: string;
@@ -53,11 +57,14 @@ export async function getRekapitulasiData(year: number = 2026): Promise<Rekapitu
   const endDate = `${year}-12-31T23:59:59.999Z`;
 
   // 1. Ambil Semua Proyek & Pendapatan (project_revenues)
-  const { data: projects } = await supabase
+  const { data: projects, error: projectsError } = await supabase
     .from("projects")
     .select("id, name, code, client_id")
     .eq("organization_id", user.organizationId)
     .order("name");
+  if (projectsError) {
+    throw new Error(`Gagal memuat proyek untuk rekapitulasi: ${projectsError.message}`);
+  }
 
   const clientIds = Array.from(
     new Set((projects || []).map((project) => project.client_id).filter(Boolean))
@@ -71,12 +78,15 @@ export async function getRekapitulasiData(year: number = 2026): Promise<Rekapitu
   const clientsById = new Map((clients || []).map((client) => [client.id, client.name]));
   const projectsById = new Map((projects || []).map((project) => [project.id, project]));
 
-  const { data: revenues } = await supabase
+  const { data: revenues, error: revenuesError } = await supabase
     .from("project_revenues")
     .select("project_id, amount, date")
     .eq("organization_id", user.organizationId)
     .gte("date", startDate)
     .lte("date", endDate);
+  if (revenuesError) {
+    throw new Error(`Gagal memuat pendapatan proyek: ${revenuesError.message}`);
+  }
 
   const revenueMap = new Map<string, number>();
   (revenues || []).forEach((r: any) => {
@@ -94,24 +104,25 @@ export async function getRekapitulasiData(year: number = 2026): Promise<Rekapitu
   const totalRevenue = revenuesList.reduce((sum, r) => sum + r.totalReceived, 0);
 
   // 2. Ambil Semua Pengeluaran (expenses)
-  const { data: expenses } = await supabase
+  const { data: expenses, error: expensesError } = await supabase
     .from("expenses")
     .select("id, date, description, total_amount, category, needs_category, project_id")
     .eq("organization_id", user.organizationId)
     .gte("date", startDate)
     .lte("date", endDate)
     .in("status", ["APPROVED", "POSTED"]);
+  if (expensesError) {
+    throw new Error(`Gagal memuat pengeluaran untuk rekapitulasi: ${expensesError.message}`);
+  }
 
-  // 4 Kategori HPP
-  const hppNames = [
+  const legacyHppNames = [
     "Bahan Baku Utama / Material",
     "Upah Tukang",
     "Sewa Alat Proyek",
     "Transportasi Lapangan",
   ];
 
-  // 7 Kategori OPEX
-  const opexNames = [
+  const legacyOpexNames = [
     "Gaji dan Upah Karyawan",
     "Transportasi Operasional",
     "Biaya Konsumsi Kantor",
@@ -121,13 +132,22 @@ export async function getRekapitulasiData(year: number = 2026): Promise<Rekapitu
     "Biaya Administrasi Finansial",
   ];
 
-  // 4 Kategori CAPEX
-  const capexNames = [
+  const legacyCapexNames = [
     "Renovasi Kantor",
     "Legalitas Perusahaan",
     "Inventaris",
     "Perangkat Gadget",
   ];
+  const hppNames = [...PROJECT_EXPENSE_CATEGORIES, ...legacyHppNames];
+  const opexNames = [
+    ...GENERAL_EXPENSE_CATEGORIES.slice(0, 7),
+    ...legacyOpexNames,
+  ];
+  const capexNames = [
+    ...GENERAL_EXPENSE_CATEGORIES.slice(7),
+    ...legacyCapexNames,
+  ];
+  const knownCategories = new Set([...hppNames, ...opexNames, ...capexNames]);
 
   const categoryTotals = new Map<string, number>();
   const uncategorizedList: Array<{
@@ -153,9 +173,18 @@ export async function getRekapitulasiData(year: number = 2026): Promise<Rekapitu
         amount: amt,
         projectName: e.project_id ? projectsById.get(e.project_id)?.name : undefined,
       });
-    } else {
+    } else if (knownCategories.has(cat)) {
       const prev = categoryTotals.get(cat) || 0;
       categoryTotals.set(cat, prev + amt);
+    } else {
+      totalUncategorized += amt;
+      uncategorizedList.push({
+        id: e.id,
+        date: e.date ? new Date(e.date).toISOString().split("T")[0] : "",
+        desc: e.description,
+        amount: amt,
+        projectName: e.project_id ? projectsById.get(e.project_id)?.name : undefined,
+      });
     }
   });
 
