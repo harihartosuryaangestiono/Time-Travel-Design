@@ -30,6 +30,7 @@ interface ProjectItem {
   name: string;
   status: "ACTIVE" | "PLANNING" | "COMPLETED" | "ON_HOLD" | "CANCELLED";
   contract_value: number;
+  received_amount: number;
   spent_amount: number;
   client?: { name: string };
   building_function?: string | null;
@@ -108,23 +109,88 @@ export default function ProjectsContent() {
       }
 
       const projectIds = (projectsData || []).map((project) => project.id);
-      const { data: allocationsData, error: allocationsErr } = projectIds.length
-        ? await supabase
-            .from("expense_allocations")
-            .select("project_id, amount")
-            .in("project_id", projectIds)
-        : { data: [], error: null };
+      const [
+        { data: allocationsData, error: allocationsErr },
+        { data: revenuesData, error: revenuesErr },
+      ] = projectIds.length
+        ? await Promise.all([
+            supabase
+              .from("expense_allocations")
+              .select("expense_id, project_id, amount")
+              .in("project_id", projectIds),
+            supabase
+              .from("project_revenues")
+              .select("project_id, amount")
+              .eq("organization_id", membership.organization_id)
+              .in("project_id", projectIds),
+          ])
+        : [
+            { data: [], error: null },
+            { data: [], error: null },
+          ];
 
       if (allocationsErr) {
         throw new Error(allocationsErr.message);
       }
+      if (revenuesErr) {
+        throw new Error(revenuesErr.message);
+      }
 
-      // Calculate real cost spend per project from expense_allocations
+      const allocatedExpenseIds = Array.from(
+        new Set((allocationsData || []).map((allocation) => allocation.expense_id))
+      );
+      const [
+        { data: allocatedExpenses, error: allocatedExpensesError },
+        { data: directExpenses, error: directExpensesError },
+      ] = await Promise.all([
+        allocatedExpenseIds.length
+          ? supabase
+              .from("expenses")
+              .select("id, status")
+              .eq("organization_id", membership.organization_id)
+              .in("id", allocatedExpenseIds)
+              .in("status", ["APPROVED", "POSTED"])
+          : Promise.resolve({ data: [], error: null }),
+        projectIds.length
+          ? supabase
+              .from("expenses")
+              .select("id, project_id, total_amount")
+              .eq("organization_id", membership.organization_id)
+              .in("project_id", projectIds)
+              .in("status", ["APPROVED", "POSTED"])
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+
+      if (allocatedExpensesError) {
+        throw new Error(allocatedExpensesError.message);
+      }
+      if (directExpensesError) {
+        throw new Error(directExpensesError.message);
+      }
+
+      const postedExpenseIds = new Set((allocatedExpenses || []).map((expense) => expense.id));
+      const expenseIdsWithAllocations = new Set(allocatedExpenseIds);
       const spendByProject: Record<string, number> = {};
+      const receivedByProject: Record<string, number> = {};
+      (revenuesData || []).forEach((revenue) => {
+        const amount = Number(revenue.amount || 0);
+        if (Number.isFinite(amount)) {
+          receivedByProject[revenue.project_id] =
+            (receivedByProject[revenue.project_id] || 0) + amount;
+        }
+      });
       (allocationsData || []).forEach((a: any) => {
+        if (!postedExpenseIds.has(a.expense_id)) return;
         const amt = parseFloat(a.amount || "0");
         if (a.project_id && !isNaN(amt)) {
           spendByProject[a.project_id] = (spendByProject[a.project_id] || 0) + amt;
+        }
+      });
+      (directExpenses || []).forEach((expense) => {
+        if (expenseIdsWithAllocations.has(expense.id)) return;
+        const amt = Number(expense.total_amount || 0);
+        if (expense.project_id && Number.isFinite(amt)) {
+          spendByProject[expense.project_id] = (spendByProject[expense.project_id] || 0) + amt;
         }
       });
 
@@ -143,6 +209,7 @@ export default function ProjectsContent() {
           name: p.name,
           status: p.status || "ACTIVE",
           contract_value: isNaN(cVal) ? 0 : cVal,
+          received_amount: receivedByProject[p.id] || 0,
           spent_amount: realSpent,
           client: clientName ? { name: clientName } : undefined,
           building_function: p.building_function || null,
@@ -429,6 +496,18 @@ export default function ProjectsContent() {
                       <span className="text-zinc-500">Nilai Kontrak</span>
                       <span className="font-mono font-bold text-zinc-950">
                         {formatCurrency(val)}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-xs">
+                      <span className="text-zinc-500">Dibayar Klien</span>
+                      <span className="font-mono font-bold text-emerald-700">
+                        {formatCurrency(project.received_amount)}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-xs">
+                      <span className="text-zinc-500">Sisa Pembayaran</span>
+                      <span className="font-mono font-bold text-amber-700">
+                        {formatCurrency(Math.max(0, val - project.received_amount))}
                       </span>
                     </div>
                     <div className="mt-2 flex items-center justify-between text-xs">

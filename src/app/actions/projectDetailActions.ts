@@ -80,17 +80,24 @@ export async function getProjectDetailData(projectId: string): Promise<ProjectDe
     .eq("organization_id", user.organizationId);
 
   // 3. Ambil Pengeluaran Proyek (expenses langsung atau via allocation)
-  const { data: directExpenses } = await supabase
+  const { data: directExpenses, error: directExpensesError } = await supabase
     .from("expenses")
-    .select("id, date, number, description, total_amount, category, needs_category")
+    .select("id, date, number, description, total_amount, category, needs_category, status")
     .eq("project_id", projectId)
     .eq("organization_id", user.organizationId)
     .in("status", ["APPROVED", "POSTED"]);
 
-  const { data: allocatedExpenses } = await supabase
+  const { data: allocatedExpenses, error: allocatedExpensesError } = await supabase
     .from("expense_allocations")
     .select("id, amount, description, expense_id")
     .eq("project_id", projectId);
+
+  if (directExpensesError) {
+    throw new Error(`Gagal memuat pengeluaran proyek: ${directExpensesError.message}`);
+  }
+  if (allocatedExpensesError) {
+    throw new Error(`Gagal memuat alokasi pengeluaran proyek: ${allocatedExpensesError.message}`);
+  }
 
   const allocatedExpenseIds = Array.from(
     new Set((allocatedExpenses || []).map((allocation) => allocation.expense_id))
@@ -127,7 +134,11 @@ export async function getProjectDetailData(projectId: string): Promise<ProjectDe
     needs_category: boolean;
   }>();
 
+  const expensesWithAllocations = new Set(
+    (allocatedExpenses || []).map((allocation) => allocation.expense_id)
+  );
   (directExpenses || []).forEach((e: any) => {
+    if (expensesWithAllocations.has(e.id)) return;
     expenseMap.set(e.id, {
       id: e.id,
       date: e.date,

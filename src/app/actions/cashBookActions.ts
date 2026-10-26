@@ -20,6 +20,7 @@ export async function getCashBookTransactions(filter?: {
   year?: number;
   category?: string;
   cashAccountId?: string;
+  projectId?: string;
 }) {
   const user = await requireAuthUser();
   const supabase = await createClient();
@@ -73,6 +74,17 @@ export async function getCashBookTransactions(filter?: {
   if (receiptsError) throw new Error(`Gagal memuat pemasukan: ${receiptsError.message}`);
   if (revenuesError) throw new Error(`Gagal memuat pendapatan proyek: ${revenuesError.message}`);
   if (paymentsError) throw new Error(`Gagal memuat pembayaran invoice: ${paymentsError.message}`);
+
+  const invoiceIds = Array.from(new Set((invoicePayments || []).map((payment) => payment.invoice_id)));
+  const { data: invoices, error: invoicesError } = invoiceIds.length
+    ? await supabase
+        .from("invoices")
+        .select("id, project_id")
+        .eq("organization_id", user.organizationId)
+        .in("id", invoiceIds)
+    : { data: [], error: null };
+  if (invoicesError) throw new Error(`Gagal memuat proyek pembayaran invoice: ${invoicesError.message}`);
+  const projectByInvoiceId = new Map((invoices || []).map((invoice) => [invoice.id, invoice.project_id]));
 
   const entries: CashBookEntry[] = [{
     id: "OPENING_BALANCE",
@@ -135,6 +147,7 @@ export async function getCashBookTransactions(filter?: {
     balance: 0,
     category: "Pembayaran Invoice",
     needs_category: false,
+    project_id: projectByInvoiceId.get(payment.invoice_id) || null,
     type: "INCOME",
   }));
 
@@ -153,6 +166,12 @@ export async function getCashBookTransactions(filter?: {
 
   if (filter?.category && filter.category !== "ALL") {
     filtered = filtered.filter((ent) => ent.type === "OPENING" || ent.category === filter.category);
+  }
+
+  if (filter?.projectId) {
+    filtered = filtered.filter(
+      (ent) => ent.type === "OPENING" || ent.project_id === filter.projectId
+    );
   }
 
   return {

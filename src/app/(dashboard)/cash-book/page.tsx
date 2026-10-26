@@ -11,10 +11,12 @@ import {
   Wallet,
   ArrowUpRight,
   ArrowDownLeft,
+  FolderKanban,
 } from "lucide-react";
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import { FastTransactionEntry } from "@/components/cash-book/FastTransactionEntry";
+import { DraftExpenseCleanup } from "@/components/cash-book/DraftExpenseCleanup";
 import { getCashAccountsWithBalances } from "@/app/actions/cashAccountActions";
 import { getProjects } from "@/app/actions/projectActions";
 import {
@@ -63,6 +65,7 @@ export default function CashBookPage() {
   const [openingBalance, setOpeningBalance] = useState<number>(0);
   const [selectedMonth, setSelectedMonth] = useState<number>(0); // 0 = Semua
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
+  const [selectedProjectId, setSelectedProjectId] = useState("");
   const [recentDescriptions, setRecentDescriptions] = useState<string[]>([]);
   const [subcontractorContracts, setSubcontractorContracts] = useState<SubcontractorContractSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -76,6 +79,7 @@ export default function CashBookPage() {
         month: selectedMonth > 0 ? selectedMonth : undefined,
         category: selectedCategory,
         cashAccountId: selectedAccountId,
+        projectId: selectedProjectId || undefined,
       });
       setAccounts(res.accounts);
       setEntries(res.entries);
@@ -121,14 +125,17 @@ export default function CashBookPage() {
 
   useEffect(() => {
     if (selectedAccountId) void fetchBookData();
-  }, [selectedMonth, selectedCategory, selectedAccountId]);
+  }, [selectedMonth, selectedCategory, selectedAccountId, selectedProjectId]);
+
+  const projectNames = new Map(projects.map((project) => [project.id, `${project.code} — ${project.name}`]));
 
   const handleExportCSV = () => {
-    const headers = ["Tanggal", "Nomor Ref", "Keterangan", "Kategori", "Debit", "Kredit", "Saldo Berjalan"];
+    const headers = ["Tanggal", "Nomor Ref", "Keterangan", "Proyek", "Kategori", "Debit", "Kredit", "Saldo Berjalan"];
     const rows = entries.map((e) => [
       e.date,
       `"${e.number || "-"}"`,
       `"${e.description.replace(/"/g, '""')}"`,
+      `"${(e.project_id && projectNames.get(e.project_id)) || "-"}"`,
       `"${e.category}"`,
       e.debit,
       e.kredit,
@@ -234,6 +241,8 @@ export default function CashBookPage() {
         </div>
       )}
 
+      <DraftExpenseCleanup />
+
       {/* ── Input Cepat Ala Excel ── */}
       {accounts.length > 0 ? (
         <div className="space-y-2">
@@ -299,6 +308,24 @@ export default function CashBookPage() {
               </optgroup>
             </select>
           </div>
+
+          {/* Filter Proyek */}
+          <div className="flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-semibold">
+            <FolderKanban className="h-3.5 w-3.5 text-zinc-400" />
+            <select
+              aria-label="Filter proyek"
+              value={selectedProjectId}
+              onChange={(e) => setSelectedProjectId(e.target.value)}
+              className="max-w-[220px] bg-transparent font-medium text-zinc-900 focus:outline-none"
+            >
+              <option value="">Semua proyek</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.code} — {project.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <span className="text-xs text-zinc-400 font-medium self-end sm:self-auto">
@@ -331,6 +358,7 @@ export default function CashBookPage() {
             <tr className="border-b border-zinc-100 text-zinc-400 font-bold uppercase tracking-wider text-[10px]">
               <th className="pb-3 pl-2">Tanggal</th>
               <th className="pb-3">Keterangan Transaksi</th>
+              <th className="pb-3">Proyek</th>
               <th className="pb-3">Kategori</th>
               <th className="pb-3 text-right">Debit (Masuk)</th>
               <th className="pb-3 text-right">Kredit (Keluar)</th>
@@ -340,13 +368,13 @@ export default function CashBookPage() {
           <tbody className="divide-y divide-zinc-100">
             {isLoading ? (
               <tr>
-                <td colSpan={6} className="py-8 text-center text-zinc-400 animate-pulse">
+                <td colSpan={7} className="py-8 text-center text-zinc-400 animate-pulse">
                   Memuat data transaksi buku kas...
                 </td>
               </tr>
             ) : entries.length === 0 ? (
               <tr>
-                <td colSpan={6} className="py-8 text-center text-zinc-400">
+                <td colSpan={7} className="py-8 text-center text-zinc-400">
                   Tidak ada transaksi buku kas pada filter yang dipilih.
                 </td>
               </tr>
@@ -368,6 +396,15 @@ export default function CashBookPage() {
                     </p>
                     {ent.number && (
                       <p className="font-mono text-[10px] text-zinc-400">{ent.number}</p>
+                    )}
+                  </td>
+                  <td className="py-3 pr-2 text-zinc-600">
+                    {ent.project_id ? (
+                      <span className="inline-block max-w-[180px] truncate rounded bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+                        {projectNames.get(ent.project_id) || "Proyek"}
+                      </span>
+                    ) : (
+                      <span className="text-zinc-400">—</span>
                     )}
                   </td>
                   <td className="py-3 whitespace-nowrap">

@@ -105,6 +105,7 @@ export function ProjectModal({
         const result = await updateProject(formData.id, {
           code: formData.code,
           name: formData.name,
+          status: formData.status,
           type: legacyProjectType(formData.work_category),
           building_function: formData.building_function,
           work_category: formData.work_category,
@@ -120,6 +121,7 @@ export function ProjectModal({
         const result = await createProject({
           code: formData.code,
           name: formData.name,
+          status: formData.status,
           type: legacyProjectType(formData.work_category),
           building_function: formData.building_function,
           work_category: formData.work_category,
@@ -205,7 +207,10 @@ export function ProjectModal({
                 id="project-status"
                 value={formData.status}
                 onChange={(e) =>
-                  setFormData({ ...formData, status: e.target.value as any })
+                  setFormData({
+                    ...formData,
+                    status: e.target.value as ProjectFormData["status"],
+                  })
                 }
               >
                 <option value="ACTIVE">Berjalan</option>
