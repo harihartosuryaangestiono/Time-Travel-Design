@@ -1,5 +1,5 @@
-import ExpensesContent from "./ExpensesContent";
+import { redirect } from "next/navigation";
 
-export default async function ExpensesPage() {
-  return <ExpensesContent />;
+export default function ExpensesPage() {
+  redirect("/cash-book");
 }

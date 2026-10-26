@@ -10,6 +10,7 @@ import {
   type CreateFastTransactionInput,
 } from "@/lib/validation/cashBook";
 import { validateExpenseBookCategory } from "@/lib/accounting/expenseCategories";
+import { getSubcontractorPaymentOptions } from "@/app/actions/subcontractorActions";
 
 /**
  * Mengambil transaksi Buku Kas Perusahaan dengan perhitungan saldo berjalan kumulatif
@@ -194,9 +195,12 @@ export async function createFastTransaction(rawInput: CreateFastTransactionInput
 
   if (!input.category?.trim()) throw new Error("Kategori transaksi wajib dipilih.");
   if (input.type === "EXPENSE") {
+    if (input.subcontractor_contract_id && !input.project_id) {
+      throw new Error("Pilih proyek sebelum menghubungkan pembayaran ke borongan.");
+    }
     const categoryError = validateExpenseBookCategory(
       input.category,
-      input.project_id ? "PROJECT" : "GENERAL"
+      input.project_id || input.subcontractor_contract_id ? "PROJECT" : "GENERAL"
     );
     if (categoryError) throw new Error(categoryError);
   }
@@ -222,6 +226,27 @@ export async function createFastTransaction(rawInput: CreateFastTransactionInput
       .maybeSingle();
     if (projectError) throw new Error(`Gagal memvalidasi proyek: ${projectError.message}`);
     if (!project) throw new Error("Proyek tidak ditemukan atau bukan milik organisasi ini.");
+  }
+
+  let subcontractorContract: Awaited<ReturnType<typeof getSubcontractorPaymentOptions>>[number] | null = null;
+  if (input.subcontractor_contract_id) {
+    if (input.type !== "EXPENSE") {
+      throw new Error("Borongan subkontraktor hanya dapat ditautkan ke transaksi uang keluar.");
+    }
+    const contracts = await getSubcontractorPaymentOptions();
+    subcontractorContract =
+      contracts.find((contract) => contract.id === input.subcontractor_contract_id) || null;
+    if (!subcontractorContract) {
+      throw new Error("Borongan subkontraktor tidak ditemukan.");
+    }
+    if (subcontractorContract.projectId !== input.project_id) {
+      throw new Error("Proyek transaksi harus sama dengan proyek borongan subkontraktor.");
+    }
+    if (input.amount > subcontractorContract.remainingAmount) {
+      throw new Error(
+        `Pembayaran melebihi sisa borongan ${subcontractorContract.vendorName}: ${subcontractorContract.remainingAmount.toLocaleString("id-ID")}.`
+      );
+    }
   }
 
   if (input.type === "INCOME") {
@@ -267,13 +292,14 @@ export async function createFastTransaction(rawInput: CreateFastTransactionInput
         organization_id: user.organizationId,
         number,
         date: dateObj.toISOString(),
-        merchant: input.description.slice(0, 50),
+        merchant: subcontractorContract?.vendorName || input.description.slice(0, 50),
         description: input.description.trim(),
         amount: input.amount,
         tax_amount: 0,
         total_amount: input.amount,
         cash_account_id: account.id,
         project_id: input.project_id || null,
+        subcontractor_contract_id: subcontractorContract?.id || null,
         category: input.category,
         status: "APPROVED",
         needs_category: false,
@@ -297,6 +323,7 @@ export async function createFastTransaction(rawInput: CreateFastTransactionInput
       category: input.category,
       project_id: input.project_id,
       cash_account_id: account.id,
+      subcontractor_contract_id: subcontractorContract?.id || null,
     },
   });
 
@@ -304,7 +331,8 @@ export async function createFastTransaction(rawInput: CreateFastTransactionInput
   revalidatePath("/reports/rekapitulasi");
   revalidatePath("/cash-accounts");
   revalidatePath("/dashboard");
-  if (input.type === "INCOME") revalidatePath("/reports/cash-flow");
+  revalidatePath("/reports/cash-flow");
+  revalidatePath("/subcontractor-recap");
   if (input.project_id) {
     revalidatePath(`/projects/${input.project_id}`);
   }

@@ -12,7 +12,6 @@ export interface DashboardMetrics {
   outstanding_receivables: number;
   outstanding_payables: number;
   outstanding_cash_advances: number;
-  pending_approvals: number;
   overdue_invoices: number;
   accounts_count: number;
   cash_runway_months: number;
@@ -120,14 +119,7 @@ export async function getDashboardMetrics(period?: {
     return sum + Math.max(0, rem);
   }, 0);
 
-  // 7. Pengeluaran menunggu approval
-  const { count: pendingApprovals } = await supabase
-    .from("expenses")
-    .select("*", { count: "exact", head: true })
-    .eq("organization_id", orgId)
-    .eq("status", "SUBMITTED");
-
-  // 8. Invoice jatuh tempo (overdue)
+  // 7. Invoice jatuh tempo (overdue)
   const today = new Date().toISOString().split("T")[0];
   const { count: overdueInvoices } = await supabase
     .from("invoices")
@@ -167,7 +159,6 @@ export async function getDashboardMetrics(period?: {
     outstanding_receivables: outstandingReceivables,
     outstanding_payables: outstandingPayables,
     outstanding_cash_advances: outstandingCashAdvances,
-    pending_approvals: pendingApprovals || 0,
     overdue_invoices: overdueInvoices || 0,
     accounts_count: (cashAccounts || []).length,
     cash_runway_months: cashRunwayMonths,

@@ -21,6 +21,8 @@ import {
   getCashBookTransactions,
   getRecentDescriptions,
 } from "@/app/actions/cashBookActions";
+import { getSubcontractorPaymentOptions } from "@/app/actions/subcontractorActions";
+import type { SubcontractorContractSummary } from "@/app/actions/subcontractorActions";
 import type { CashBookEntry } from "@/lib/validation/cashBook";
 import {
   GENERAL_EXPENSE_CATEGORIES,
@@ -62,6 +64,7 @@ export default function CashBookPage() {
   const [selectedMonth, setSelectedMonth] = useState<number>(0); // 0 = Semua
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [recentDescriptions, setRecentDescriptions] = useState<string[]>([]);
+  const [subcontractorContracts, setSubcontractorContracts] = useState<SubcontractorContractSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -90,8 +93,8 @@ export default function CashBookPage() {
   };
 
   useEffect(() => {
-    Promise.all([getCashAccountsWithBalances(), getProjects()])
-      .then(([cashAccounts, projectRows]) => {
+    Promise.all([getCashAccountsWithBalances(), getProjects(), getSubcontractorPaymentOptions()])
+      .then(([cashAccounts, projectRows, contracts]) => {
         setAccounts(cashAccounts);
         setSelectedAccountId((current) => current || cashAccounts[0]?.id || "");
         setProjects(projectRows.map((project) => ({
@@ -99,6 +102,7 @@ export default function CashBookPage() {
           name: project.name,
           code: project.code,
         })));
+        setSubcontractorContracts(contracts);
         setIsLoading(false);
       })
       .catch((err) => {
@@ -107,6 +111,13 @@ export default function CashBookPage() {
         setIsLoading(false);
       });
   }, []);
+
+  const handleTransactionSaved = async () => {
+    await Promise.all([
+      fetchBookData(),
+      getSubcontractorPaymentOptions().then(setSubcontractorContracts),
+    ]);
+  };
 
   useEffect(() => {
     if (selectedAccountId) void fetchBookData();
@@ -154,7 +165,7 @@ export default function CashBookPage() {
             Buku Kas Perusahaan (Lapkeu Perusahaan)
           </h2>
           <p className="text-xs text-zinc-500">
-            Tabel mutasi ala Excel dengan saldo berjalan kumulatif &amp; 11 kategori kantor
+            Catat uang masuk dan pengeluaran setelah benar-benar dibayar; transaksi langsung masuk ke rekapitulasi.
           </p>
         </div>
 
@@ -225,14 +236,20 @@ export default function CashBookPage() {
 
       {/* ── Input Cepat Ala Excel ── */}
       {accounts.length > 0 ? (
-        <FastTransactionEntry
-          onSuccess={fetchBookData}
-          recentDescriptions={recentDescriptions}
-          accounts={accounts}
-          projects={projects}
-          defaultProjectId={undefined}
-          allowProjectSelection
-        />
+        <div className="space-y-2">
+          <p className="rounded-xl border border-blue-200 bg-blue-50 px-3.5 py-2.5 text-xs text-blue-800">
+            Pengeluaran dicatat di sini setelah uang benar-benar keluar. Tidak perlu input ulang di menu lain.
+          </p>
+          <FastTransactionEntry
+            onSuccess={handleTransactionSaved}
+            recentDescriptions={recentDescriptions}
+            accounts={accounts}
+            subcontractorContracts={subcontractorContracts}
+            projects={projects}
+            defaultProjectId={undefined}
+            allowProjectSelection
+          />
+        </div>
       ) : !isLoading && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800">
           Buat rekening atau akun kas terlebih dahulu di Treasury &amp; Bank Accounts sebelum mencatat mutasi.

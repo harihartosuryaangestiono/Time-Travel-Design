@@ -21,7 +21,6 @@ import { createClient } from "@/lib/supabase/client";
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import { cn } from "@/lib/utils";
-import { ReceiptCaptureModal } from "@/components/expenses/ReceiptCaptureModal";
 import { ReimbursementModal, ReimbursementFormData } from "@/components/modals/ReimbursementModal";
 import { DeleteConfirmDialog } from "@/components/modals/DeleteConfirmDialog";
 import { deleteReimbursementRecord, getReimbursements } from "@/app/actions/reimbursementActions";
@@ -52,7 +51,6 @@ export default function ReimbursementsPage() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [showScanModal, setShowScanModal] = useState(false);
 
   // Edit / Delete states
   const [showEditModal, setShowEditModal] = useState(false);
@@ -407,12 +405,6 @@ export default function ReimbursementsPage() {
         onClose={() => setShowEditModal(false)}
         onSuccess={handleSaveClaim}
         claimToEdit={selectedClaim}
-      />
-
-      {/* ── Modal OCR Bon ── */}
-      <ReceiptCaptureModal
-        isOpen={showScanModal}
-        onClose={() => setShowScanModal(false)}
       />
 
       {/* ── Delete Confirmation Dialog ── */}

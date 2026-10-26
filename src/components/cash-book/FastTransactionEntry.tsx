@@ -15,6 +15,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { createFastTransaction } from "@/app/actions/cashBookActions";
+import type { SubcontractorContractSummary } from "@/app/actions/subcontractorActions";
 import {
   getExpenseBookCategories,
   type ExpenseBook,
@@ -25,6 +26,7 @@ interface FastTransactionEntryProps {
   recentDescriptions?: string[];
   projects?: Array<{ id: string; name: string }>;
   accounts: Array<{ id: string; name: string; opening_balance: number }>;
+  subcontractorContracts?: SubcontractorContractSummary[];
   defaultProjectId?: string;
   allowProjectSelection?: boolean;
 }
@@ -64,6 +66,7 @@ export function FastTransactionEntry({
   recentDescriptions = [],
   projects = [],
   accounts,
+  subcontractorContracts = [],
   defaultProjectId,
   allowProjectSelection = true,
 }: FastTransactionEntryProps) {
@@ -75,6 +78,7 @@ export function FastTransactionEntry({
   const [expenseBook, setExpenseBook] = useState<ExpenseBook>(defaultProjectId ? "PROJECT" : "GENERAL");
   const [cashAccountId, setCashAccountId] = useState("");
   const [projectId, setProjectId] = useState(defaultProjectId || "");
+  const [subcontractorContractId, setSubcontractorContractId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [smartSuggestion, setSmartSuggestion] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -137,6 +141,8 @@ export function FastTransactionEntry({
             : expenseBook === "PROJECT"
               ? projectId || null
               : null,
+        subcontractor_contract_id:
+          type === "EXPENSE" ? subcontractorContractId || null : null,
         cash_account_id: cashAccountId,
       });
 
@@ -144,6 +150,7 @@ export function FastTransactionEntry({
       setDescription("");
       setAmount("");
       setCategory("");
+      setSubcontractorContractId("");
       setSmartSuggestion(null);
       if (descInputRef.current) {
         descInputRef.current.focus();
@@ -262,6 +269,7 @@ export function FastTransactionEntry({
                 setType(nextType);
                 setCategory("");
                 setSmartSuggestion(null);
+                setSubcontractorContractId("");
                 if (nextType === "EXPENSE" && defaultProjectId) {
                   setExpenseBook("PROJECT");
                   setProjectId(defaultProjectId);
@@ -300,6 +308,7 @@ export function FastTransactionEntry({
                 const nextBook = e.target.value as ExpenseBook;
                 setExpenseBook(nextBook);
                 setProjectId("");
+                setSubcontractorContractId("");
                 setCategory("");
                 setSmartSuggestion(null);
               }}
@@ -319,8 +328,10 @@ export function FastTransactionEntry({
             <select
               required={type === "EXPENSE"}
               value={projectId}
+              disabled={Boolean(subcontractorContractId)}
               onChange={(e) => {
                 setProjectId(e.target.value);
+                setSubcontractorContractId("");
                 if (type === "EXPENSE" && e.target.value) setExpenseBook("PROJECT");
               }}
               className="h-9 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 text-xs font-semibold text-zinc-900"
@@ -330,6 +341,40 @@ export function FastTransactionEntry({
                 <option key={project.id} value={project.id}>{project.name}</option>
               ))}
             </select>
+          </div>
+        )}
+        {type === "EXPENSE" && allowProjectSelection && (
+          <div className="sm:col-span-3">
+            <label className="mb-0.5 block text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+              Borongan subkontraktor (opsional)
+            </label>
+            <select
+              value={subcontractorContractId}
+              onChange={(e) => {
+                const selected = subcontractorContracts.find((contract) => contract.id === e.target.value);
+                setSubcontractorContractId(e.target.value);
+                if (selected) {
+                  setExpenseBook("PROJECT");
+                  setProjectId(selected.projectId);
+                  setDescription(`Pembayaran borongan ${selected.vendorName}`);
+                  setCategory("");
+                  setSmartSuggestion(null);
+                }
+              }}
+              className="h-9 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 text-xs font-semibold text-zinc-900"
+            >
+              <option value="">Tidak terkait borongan</option>
+              {subcontractorContracts.map((contract) => (
+                <option key={contract.id} value={contract.id} disabled={contract.remainingAmount <= 0}>
+                  {contract.projectName} — {contract.vendorName}: sisa {new Intl.NumberFormat("id-ID").format(contract.remainingAmount)}
+                </option>
+              ))}
+            </select>
+            {subcontractorContractId && (
+              <p className="mt-1 text-[10px] text-emerald-700">
+                Proyek akan mengikuti borongan yang dipilih. Pembayaran tidak boleh melebihi sisa borongan.
+              </p>
+            )}
           </div>
         )}
       </div>

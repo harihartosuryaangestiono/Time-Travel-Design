@@ -12,7 +12,6 @@ import {
   Coins,
   CheckCircle2,
   Clock,
-  AlertTriangle,
   Building2,
   FolderKanban,
   Calendar,
@@ -98,7 +97,6 @@ export default function DashboardContent() {
     outstanding_receivables: 0,
     outstanding_payables: 0,
     outstanding_cash_advances: 0,
-    pending_approvals: 0,
     overdue_invoices: 0,
     accounts_count: 0,
     cash_runway_months: 0,
@@ -460,32 +458,6 @@ export default function DashboardContent() {
           iconColor="text-purple-700"
         />
       </div>
-
-      {/* ── Operational Urgency Alert Banner ── */}
-      {metrics.pending_approvals > 0 && (
-        <div className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-800">
-              <AlertTriangle className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-amber-950">
-                Ada {metrics.pending_approvals} pengajuan biaya &amp; kasbon menunggu persetujuan
-              </p>
-              <p className="text-xs text-amber-800">
-                Periksa bukti bon pengeluaran sebelum dana dicairkan.
-              </p>
-            </div>
-          </div>
-          <Link
-            href="/expenses"
-            className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-black active:scale-95 transition-all"
-          >
-            Buka Daftar Pengeluaran
-            <ChevronRight className="h-3.5 w-3.5" />
-          </Link>
-        </div>
-      )}
 
       {/* ── Deep Analytics Section (Charts) ── */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
@@ -1061,10 +1033,10 @@ export default function DashboardContent() {
               Menampilkan {filteredTx.length} transaksi terbaru
             </span>
             <Link
-              href="/expenses"
+              href="/cash-book"
               className="font-semibold text-zinc-900 hover:underline flex items-center gap-1"
             >
-              Lihat Seluruh Pengeluaran
+              Buka Buku Kas Perusahaan
               <ChevronRight className="h-3.5 w-3.5" />
             </Link>
           </div>

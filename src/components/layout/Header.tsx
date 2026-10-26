@@ -11,7 +11,6 @@ import {
   FileText,
   Coins,
   Sparkles,
-  Camera,
   Menu,
   UserRound,
 } from "lucide-react";
@@ -20,7 +19,6 @@ import { signOut } from "@/lib/auth/actions";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { ReceiptCaptureModal } from "@/components/expenses/ReceiptCaptureModal";
 
 interface HeaderProps {
   title?: string;
@@ -46,21 +44,17 @@ const pageTitles: Record<string, { title: string; description: string }> = {
     title: "Client Directory",
     description: "Corporate client accounts, contract contacts, and project history",
   },
-  "/expenses": {
-    title: "Expenses & Bills",
-    description: "Direct project costs, operational expenditures, and receipt records",
-  },
   "/cash-advances": {
     title: "Disbursements & Cash Advances",
     description: "Site petty cash advances, team disbursements, and settlement tracking",
   },
+  "/subcontractor-recap": {
+    title: "Rekapitulasi Subkontraktor",
+    description: "Nilai borongan, pembayaran, dan sisa per proyek dan subkontraktor",
+  },
   "/reimbursements": {
     title: "Expense Claims & Reimbursements",
     description: "Employee operational expense claims, approvals, and payout records",
-  },
-  "/approvals": {
-    title: "Approval Center",
-    description: "Multi-tier verification and authorization for expenditures and advances",
   },
   "/cash-accounts": {
     title: "Treasury & Bank Accounts",
@@ -120,7 +114,6 @@ export default function Header({
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showQuickAction, setShowQuickAction] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [showScanModal, setShowScanModal] = useState(false);
   const [userInfo, setUserInfo] = useState<{
     name: string;
     email: string;
@@ -279,24 +272,13 @@ export default function Header({
               <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-400">
                 Quick Actions
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowQuickAction(false);
-                  setShowScanModal(true);
-                }}
-                className="mb-1.5 flex w-full items-center gap-2.5 rounded-xl bg-zinc-950 px-3 py-2 text-xs font-semibold text-white hover:bg-black transition-colors"
-              >
-                <Camera className="h-4 w-4 text-emerald-400" />
-                <span>Scan Receipt &amp; Allocate</span>
-              </button>
               <Link
-                href="/expenses"
+                href="/cash-book"
                 onClick={() => setShowQuickAction(false)}
-                className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950 transition-colors"
+                className="mb-1.5 flex items-center gap-2.5 rounded-xl bg-zinc-950 px-3 py-2 text-xs font-semibold text-white hover:bg-black transition-colors"
               >
-                <Receipt className="h-4 w-4 text-zinc-900" />
-                Record New Expense
+                <Receipt className="h-4 w-4 text-emerald-400" />
+                Catat Transaksi Kas
               </Link>
               <Link
                 href="/invoices"
@@ -419,16 +401,6 @@ export default function Header({
         </div>
       </div>
 
-      {/* ── Global Receipt Photo Scanner & Project Allocator ── */}
-      <ReceiptCaptureModal
-        isOpen={showScanModal}
-        onClose={() => setShowScanModal(false)}
-        onSuccess={() => {
-          if (pathname === "/expenses" || pathname === "/reimbursements") {
-            window.location.reload();
-          }
-        }}
-      />
     </header>
   );
 }
