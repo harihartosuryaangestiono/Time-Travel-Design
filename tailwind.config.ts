@@ -59,11 +59,21 @@ const config: Config = {
         xl: "0.75rem",
         "2xl": "1rem",
         "3xl": "1.5rem",
+        "dashboard-card": "var(--dashboard-radius-card)",
+        "dashboard-control": "var(--dashboard-radius-control)",
       },
       boxShadow: {
         subtle: "0 1px 2px 0 rgb(0 0 0 / 0.04)",
         card: "0 1px 3px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.03)",
         elevated: "0 10px 25px -5px rgb(0 0 0 / 0.06), 0 8px 10px -6px rgb(0 0 0 / 0.04)",
+        "dashboard-card": "var(--dashboard-shadow-card)",
+        "dashboard-hover": "var(--dashboard-shadow-hover)",
+      },
+      transitionTimingFunction: {
+        premium: "var(--dashboard-ease)",
+      },
+      transitionDuration: {
+        premium: "var(--dashboard-duration)",
       },
     },
   },
