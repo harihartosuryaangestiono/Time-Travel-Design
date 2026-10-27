@@ -12,11 +12,16 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   FolderKanban,
+  CheckCircle2,
+  Pencil,
+  Trash2,
+  X,
 } from "lucide-react";
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import { FastTransactionEntry } from "@/components/cash-book/FastTransactionEntry";
 import { DraftExpenseCleanup } from "@/components/cash-book/DraftExpenseCleanup";
+import { CashBookEntryEditor } from "@/components/cash-book/CashBookEntryEditor";
 import { getCashAccountsWithBalances } from "@/app/actions/cashAccountActions";
 import { getProjects } from "@/app/actions/projectActions";
 import {
@@ -70,6 +75,9 @@ export default function CashBookPage() {
   const [subcontractorContracts, setSubcontractorContracts] = useState<SubcontractorContractSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editingEntry, setEditingEntry] = useState<CashBookEntry | null>(null);
+  const [startWithDelete, setStartWithDelete] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const fetchBookData = async () => {
     try {
@@ -121,6 +129,12 @@ export default function CashBookPage() {
       fetchBookData(),
       getSubcontractorPaymentOptions().then(setSubcontractorContracts),
     ]);
+  };
+
+  const handleEntryMutationComplete = async (message: string) => {
+    setEditingEntry(null);
+    await handleTransactionSaved();
+    setSuccessMessage(message);
   };
 
   useEffect(() => {
@@ -351,6 +365,23 @@ export default function CashBookPage() {
         </div>
       )}
 
+      {successMessage && (
+        <div role="status" className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
+          <span className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            {successMessage}
+          </span>
+          <button
+            type="button"
+            onClick={() => setSuccessMessage(null)}
+            aria-label="Tutup notifikasi"
+            className="rounded-md p-1 hover:bg-emerald-100"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* ── Tabel Mutasi Buku Kas Ala Excel ── */}
       <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm overflow-x-auto">
         <table className="w-full text-left text-xs">
@@ -363,18 +394,19 @@ export default function CashBookPage() {
               <th className="pb-3 text-right">Debit (Masuk)</th>
               <th className="pb-3 text-right">Kredit (Keluar)</th>
               <th className="pb-3 pr-2 text-right">Saldo Akhir</th>
+              <th className="pb-3 pr-2 text-right">Aksi</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100">
             {isLoading ? (
               <tr>
-                <td colSpan={7} className="py-8 text-center text-zinc-400 animate-pulse">
+                <td colSpan={8} className="py-8 text-center text-zinc-400 animate-pulse">
                   Memuat data transaksi buku kas...
                 </td>
               </tr>
             ) : entries.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-8 text-center text-zinc-400">
+                <td colSpan={8} className="py-8 text-center text-zinc-400">
                   Tidak ada transaksi buku kas pada filter yang dipilih.
                 </td>
               </tr>
@@ -427,12 +459,56 @@ export default function CashBookPage() {
                   <td className="py-3 pr-2 text-right font-mono tabular-nums font-bold text-zinc-950 whitespace-nowrap">
                     {formatCurrency(ent.balance)}
                   </td>
+                  <td className="py-3 pr-2 text-right">
+                    {ent.can_edit ? (
+                      <div className="inline-flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSuccessMessage(null);
+                            setStartWithDelete(false);
+                            setEditingEntry(ent);
+                          }}
+                          aria-label={`Edit transaksi ${ent.description}`}
+                          title="Edit transaksi"
+                          className="rounded-lg border border-zinc-200 p-2 text-zinc-600 hover:border-zinc-400 hover:bg-zinc-50 hover:text-zinc-950"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSuccessMessage(null);
+                            setStartWithDelete(true);
+                            setEditingEntry(ent);
+                          }}
+                          aria-label={`Hapus transaksi ${ent.description}`}
+                          title="Hapus transaksi"
+                          className="rounded-lg border border-rose-100 p-2 text-rose-600 hover:border-rose-300 hover:bg-rose-50"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-zinc-300">—</span>
+                    )}
+                  </td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
       </div>
+      {editingEntry && (
+        <CashBookEntryEditor
+          entry={editingEntry}
+          projects={projects}
+          startWithDelete={startWithDelete}
+          onClose={() => setEditingEntry(null)}
+          onSaved={() => handleEntryMutationComplete("Transaksi berhasil diperbarui.")}
+          onDeleted={() => handleEntryMutationComplete("Transaksi berhasil dihapus.")}
+        />
+      )}
     </div>
   );
 }

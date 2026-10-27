@@ -27,4 +27,25 @@ export interface CashBookEntry {
   project_id?: string | null;
   projectName?: string | null;
   type: "INCOME" | "EXPENSE" | "OPENING";
+  source_type:
+    | "CASH_BOOK_EXPENSE"
+    | "PROJECT_REVENUE"
+    | "CASH_RECEIPT"
+    | "INVOICE_PAYMENT"
+    | "CASH_OPENING_BALANCE";
+  can_edit: boolean;
 }
+
+export const UpdateCashBookTransactionSchema = z.object({
+  id: z.string().min(1),
+  source_type: z.enum(["CASH_BOOK_EXPENSE", "PROJECT_REVENUE", "CASH_RECEIPT"]),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal transaksi tidak valid."),
+  description: z.string().trim().min(1, "Keterangan transaksi wajib diisi."),
+  category: z.string().trim().min(1, "Kategori wajib dipilih."),
+  amount: z.number().positive("Nominal harus lebih dari 0."),
+  project_id: z.string().nullable().optional(),
+});
+
+export type UpdateCashBookTransactionInput = z.infer<
+  typeof UpdateCashBookTransactionSchema
+>;

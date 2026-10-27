@@ -80,6 +80,9 @@ export async function postCashBookEntryToJournal(input: CashBookJournalInput) {
     .eq("organization_id", user.organizationId)
     .eq("source_type", input.sourceType)
     .eq("source_id", input.sourceId)
+    .in("status", ["DRAFT", "POSTED"])
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
   if (existingError) throw new Error(`Gagal memeriksa jurnal transaksi: ${existingError.message}`);
   if (existing?.status === "POSTED") return { id: existing.id, number: existing.number };
