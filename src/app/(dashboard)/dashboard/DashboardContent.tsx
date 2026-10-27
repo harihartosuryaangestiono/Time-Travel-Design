@@ -87,6 +87,12 @@ function formatShortIDR(amount: number) {
   return amount.toString();
 }
 
+function formatPercent(value: number, original: string) {
+  const decimalPart = original.split(/[.,]/)[1];
+  const decimalPlaces = decimalPart ? decimalPart.replace(/\D/g, "").length : 0;
+  return `${value.toFixed(decimalPlaces)}%`;
+}
+
 function formatLocalDate(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -611,17 +617,17 @@ export default function DashboardContent() {
                             <div className="dashboard-chart-tooltip rounded-xl border border-zinc-200 bg-white p-3 text-xs">
                               <p className="font-bold text-zinc-900">{label}</p>
                               <p className="text-emerald-700 font-semibold">
-                                Pemasukan: {formatIDR(Number(payload[0]?.value || 0))}
+                                Pemasukan: <AnimatedNumber value={Number(payload[0]?.value || 0)} format={formatIDR} />
                               </p>
                               <p className="text-rose-600 font-semibold">
-                                Pengeluaran: {formatIDR(Number(payload[1]?.value || 0))}
+                                Pengeluaran: <AnimatedNumber value={Number(payload[1]?.value || 0)} format={formatIDR} />
                               </p>
                               <p className="text-zinc-500 pt-1 border-t border-zinc-100">
                                 Laba Bersih:{" "}
-                                {formatIDR(
-                                  Number(payload[0]?.value || 0) -
-                                    Number(payload[1]?.value || 0)
-                                )}
+                                <AnimatedNumber
+                                  value={Number(payload[0]?.value || 0) - Number(payload[1]?.value || 0)}
+                                  format={formatIDR}
+                                />
                               </p>
                             </div>
                           );
@@ -685,7 +691,7 @@ export default function DashboardContent() {
                             <div className="dashboard-chart-tooltip rounded-xl border border-zinc-200 bg-white p-3 text-xs">
                               <p className="font-bold text-zinc-900">{label}</p>
                               <p className="text-emerald-700 font-semibold">
-                                Laba Bersih: {formatIDR(Number(payload[0]?.value || 0))}
+                                Laba Bersih: <AnimatedNumber value={Number(payload[0]?.value || 0)} format={formatIDR} />
                               </p>
                             </div>
                           );
@@ -713,19 +719,19 @@ export default function DashboardContent() {
             <div>
               <span className="text-zinc-500">Rata-rata Pemasukan</span>
               <p className="font-bold text-zinc-900 mt-0.5">
-                {formatShortIDR(avgInflow)} / bln
+                <AnimatedNumber value={avgInflow} format={formatShortIDR} /> / bln
               </p>
             </div>
             <div>
               <span className="text-zinc-500">Rata-rata Pengeluaran</span>
               <p className="font-bold text-rose-600 mt-0.5">
-                {formatShortIDR(avgBurn)} / bln
+                <AnimatedNumber value={avgBurn} format={formatShortIDR} /> / bln
               </p>
             </div>
             <div>
               <span className="text-zinc-500">Rata-rata Laba</span>
               <p className="font-bold text-emerald-700 mt-0.5">
-                {formatShortIDR(avgProfit)} / bln
+                <AnimatedNumber value={avgProfit} format={formatShortIDR} /> / bln
               </p>
             </div>
           </div>
@@ -780,7 +786,7 @@ export default function DashboardContent() {
                             <div className="dashboard-chart-tooltip rounded-xl border border-zinc-200 bg-white p-2.5 text-xs">
                               <p className="font-bold text-zinc-900">{data.name}</p>
                               <p className="text-zinc-900 font-semibold mt-0.5">
-                                {formatIDR(data.value)} ({data.percent})
+                                <AnimatedNumber value={data.value} format={formatIDR} /> ({data.percent})
                               </p>
                             </div>
                           );
@@ -813,10 +819,16 @@ export default function DashboardContent() {
                   </div>
                   <div className="text-right tabular-nums">
                     <span className="font-bold text-zinc-900">
-                      {formatShortIDR(cat.value)}
+                      <AnimatedNumber value={cat.value} format={formatShortIDR} />
                     </span>
                     <span className="text-zinc-400 ml-1.5 text-[10px]">
-                      ({cat.percent})
+                      ({Number.isFinite(Number(cat.percent.replace("%", ""))) ? (
+                        <AnimatedNumber
+                          key={`${period}-${cat.name}`}
+                          value={Number(cat.percent.replace("%", ""))}
+                          format={(number) => formatPercent(number, cat.percent)}
+                        />
+                      ) : cat.percent})
                     </span>
                   </div>
                 </div>
@@ -831,7 +843,7 @@ export default function DashboardContent() {
       </div>
 
       {/* ── Project Budget Realization Matrix ── */}
-      <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+      <div className="dashboard-card p-6">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-zinc-100 pb-4">
           <div>
             <h3 className="text-base font-bold text-zinc-950 flex items-center gap-2">
@@ -855,7 +867,7 @@ export default function DashboardContent() {
           {isLoading ? (
             <div className="space-y-3">
               {[1, 2].map((i) => (
-                <div key={i} className="h-24 w-full animate-pulse rounded-2xl bg-zinc-100" />
+                <div key={i} className="dashboard-skeleton h-24 w-full rounded-2xl" />
               ))}
             </div>
           ) : projects.length === 0 ? (
@@ -873,7 +885,7 @@ export default function DashboardContent() {
               return (
                 <div
                   key={prj.id}
-                  className="rounded-2xl border border-zinc-200/80 p-4 hover:border-zinc-300 transition-all bg-zinc-50/50"
+                  className="dashboard-card dashboard-project-row p-4 bg-zinc-50/50"
                 >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
                     <div>
@@ -896,7 +908,7 @@ export default function DashboardContent() {
                           Nilai Kontrak
                         </span>
                         <p className="font-bold text-zinc-900 tabular-nums">
-                          {formatIDR(prj.contract)}
+                          <AnimatedNumber key={`${period}-${prj.id}-contract`} value={prj.contract} format={formatIDR} />
                         </p>
                       </div>
                       <div>
@@ -904,7 +916,7 @@ export default function DashboardContent() {
                           Biaya Terserap
                         </span>
                         <p className="font-bold text-rose-600 tabular-nums">
-                          {formatIDR(prj.spent)}
+                          <AnimatedNumber key={`${period}-${prj.id}-spent`} value={prj.spent} format={formatIDR} />
                         </p>
                       </div>
                       <div>
@@ -912,7 +924,7 @@ export default function DashboardContent() {
                           Sisa Anggaran
                         </span>
                         <p className="font-bold text-emerald-700 tabular-nums">
-                          {formatIDR(prj.remaining)}
+                          <AnimatedNumber key={`${period}-${prj.id}-remaining`} value={prj.remaining} format={formatIDR} />
                         </p>
                       </div>
                     </div>
@@ -921,7 +933,7 @@ export default function DashboardContent() {
                   <div className="space-y-1">
                     <div className="flex justify-between text-[11px] text-zinc-500 font-medium">
                       <span>Serapan Biaya</span>
-                      <span>{consumedPercent}% teralokasi</span>
+                      <span><AnimatedNumber key={`${period}-${prj.id}-absorption`} value={consumedPercent} format={(number) => `${Math.round(number)}%`} /> teralokasi</span>
                     </div>
                     <ProgressBar
                       value={consumedPercent}
@@ -939,7 +951,7 @@ export default function DashboardContent() {
       {/* ── Bottom Grid: Cash Accounts & Recent Transactions Feed ── */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Left: Liquid Accounts Overview (4 cols) */}
-        <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm lg:col-span-4 flex flex-col justify-between">
+        <div className="dashboard-card p-6 lg:col-span-4 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between border-b border-zinc-100 pb-4">
               <div>
@@ -963,7 +975,7 @@ export default function DashboardContent() {
               {isLoading ? (
                 <div className="space-y-2">
                   {[1, 2].map((i) => (
-                    <div key={i} className="h-20 w-full animate-pulse rounded-2xl bg-zinc-100" />
+                    <div key={i} className="dashboard-skeleton h-20 w-full rounded-2xl" />
                   ))}
                 </div>
               ) : accounts.length === 0 ? (
@@ -974,7 +986,7 @@ export default function DashboardContent() {
                 accounts.map((acc) => (
                   <div
                     key={acc.name}
-                    className="rounded-2xl border border-zinc-200/80 bg-zinc-50/50 p-4 shadow-sm hover:border-zinc-300 transition-all"
+                    className="dashboard-card dashboard-project-row p-4 bg-zinc-50/50"
                   >
                     <div className="flex items-start justify-between">
                       <div>
@@ -990,7 +1002,7 @@ export default function DashboardContent() {
                       </span>
                     </div>
                     <div className="mt-3 text-lg font-bold text-zinc-950 tabular-nums">
-                      {formatIDR(acc.balance)}
+                      <AnimatedNumber key={`${period}-${acc.name}`} value={acc.balance} format={formatIDR} />
                     </div>
                   </div>
                 ))
@@ -1001,7 +1013,7 @@ export default function DashboardContent() {
         </div>
 
         {/* Right: Recent Transaction Activity (8 cols) */}
-        <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm lg:col-span-8">
+        <div className="dashboard-card p-6 lg:col-span-8">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-zinc-100 pb-4">
             <div>
               <h3 className="text-base font-bold text-zinc-950 flex items-center gap-2">
@@ -1014,7 +1026,7 @@ export default function DashboardContent() {
             </div>
 
             {/* Filter Pills */}
-            <div className="flex items-center rounded-xl bg-zinc-100 p-1 text-xs font-medium">
+            <div className="flex items-center rounded-xl border border-zinc-200/70 bg-zinc-100/80 p-1 text-xs font-medium">
               {[
                 { id: "all", label: "Semua" },
                 { id: "expense", label: "Pengeluaran" },
@@ -1023,13 +1035,24 @@ export default function DashboardContent() {
                   key={f.id}
                   onClick={() => setTxFilter(f.id as any)}
                   className={cn(
-                    "rounded-lg px-2.5 py-1 transition-all text-xs",
+                    "relative rounded-lg px-2.5 py-1 transition-colors text-xs",
                     txFilter === f.id
-                      ? "bg-white text-zinc-950 font-bold shadow-sm"
+                      ? "font-bold text-zinc-950"
                       : "text-zinc-500 hover:text-zinc-900"
                   )}
                 >
-                  {f.label}
+                  {txFilter === f.id && (
+                    <motion.span
+                      layoutId="dashboard-transaction-filter-indicator"
+                      className="absolute inset-0 rounded-lg bg-white shadow-sm"
+                      transition={
+                        reducedMotion
+                          ? { duration: 0 }
+                          : { type: "spring", stiffness: 420, damping: 34 }
+                      }
+                    />
+                  )}
+                  <span className="relative z-10">{f.label}</span>
                 </button>
               ))}
             </div>
@@ -1040,7 +1063,7 @@ export default function DashboardContent() {
             {isLoading ? (
               <div className="space-y-3 py-6">
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-10 w-full animate-pulse rounded-xl bg-zinc-100" />
+                  <div key={i} className="dashboard-skeleton h-10 w-full rounded-xl" />
                 ))}
               </div>
             ) : filteredTx.length > 0 ? (
@@ -1092,7 +1115,7 @@ export default function DashboardContent() {
                         </Badge>
                       </td>
                       <td className="py-3 pr-2 text-right font-mono font-bold tabular-nums whitespace-nowrap text-zinc-900">
-                        - {formatIDR(tx.amount)}
+                        - <AnimatedNumber key={`${period}-${tx.id}`} value={tx.amount} format={formatIDR} />
                       </td>
                     </tr>
                   ))}

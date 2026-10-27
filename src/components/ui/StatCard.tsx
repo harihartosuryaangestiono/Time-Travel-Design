@@ -22,6 +22,14 @@ interface StatCardProps {
   onClick?: () => void;
 }
 
+function formatCurrencyAmount(amount: number) {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
 export function StatCard({
   title,
   value,
@@ -39,6 +47,16 @@ export function StatCard({
   const isCurrencyValue = /^-?Rp/.test(value.trim());
   const numericValue = isCurrencyValue
     ? Number(value.replace(/[^\d-]/g, ""))
+    : Number.NaN;
+  const currencyInSubtitle = subtitle?.match(/-?Rp[\s\u00a0]*[\d.,]+/);
+  const percentInSubtitle = currencyInSubtitle ? null : subtitle?.match(/-?\d+(?:[.,]\d+)?%/);
+  const currencySubtitleIndex = currencyInSubtitle?.index ?? 0;
+  const percentSubtitleIndex = percentInSubtitle?.index ?? 0;
+  const subtitleCurrencyValue = currencyInSubtitle
+    ? Number(currencyInSubtitle[0].replace(/[^\d-]/g, ""))
+    : Number.NaN;
+  const subtitlePercentValue = percentInSubtitle
+    ? Number(percentInSubtitle[0].replace("%", "").replace(",", "."))
     : Number.NaN;
 
   return (
@@ -67,13 +85,7 @@ export function StatCard({
             {isCurrencyValue && Number.isFinite(numericValue) ? (
               <AnimatedNumber
                 value={numericValue}
-                format={(amount) =>
-                  new Intl.NumberFormat("id-ID", {
-                    style: "currency",
-                    currency: "IDR",
-                    maximumFractionDigits: 0,
-                  }).format(amount)
-                }
+                format={formatCurrencyAmount}
               />
             ) : value === "..." ? (
               <span className="dashboard-skeleton inline-block h-7 w-36 max-w-full rounded-lg align-middle" aria-label="Memuat" />
@@ -116,7 +128,24 @@ export function StatCard({
           )}
           {subtitle && (
             <span className="text-slate-500 font-normal truncate">
-              {subtitle}
+              {currencyInSubtitle && Number.isFinite(subtitleCurrencyValue) ? (
+                <>
+                  {subtitle.slice(0, currencySubtitleIndex)}
+                  <AnimatedNumber value={subtitleCurrencyValue} format={formatCurrencyAmount} />
+                  {subtitle.slice(currencySubtitleIndex + currencyInSubtitle[0].length)}
+                </>
+              ) : percentInSubtitle && Number.isFinite(subtitlePercentValue) ? (
+                <>
+                  {subtitle.slice(0, percentSubtitleIndex)}
+                  <AnimatedNumber
+                    value={subtitlePercentValue}
+                    format={(amount) => `${Number(amount.toFixed(1))}%`}
+                  />
+                  {subtitle.slice(percentSubtitleIndex + percentInSubtitle[0].length)}
+                </>
+              ) : (
+                subtitle
+              )}
             </span>
           )}
         </div>
