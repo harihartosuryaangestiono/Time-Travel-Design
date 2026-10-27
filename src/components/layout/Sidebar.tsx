@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   LayoutDashboard,
   FolderKanban,
@@ -104,6 +105,7 @@ export default function Sidebar({
   onMobileClose,
 }: SidebarProps) {
   const pathname = usePathname();
+  const reducedMotion = useReducedMotion();
   const [internalCollapsed, setInternalCollapsed] = useState(false);
   const [open, setOpen] = useState<Record<string, boolean>>({
     Overview: true,
@@ -146,7 +148,10 @@ export default function Sidebar({
         />
       )}
 
-      <aside
+      <motion.aside
+        initial={reducedMotion ? false : { opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: reducedMotion ? 0 : 0.55, ease: [0.22, 1, 0.36, 1] }}
         className={cn(
           "fixed top-0 bottom-0 z-50 flex h-full flex-col border-r border-zinc-800/80 bg-[#09090B] text-zinc-300 transition-all duration-300 shadow-2xl",
           // Desktop & Tablet behavior (lg: screens)
@@ -223,18 +228,27 @@ export default function Sidebar({
                   className="flex w-full items-center justify-between px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-zinc-500 hover:text-zinc-300 transition-colors"
                 >
                   <span>{group.label}</span>
-                  {groupOpenState ? (
+                  <motion.span
+                    animate={{ rotate: groupOpenState ? 0 : -90 }}
+                    transition={{ duration: reducedMotion ? 0 : 0.25, ease: [0.22, 1, 0.36, 1] }}
+                    className="flex"
+                  >
                     <ChevronDown className="h-3 w-3 text-zinc-500" />
-                  ) : (
-                    <ChevronRight className="h-3 w-3 text-zinc-500" />
-                  )}
+                  </motion.span>
                 </button>
               ) : (
                 <div className="h-px bg-zinc-800/80 my-2" />
               )}
 
+              <AnimatePresence initial={false}>
               {(isCollapsed || groupOpenState) && (
-                <ul className="space-y-1">
+                <motion.ul
+                  initial={reducedMotion ? false : { height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: reducedMotion ? 0 : 0.28, ease: [0.22, 1, 0.36, 1] }}
+                  className="space-y-1 overflow-hidden"
+                >
                   {group.items.map((item) => {
                     const Icon = item.icon;
                     const active = isActive(item.href);
@@ -245,16 +259,23 @@ export default function Sidebar({
                           href={item.href}
                           title={isCollapsed ? item.name : undefined}
                           className={cn(
-                            "group relative flex items-center gap-3 rounded-xl px-3 py-2 text-xs font-medium transition-all duration-150",
+                            "group relative flex items-center gap-3 rounded-xl px-3 py-2 text-xs font-medium transition-all duration-200 hover:translate-x-1",
                             active
-                              ? "bg-white text-zinc-950 font-bold shadow-lg shadow-black/40 ring-1 ring-white/80"
+                              ? "text-zinc-950 font-bold"
                               : "text-zinc-400 hover:bg-zinc-900/90 hover:text-zinc-100",
                             isCollapsed && "justify-center px-2 py-2.5"
                           )}
                         >
+                          {active && (
+                            <motion.span
+                              layoutId="sidebar-active-highlight"
+                              className="absolute inset-0 rounded-xl bg-white shadow-lg shadow-black/40 ring-1 ring-white/80"
+                              transition={reducedMotion ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 34 }}
+                            />
+                          )}
                           <Icon
                             className={cn(
-                              "h-[18px] w-[18px] flex-shrink-0 transition-transform duration-200 group-hover:scale-105",
+                              "relative z-10 h-[18px] w-[18px] flex-shrink-0 transition-transform duration-200 group-hover:scale-105",
                               active
                                 ? "text-zinc-950"
                                 : "text-zinc-400 group-hover:text-zinc-200"
@@ -262,14 +283,15 @@ export default function Sidebar({
                           />
 
                           {!isCollapsed && (
-                            <span className="flex-1 truncate">{item.name}</span>
+                            <span className="relative z-10 flex-1 truncate">{item.name}</span>
                           )}
                         </Link>
                       </li>
                     );
                   })}
-                </ul>
+                </motion.ul>
               )}
+              </AnimatePresence>
             </div>
           );
         })}
@@ -299,7 +321,7 @@ export default function Sidebar({
           )}
         </button>
       </div>
-    </aside>
+    </motion.aside>
     </>
   );
 }

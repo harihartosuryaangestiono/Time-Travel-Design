@@ -15,6 +15,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { signOut } from "@/lib/auth/actions";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
@@ -114,6 +115,7 @@ export default function Header({
 }: HeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const reducedMotion = useReducedMotion();
 
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showQuickAction, setShowQuickAction] = useState(false);
@@ -223,7 +225,7 @@ export default function Header({
     .toUpperCase();
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-zinc-200/80 bg-white/85 px-4 sm:px-6 backdrop-blur-md transition-all">
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-zinc-200/70 bg-white/75 px-4 shadow-[0_8px_24px_-24px_rgba(9,9,11,0.5)] backdrop-blur-xl transition-all sm:px-6">
       {/* Left: Hamburger Button (Mobile/Tablet) + Dynamic Title */}
       <div className="flex items-center gap-3">
         {onOpenMobileMenu && (
@@ -250,26 +252,29 @@ export default function Header({
       {/* Right Controls */}
       <div className="flex items-center gap-3">
         {/* Global Search Bar */}
-        <div className="relative hidden md:block">
+        <div className="relative hidden w-64 transition-[width] duration-300 ease-premium focus-within:w-80 md:block">
           <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
           <input
             type="text"
             placeholder="Search transactions, projects, invoices... (⌘K)"
-            className="h-9 w-64 rounded-xl border border-zinc-200 bg-zinc-50/70 pl-9 pr-3 text-xs text-zinc-800 placeholder-zinc-400 focus:border-zinc-950 focus:bg-white focus:outline-none focus:ring-2 focus:ring-zinc-950/10 transition-all"
+            className="h-9 w-full rounded-dashboard-control border border-zinc-200/80 bg-zinc-50/70 pl-9 pr-3 text-xs text-zinc-800 placeholder-zinc-400 transition-all focus:border-emerald-500/50 focus:bg-white focus:outline-none focus:ring-4 focus:ring-emerald-500/10"
           />
         </div>
 
         {/* Quick Action Button */}
         <div ref={quickActionRef} className="relative">
-          <button
+          <motion.button
             type="button"
             onClick={() => setShowQuickAction(!showQuickAction)}
-            className="flex items-center gap-1.5 rounded-xl bg-zinc-950 px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-black active:scale-95 transition-all"
+            whileHover={reducedMotion ? undefined : { y: -2, scale: 1.025 }}
+            whileTap={reducedMotion ? undefined : { scale: 0.97 }}
+            transition={{ type: "spring", stiffness: 420, damping: 24 }}
+            className="dashboard-action-button relative flex items-center gap-1.5 overflow-hidden rounded-dashboard-control bg-zinc-950 px-3.5 py-2 text-xs font-semibold text-white shadow-[0_8px_20px_-12px_rgba(9,9,11,0.8)] transition-colors hover:bg-black"
           >
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">New Action</span>
-            <ChevronDown className="h-3 w-3 opacity-80" />
-          </button>
+            <Plus className="relative z-10 h-4 w-4" />
+            <span className="relative z-10 hidden sm:inline">New Action</span>
+            <ChevronDown className="relative z-10 h-3 w-3 opacity-80" />
+          </motion.button>
 
           {showQuickAction && (
             <div className="absolute right-0 top-full mt-2 w-60 rounded-2xl border border-zinc-200/90 bg-white p-2 shadow-xl ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-100 z-50">
