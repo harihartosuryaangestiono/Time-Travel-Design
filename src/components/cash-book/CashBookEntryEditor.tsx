@@ -41,6 +41,7 @@ export function CashBookEntryEditor({
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(startWithDelete);
+  const [deleteConfirmationStep, setDeleteConfirmationStep] = useState<"first" | "final">("first");
   const [error, setError] = useState<string | null>(null);
 
   const categoryOptions = isExpense
@@ -72,6 +73,11 @@ export function CashBookEntryEditor({
   };
 
   const handleDelete = async () => {
+    if (deleteConfirmationStep === "first") {
+      setDeleteConfirmationStep("final");
+      return;
+    }
+
     setIsDeleting(true);
     setError(null);
     try {
@@ -85,7 +91,14 @@ export function CashBookEntryEditor({
     } finally {
       setIsDeleting(false);
       setIsDeleteConfirmOpen(false);
+      setDeleteConfirmationStep("first");
     }
+  };
+
+  const closeDeleteConfirmation = () => {
+    if (isDeleting) return;
+    setIsDeleteConfirmOpen(false);
+    setDeleteConfirmationStep("first");
   };
 
   return (
@@ -197,7 +210,10 @@ export function CashBookEntryEditor({
           <div className="mt-6 flex flex-col-reverse gap-2 border-t border-zinc-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
             <button
               type="button"
-              onClick={() => setIsDeleteConfirmOpen(true)}
+              onClick={() => {
+                setDeleteConfirmationStep("first");
+                setIsDeleteConfirmOpen(true);
+              }}
               disabled={isSaving || isDeleting}
               className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-rose-200 px-3 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50"
             >
@@ -228,12 +244,19 @@ export function CashBookEntryEditor({
 
       <DeleteConfirmDialog
         isOpen={isDeleteConfirmOpen}
-        onClose={() => setIsDeleteConfirmOpen(false)}
+        onClose={closeDeleteConfirmation}
         onConfirm={handleDelete}
-        title="Hapus transaksi?"
-        description="Transaksi akan dihapus dari Buku Kas dan dampak jurnalnya dibalik agar laporan keuangan tetap konsisten."
+        title={deleteConfirmationStep === "first" ? "Apakah Anda yakin ingin menghapus transaksi ini?" : "Konfirmasi terakhir"}
+        description={
+          deleteConfirmationStep === "first"
+            ? "Periksa kembali transaksi yang dipilih. Tekan lanjutkan untuk masuk ke verifikasi kedua."
+            : "Transaksi ini akan dihapus permanen dari Buku Kas. Dampak jurnal akan dibalik agar laporan keuangan tetap konsisten. Apakah Anda benar-benar ingin melanjutkan?"
+        }
         itemName={entry.description}
         isDeleting={isDeleting}
+        confirmLabel={deleteConfirmationStep === "first" ? "Ya, lanjutkan" : "Ya, hapus transaksi"}
+        deletingLabel="Menghapus..."
+        cancelLabel="Batal"
       />
     </>
   );

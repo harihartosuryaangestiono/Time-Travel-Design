@@ -10,6 +10,9 @@ interface DeleteConfirmDialogProps {
   description: string;
   itemName?: string;
   isDeleting?: boolean;
+  confirmLabel?: string;
+  deletingLabel?: string;
+  cancelLabel?: string;
 }
 
 export function DeleteConfirmDialog({
@@ -20,6 +23,9 @@ export function DeleteConfirmDialog({
   description,
   itemName,
   isDeleting = false,
+  confirmLabel = "Confirm Deletion",
+  deletingLabel = "Deleting...",
+  cancelLabel = "Cancel",
 }: DeleteConfirmDialogProps) {
   if (!isOpen) return null;
 
@@ -66,7 +72,7 @@ export function DeleteConfirmDialog({
             disabled={isDeleting}
             className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition-colors"
           >
-            Cancel
+            {cancelLabel}
           </button>
           <button
             type="button"
@@ -77,12 +83,12 @@ export function DeleteConfirmDialog({
             {isDeleting ? (
               <>
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                <span>Deleting...</span>
+                <span>{deletingLabel}</span>
               </>
             ) : (
               <>
                 <Trash2 className="h-3.5 w-3.5" />
-                <span>Confirm Deletion</span>
+                <span>{confirmLabel}</span>
               </>
             )}
           </button>
