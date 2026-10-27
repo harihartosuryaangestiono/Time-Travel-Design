@@ -61,14 +61,14 @@ export async function getProject(id: string) {
 export async function createProject(input: {
   code: string;
   name: string;
-  client_id?: string;
+  client_id?: string | null;
   type: ProjectType;
   building_function?: string;
   work_category?: string;
   status?: ProjectStatus;
   location?: string;
   start_date?: string;
-  end_date?: string;
+  end_date?: string | null;
   contract_value?: number;
   description?: string;
 }): Promise<ProjectActionResult<Record<string, unknown>>> {
@@ -79,6 +79,16 @@ export async function createProject(input: {
   }
 
   const supabase = await createClient();
+  if (input.client_id) {
+    const { data: client, error: clientError } = await supabase
+      .from("clients")
+      .select("id")
+      .eq("id", input.client_id)
+      .eq("organization_id", user.organizationId)
+      .maybeSingle();
+    if (clientError) return { error: `Gagal memeriksa klien: ${clientError.message}` };
+    if (!client) return { error: "Klien tidak ditemukan di organisasi Anda." };
+  }
 
   const { data, error } = await supabase
     .from("projects")
@@ -105,14 +115,14 @@ export async function updateProject(
   input: {
     code?: string;
     name?: string;
-    client_id?: string;
+    client_id?: string | null;
     type?: ProjectType;
     building_function?: string;
     work_category?: string;
     status?: ProjectStatus;
     location?: string;
     start_date?: string;
-    end_date?: string;
+    end_date?: string | null;
     contract_value?: number;
     description?: string;
   }
@@ -123,6 +133,16 @@ export async function updateProject(
   }
 
   const supabase = await createClient();
+  if (input.client_id) {
+    const { data: client, error: clientError } = await supabase
+      .from("clients")
+      .select("id")
+      .eq("id", input.client_id)
+      .eq("organization_id", user.organizationId)
+      .maybeSingle();
+    if (clientError) return { error: `Gagal memeriksa klien: ${clientError.message}` };
+    if (!client) return { error: "Klien tidak ditemukan di organisasi Anda." };
+  }
 
   const { data: existing, error: existingError } = await supabase
     .from("projects")

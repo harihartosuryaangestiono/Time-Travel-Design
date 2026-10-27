@@ -6,6 +6,7 @@ import { getAccountsWithCalculatedBalance } from "@/lib/accounting/cashBalance";
 import {
   GENERAL_EXPENSE_CATEGORIES,
   PROJECT_EXPENSE_CATEGORIES,
+  normalizeExpenseCategory,
 } from "@/lib/accounting/expenseCategories";
 
 export interface ProjectRevenueSummary {
@@ -115,39 +116,9 @@ export async function getRekapitulasiData(year: number = 2026): Promise<Rekapitu
     throw new Error(`Gagal memuat pengeluaran untuk rekapitulasi: ${expensesError.message}`);
   }
 
-  const legacyHppNames = [
-    "Bahan Baku Utama / Material",
-    "Upah Tukang",
-    "Sewa Alat Proyek",
-    "Transportasi Lapangan",
-  ];
-
-  const legacyOpexNames = [
-    "Gaji dan Upah Karyawan",
-    "Transportasi Operasional",
-    "Biaya Konsumsi Kantor",
-    "Biaya Jamuan / Representasi",
-    "Biaya Marketing",
-    "Kebutuhan Workshop",
-    "Biaya Administrasi Finansial",
-  ];
-
-  const legacyCapexNames = [
-    "Renovasi Kantor",
-    "Legalitas Perusahaan",
-    "Inventaris",
-    "Perangkat Gadget",
-  ];
-  const hppNames = [...PROJECT_EXPENSE_CATEGORIES, ...legacyHppNames];
-  const opexNames = [
-    ...GENERAL_EXPENSE_CATEGORIES.slice(0, 7),
-    ...legacyOpexNames,
-  ];
-  const capexNames = [
-    ...GENERAL_EXPENSE_CATEGORIES.slice(7),
-    ...legacyCapexNames,
-  ];
-  const knownCategories = new Set([...hppNames, ...opexNames, ...capexNames]);
+  const hppNames = [...PROJECT_EXPENSE_CATEGORIES];
+  const opexNames = [...GENERAL_EXPENSE_CATEGORIES.slice(0, 7)];
+  const capexNames = [...GENERAL_EXPENSE_CATEGORIES.slice(7)];
 
   const categoryTotals = new Map<string, number>();
   const uncategorizedList: Array<{
@@ -173,18 +144,23 @@ export async function getRekapitulasiData(year: number = 2026): Promise<Rekapitu
         amount: amt,
         projectName: e.project_id ? projectsById.get(e.project_id)?.name : undefined,
       });
-    } else if (knownCategories.has(cat)) {
-      const prev = categoryTotals.get(cat) || 0;
-      categoryTotals.set(cat, prev + amt);
     } else {
-      totalUncategorized += amt;
-      uncategorizedList.push({
-        id: e.id,
-        date: e.date ? new Date(e.date).toISOString().split("T")[0] : "",
-        desc: e.description,
-        amount: amt,
-        projectName: e.project_id ? projectsById.get(e.project_id)?.name : undefined,
-      });
+      const normalizedCategory =
+        normalizeExpenseCategory(cat, "PROJECT") ||
+        normalizeExpenseCategory(cat, "GENERAL");
+      if (normalizedCategory) {
+        const prev = categoryTotals.get(normalizedCategory) || 0;
+        categoryTotals.set(normalizedCategory, prev + amt);
+      } else {
+        totalUncategorized += amt;
+        uncategorizedList.push({
+          id: e.id,
+          date: e.date ? new Date(e.date).toISOString().split("T")[0] : "",
+          desc: e.description,
+          amount: amt,
+          projectName: e.project_id ? projectsById.get(e.project_id)?.name : undefined,
+        });
+      }
     }
   });
 

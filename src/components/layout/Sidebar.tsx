@@ -48,6 +48,7 @@ const navigationGroups: NavGroup[] = [
     items: [
       { name: "Project Portfolio", href: "/projects", icon: FolderKanban },
       { name: "Client Directory", href: "/projects/clients", icon: Users },
+      { name: "Data Subkontraktor", href: "/subcontractors", icon: Building2 },
     ],
   },
   {

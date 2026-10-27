@@ -13,6 +13,19 @@ export interface ClientInput {
   tax_id?: string;
 }
 
+export async function getClients() {
+  const user = await requireAuthUser();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("clients")
+    .select("id, name")
+    .eq("organization_id", user.organizationId)
+    .order("name");
+
+  if (error) throw new Error(`Gagal memuat daftar klien: ${error.message}`);
+  return data || [];
+}
+
 export async function createClientRecord(input: ClientInput) {
   const user = await requireAuthUser();
   const supabase = await createClient();

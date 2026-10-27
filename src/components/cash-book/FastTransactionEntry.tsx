@@ -356,7 +356,7 @@ export function FastTransactionEntry({
                 if (selected) {
                   setExpenseBook("PROJECT");
                   setProjectId(selected.projectId);
-                  setDescription(`Pembayaran borongan ${selected.vendorName}`);
+                  setDescription(`Pembayaran borongan ${selected.subcontractorName}`);
                   setCategory("");
                   setSmartSuggestion(null);
                 }
@@ -366,7 +366,7 @@ export function FastTransactionEntry({
               <option value="">Tidak terkait borongan</option>
               {subcontractorContracts.map((contract) => (
                 <option key={contract.id} value={contract.id} disabled={contract.remainingAmount <= 0}>
-                  {contract.projectName} — {contract.vendorName}: sisa {new Intl.NumberFormat("id-ID").format(contract.remainingAmount)}
+                  {contract.projectName} — {contract.subcontractorName}: sisa {new Intl.NumberFormat("id-ID").format(contract.remainingAmount)}
                 </option>
               ))}
             </select>

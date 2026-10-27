@@ -176,7 +176,7 @@ export default function VendorsPage() {
         <StatCard
           title="Total Mitra Vendor"
           value={isLoading ? "..." : `${vendors.length} Vendor`}
-          subtitle="Supplier material & subkontraktor"
+          subtitle="Supplier material dan jasa"
           icon={Building2}
           iconBgColor="bg-emerald-500/10"
           iconColor="text-emerald-700"
@@ -281,7 +281,7 @@ export default function VendorsPage() {
           <p className="text-xs text-zinc-500 max-w-sm mb-6">
             {search
               ? `Tidak ada vendor yang cocok dengan kata kunci "${search}".`
-              : "Daftarkan supplier material, workshop, dan subkontraktor untuk memudahkan pencatatan biaya dan nomor rekening transfer."}
+              : "Daftarkan supplier material dan jasa untuk memudahkan pencatatan biaya dan nomor rekening transfer."}
           </p>
           <button
             type="button"

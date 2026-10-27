@@ -52,6 +52,10 @@ const pageTitles: Record<string, { title: string; description: string }> = {
     title: "Rekapitulasi Subkontraktor",
     description: "Nilai borongan, pembayaran, dan sisa per proyek dan subkontraktor",
   },
+  "/subcontractors": {
+    title: "Data Subkontraktor",
+    description: "Direktori khusus subkontraktor untuk data borongan proyek",
+  },
   "/reimbursements": {
     title: "Expense Claims & Reimbursements",
     description: "Employee operational expense claims, approvals, and payout records",
@@ -65,8 +69,8 @@ const pageTitles: Record<string, { title: string; description: string }> = {
     description: "Milestone progress invoices, accounts receivable, and payment aging",
   },
   "/vendors": {
-    title: "Vendors & Contractors",
-    description: "Subcontractors, material suppliers, and procurement partner directory",
+    title: "Vendors & Suppliers",
+    description: "Material suppliers and procurement partner directory",
   },
   "/reports/income-statement": {
     title: "Income Statement (Profit & Loss)",

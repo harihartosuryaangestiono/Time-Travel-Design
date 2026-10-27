@@ -502,7 +502,7 @@ export async function createFastTransaction(rawInput: CreateFastTransactionInput
     }
     if (input.amount > subcontractorContract.remainingAmount) {
       throw new Error(
-        `Pembayaran melebihi sisa borongan ${subcontractorContract.vendorName}: ${subcontractorContract.remainingAmount.toLocaleString("id-ID")}.`
+        `Pembayaran melebihi sisa borongan ${subcontractorContract.subcontractorName}: ${subcontractorContract.remainingAmount.toLocaleString("id-ID")}.`
       );
     }
   }
@@ -550,7 +550,7 @@ export async function createFastTransaction(rawInput: CreateFastTransactionInput
         organization_id: user.organizationId,
         number,
         date: dateObj.toISOString(),
-        merchant: subcontractorContract?.vendorName || input.description.slice(0, 50),
+        merchant: subcontractorContract?.subcontractorName || input.description.slice(0, 50),
         description: input.description.trim(),
         amount: input.amount,
         tax_amount: 0,

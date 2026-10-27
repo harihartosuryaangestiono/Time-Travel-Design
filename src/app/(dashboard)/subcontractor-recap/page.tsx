@@ -22,7 +22,7 @@ export default function SubcontractorRecapPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [projectId, setProjectId] = useState("");
-  const [vendorId, setVendorId] = useState("");
+  const [subcontractorId, setSubcontractorId] = useState("");
   const [description, setDescription] = useState("");
   const [contractAmount, setContractAmount] = useState<number | "">("");
 
@@ -63,7 +63,7 @@ export default function SubcontractorRecapPage() {
       setError(null);
       await createSubcontractorContract({
         projectId,
-        vendorId,
+        subcontractorId,
         description,
         contractAmount: Number(contractAmount),
       });
@@ -87,6 +87,12 @@ export default function SubcontractorRecapPage() {
             Catat nilai borongan dan pantau pembayaran serta sisa per proyek dan subkontraktor.
           </p>
         </div>
+        <Link
+          href="/subcontractors"
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
+        >
+          Data Subkontraktor
+        </Link>
         <Link
           href="/cash-book"
           className="inline-flex items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 py-2.5 text-xs font-semibold text-white hover:bg-black"
@@ -123,10 +129,15 @@ export default function SubcontractorRecapPage() {
           </div>
           <div>
             <label className="mb-1 block text-[10px] font-bold uppercase text-zinc-500">Subkontraktor *</label>
-            <select required value={vendorId} onChange={(event) => setVendorId(event.target.value)} className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs">
+            <select required value={subcontractorId} onChange={(event) => setSubcontractorId(event.target.value)} className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs">
               <option value="">Pilih subkontraktor</option>
-              {data.vendors.map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}
+              {data.subcontractors.map((subcontractor) => <option key={subcontractor.id} value={subcontractor.id}>{subcontractor.name}</option>)}
             </select>
+            {!data.subcontractors.length && (
+              <Link href="/subcontractors" className="mt-1 inline-block text-[10px] font-semibold text-blue-700 hover:underline">
+                Tambahkan data subkontraktor
+              </Link>
+            )}
           </div>
           <div>
             <label className="mb-1 block text-[10px] font-bold uppercase text-zinc-500">Pekerjaan borongan *</label>
@@ -137,7 +148,7 @@ export default function SubcontractorRecapPage() {
             <input required type="number" min="1" step="1" value={contractAmount} onChange={(event) => setContractAmount(Number(event.target.value) || "")} placeholder="17000000" className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-right font-mono text-xs" />
           </div>
           <div className="flex items-end">
-            <button type="submit" disabled={isSaving || !data.projects.length || !data.vendors.length} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 text-xs font-semibold text-white hover:bg-black disabled:opacity-50">
+            <button type="submit" disabled={isSaving || !data.projects.length || !data.subcontractors.length} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 text-xs font-semibold text-white hover:bg-black disabled:opacity-50">
               <Plus className="h-4 w-4" />
               {isSaving ? "Menyimpan..." : "Simpan Borongan"}
             </button>
@@ -150,7 +161,7 @@ export default function SubcontractorRecapPage() {
           <div>
             <h3 className="text-sm font-bold text-zinc-950">Sisa Borongan per Proyek</h3>
             <p className="mt-0.5 text-[11px] text-zinc-500">
-              Pembayaran lama dicocokkan otomatis dari proyek, kategori subkontraktor, dan nama vendor. Untuk pembayaran baru, pilih borongan di Buku Kas.
+              Pembayaran lama dicocokkan otomatis dari proyek, kategori subkontraktor, dan nama subkontraktor. Untuk pembayaran baru, pilih borongan di Buku Kas.
             </p>
           </div>
           <span className="text-xs text-zinc-400">{data?.contracts.length || 0} kontrak</span>
@@ -170,11 +181,11 @@ export default function SubcontractorRecapPage() {
             {isLoading ? (
               <tr><td colSpan={6} className="py-10 text-center text-zinc-400">Memuat rekapitulasi...</td></tr>
             ) : !data?.contracts.length ? (
-              <tr><td colSpan={6} className="py-10 text-center text-zinc-400">Belum ada nilai borongan. Tambahkan proyek dan vendor terlebih dahulu.</td></tr>
+              <tr><td colSpan={6} className="py-10 text-center text-zinc-400">Belum ada nilai borongan. Tambahkan proyek dan data subkontraktor terlebih dahulu.</td></tr>
             ) : data.contracts.map((contract) => (
               <tr key={contract.id} className="hover:bg-zinc-50">
                 <td className="py-3 pl-2"><span className="font-semibold text-zinc-900">{contract.projectName}</span><span className="ml-1 text-zinc-400">({contract.projectCode})</span></td>
-                <td className="py-3 font-semibold text-zinc-800">{contract.vendorName}</td>
+                <td className="py-3 font-semibold text-zinc-800">{contract.subcontractorName}</td>
                 <td className="py-3 text-zinc-600">{contract.description}</td>
                 <td className="py-3 text-right font-mono">{formatCurrency(contract.contractAmount)}</td>
                 <td className="py-3 text-right font-mono text-emerald-700">{formatCurrency(contract.paidAmount)}</td>

@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Building2,
+  Calendar,
   Edit3,
   Trash2,
   RefreshCw,
@@ -32,7 +33,7 @@ interface ProjectItem {
   contract_value: number;
   received_amount: number;
   spent_amount: number;
-  client?: { name: string };
+  client?: { id: string; name: string };
   building_function?: string | null;
   work_category?: string | null;
   deadline?: string;
@@ -45,6 +46,15 @@ function formatCurrency(amount: number) {
     currency: "IDR",
     maximumFractionDigits: 0,
   }).format(safe);
+}
+
+function formatProjectDate(date: string) {
+  const [year, month, day] = date.slice(0, 10).split("-").map(Number);
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(year, month - 1, day));
 }
 
 export default function ProjectsContent() {
@@ -211,7 +221,7 @@ export default function ProjectsContent() {
           contract_value: isNaN(cVal) ? 0 : cVal,
           received_amount: receivedByProject[p.id] || 0,
           spent_amount: realSpent,
-          client: clientName ? { name: clientName } : undefined,
+          client: clientName && p.client_id ? { id: p.client_id, name: clientName } : undefined,
           building_function: p.building_function || null,
           work_category:
             p.work_category ||
@@ -222,7 +232,7 @@ export default function ProjectsContent() {
               : p.type === "CONSTRUCTION"
               ? "Build From Scratch"
               : null),
-          deadline: p.end_date ? new Date(p.end_date).toLocaleDateString("id-ID", { month: "short", year: "numeric" }) : "Berjalan",
+          deadline: p.end_date ? String(p.end_date).slice(0, 10) : "",
         };
       });
 
@@ -488,6 +498,12 @@ export default function ProjectsContent() {
                         {project.client?.name || "Klien Langsung"}
                       </span>
                     </div>
+                    <div className="flex items-center gap-1.5">
+                      <Calendar className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
+                      <span>
+                        {project.deadline ? `Target: ${formatProjectDate(project.deadline)}` : "Target belum diatur"}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Financial Stats */}
@@ -548,6 +564,7 @@ export default function ProjectsContent() {
                           id: project.id,
                           code: project.code,
                           name: project.name,
+                          client_id: project.client?.id || "",
                           client_name: project.client?.name,
                           building_function: project.building_function || "",
                           work_category: project.work_category || "",

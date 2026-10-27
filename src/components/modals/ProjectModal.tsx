@@ -3,12 +3,14 @@
 import { useState, useEffect } from "react";
 import { X, Building2, Calendar, DollarSign, FolderKanban, Tag, Loader2, Check } from "lucide-react";
 import { createProject, updateProject } from "@/app/actions/projectActions";
+import { getClients } from "@/app/actions/clientActions";
 import { FormField, FormInput, FormSelect, FormTextarea } from "@/components/ui/FormField";
 
 export interface ProjectFormData {
   id?: string;
   code: string;
   name: string;
+  client_id?: string | null;
   client_name?: string;
   building_function: string;
   work_category: string;
@@ -54,6 +56,22 @@ export function ProjectModal({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [clients, setClients] = useState<Array<{ id: string; name: string }>>([]);
+  const [clientsError, setClientsError] = useState<string | null>(null);
+  const [isLoadingClients, setIsLoadingClients] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setIsLoadingClients(true);
+    setClientsError(null);
+    getClients()
+      .then(setClients)
+      .catch((error) => {
+        console.error("Gagal memuat pilihan klien proyek:", error);
+        setClientsError(error instanceof Error ? error.message : "Gagal memuat daftar klien.");
+      })
+      .finally(() => setIsLoadingClients(false));
+  }, [isOpen]);
 
   useEffect(() => {
     if (projectToEdit) {
@@ -61,12 +79,13 @@ export function ProjectModal({
         id: projectToEdit.id,
         code: projectToEdit.code || "",
         name: projectToEdit.name || "",
+        client_id: projectToEdit.client_id || "",
         client_name: projectToEdit.client_name || "",
         building_function: projectToEdit.building_function || "",
         work_category: projectToEdit.work_category || "",
         contract_value: projectToEdit.contract_value || 0,
         status: projectToEdit.status || "ACTIVE",
-        deadline: projectToEdit.deadline || "",
+        deadline: projectToEdit.deadline ? projectToEdit.deadline.slice(0, 10) : "",
         description: projectToEdit.description || "",
       });
     } else {
@@ -75,6 +94,7 @@ export function ProjectModal({
       setFormData({
         code: `PRJ-${year}-${randNum}`,
         name: "",
+        client_id: "",
         client_name: "",
         building_function: "",
         work_category: "",
@@ -105,11 +125,13 @@ export function ProjectModal({
         const result = await updateProject(formData.id, {
           code: formData.code,
           name: formData.name,
+          client_id: formData.client_id || null,
           status: formData.status,
           type: legacyProjectType(formData.work_category),
           building_function: formData.building_function,
           work_category: formData.work_category,
           contract_value: Number(formData.contract_value) || 0,
+          end_date: formData.deadline || null,
           description: formData.description,
         });
         if (result.error) {
@@ -121,11 +143,13 @@ export function ProjectModal({
         const result = await createProject({
           code: formData.code,
           name: formData.name,
+          client_id: formData.client_id || null,
           status: formData.status,
           type: legacyProjectType(formData.work_category),
           building_function: formData.building_function,
           work_category: formData.work_category,
           contract_value: Number(formData.contract_value) || 0,
+          end_date: formData.deadline || null,
           description: formData.description,
         });
         if (result.error) {
@@ -235,22 +259,57 @@ export function ProjectModal({
           </FormField>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Client Name */}
+            {/* Client */}
             <FormField id="project-client" label="Klien / pemberi kerja">
               <div className="relative">
-                <Building2 className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
-                <FormInput
+                <Building2 className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
+                <FormSelect
                   id="project-client"
-                  type="text"
-                  maxLength={150}
-                  value={formData.client_name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, client_name: e.target.value })
+                  value={formData.client_id || ""}
+                  disabled={isLoadingClients || Boolean(clientsError)}
+                  onChange={(event) =>
+                    setFormData({
+                      ...formData,
+                      client_id: event.target.value || null,
+                      client_name: clients.find((client) => client.id === event.target.value)?.name || "",
+                    })
                   }
-                  placeholder="Contoh: PT Bali Resort Investama"
                   className="pl-9"
-                />
+                >
+                  <option value="">
+                    {isLoadingClients ? "Memuat daftar klien..." : "Klien langsung / belum dipilih"}
+                  </option>
+                  {clients.map((client) => (
+                    <option key={client.id} value={client.id}>{client.name}</option>
+                  ))}
+                </FormSelect>
               </div>
+              {clientsError ? (
+                <div className="mt-1.5 flex items-center justify-between gap-2 text-xs text-rose-700">
+                  <span>{clientsError}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsLoadingClients(true);
+                      setClientsError(null);
+                      getClients()
+                        .then(setClients)
+                        .catch((error) => {
+                          console.error("Gagal memuat pilihan klien proyek:", error);
+                          setClientsError(error instanceof Error ? error.message : "Gagal memuat daftar klien.");
+                        })
+                        .finally(() => setIsLoadingClients(false));
+                    }}
+                    className="shrink-0 font-semibold underline"
+                  >
+                    Coba lagi
+                  </button>
+                </div>
+              ) : clients.length === 0 && !isLoadingClients ? (
+                <p className="mt-1.5 text-xs text-zinc-500">
+                  Belum ada klien. Tambahkan dulu melalui Client Directory.
+                </p>
+              ) : null}
             </FormField>
 
             {/* Scope / Category */}
@@ -317,13 +376,12 @@ export function ProjectModal({
             </FormField>
 
             {/* Target Delivery */}
-            <FormField id="project-deadline" label="Target serah terima" hint="Contoh: Desember 2026.">
+            <FormField id="project-deadline" label="Target serah terima" hint="Opsional — kosongkan jika belum ditentukan.">
               <div className="relative">
                 <Calendar className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
                 <FormInput
                   id="project-deadline"
-                  type="text"
-                  maxLength={80}
+                  type="date"
                   value={formData.deadline}
                   onChange={(e) =>
                     setFormData({ ...formData, deadline: e.target.value })
