@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Wallet,
@@ -27,7 +27,7 @@ import {
   Flame,
   Zap,
 } from "lucide-react";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion, useInView, useReducedMotion } from "framer-motion";
 import {
   AreaChart,
   Area,
@@ -96,6 +96,8 @@ function formatLocalDate(date: Date) {
 
 export default function DashboardContent() {
   const reducedMotion = useReducedMotion();
+  const analyticsRef = useRef<HTMLDivElement>(null);
+  const analyticsInView = useInView(analyticsRef, { once: true, margin: "100px 0px" });
   const [period, setPeriod] = useState("ytd");
   const [chartView, setChartView] = useState<"flow" | "margin">("flow");
   const [isLoading, setIsLoading] = useState(true);
@@ -494,9 +496,9 @@ export default function DashboardContent() {
       </StaggerContainer>
 
       {/* ── Deep Analytics Section (Charts) ── */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+      <div ref={analyticsRef} className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Main Chart: Cash Flow & Trends (7 cols) */}
-        <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm lg:col-span-7">
+        <SpotlightCard className="dashboard-card dashboard-analytics-card p-6 lg:col-span-7">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-zinc-100 pb-4">
             <div>
               <h3 className="text-base font-bold text-zinc-950 flex items-center gap-2">
@@ -509,41 +511,70 @@ export default function DashboardContent() {
             </div>
 
             {/* View Switcher */}
-            <div className="flex items-center rounded-xl bg-zinc-100 p-1 text-xs font-medium">
+            <div className="flex items-center rounded-xl border border-zinc-200/70 bg-zinc-100/80 p-1 text-xs font-medium">
               <button
                 onClick={() => setChartView("flow")}
                 className={cn(
-                  "rounded-lg px-2.5 py-1 transition-all",
+                  "relative rounded-lg px-2.5 py-1 transition-colors",
                   chartView === "flow"
-                    ? "bg-white text-zinc-950 font-bold shadow-sm"
+                    ? "font-bold text-zinc-950"
                     : "text-zinc-500 hover:text-zinc-900"
                 )}
               >
-                Pemasukan vs Biaya
+                {chartView === "flow" && (
+                  <motion.span
+                    layoutId="dashboard-chart-indicator"
+                    className="absolute inset-0 rounded-lg bg-white shadow-sm"
+                    transition={
+                      reducedMotion
+                        ? { duration: 0 }
+                        : { type: "spring", stiffness: 420, damping: 34 }
+                    }
+                  />
+                )}
+                <span className="relative z-10">Pemasukan vs Biaya</span>
               </button>
               <button
                 onClick={() => setChartView("margin")}
                 className={cn(
-                  "rounded-lg px-2.5 py-1 transition-all",
+                  "relative rounded-lg px-2.5 py-1 transition-colors",
                   chartView === "margin"
-                    ? "bg-white text-zinc-950 font-bold shadow-sm"
+                    ? "font-bold text-zinc-950"
                     : "text-zinc-500 hover:text-zinc-900"
                 )}
               >
-                Laba Bersih
+                {chartView === "margin" && (
+                  <motion.span
+                    layoutId="dashboard-chart-indicator"
+                    className="absolute inset-0 rounded-lg bg-white shadow-sm"
+                    transition={
+                      reducedMotion
+                        ? { duration: 0 }
+                        : { type: "spring", stiffness: 420, damping: 34 }
+                    }
+                  />
+                )}
+                <span className="relative z-10">Laba Bersih</span>
               </button>
             </div>
           </div>
 
           <div className="mt-6 h-72 sm:h-80 w-full">
-            {isLoading ? (
-              <div className="h-full w-full animate-pulse bg-zinc-100 rounded-2xl" />
+            {isLoading || !analyticsInView ? (
+              <div className="dashboard-skeleton h-full w-full rounded-2xl" />
             ) : trendData.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center text-center text-zinc-400">
                 <BarChart3 className="h-10 w-10 text-zinc-300 mb-2" />
                 <p className="text-xs">Belum ada riwayat transaksi bulanan</p>
               </div>
             ) : (
+              <motion.div
+                key={chartView}
+                initial={reducedMotion ? false : { opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                className="h-full w-full"
+              >
               <ResponsiveContainer width="100%" height="100%">
                 {chartView === "flow" ? (
                   <AreaChart
@@ -577,7 +608,7 @@ export default function DashboardContent() {
                       content={({ active, payload, label }) => {
                         if (active && payload && payload.length) {
                           return (
-                            <div className="rounded-xl border border-zinc-200 bg-white p-3 shadow-xl text-xs space-y-1">
+                            <div className="dashboard-chart-tooltip rounded-xl border border-zinc-200 bg-white p-3 text-xs">
                               <p className="font-bold text-zinc-900">{label}</p>
                               <p className="text-emerald-700 font-semibold">
                                 Pemasukan: {formatIDR(Number(payload[0]?.value || 0))}
@@ -612,6 +643,9 @@ export default function DashboardContent() {
                       strokeWidth={2.5}
                       fillOpacity={1}
                       fill="url(#colorIncome)"
+                      isAnimationActive={!reducedMotion}
+                      animationDuration={1200}
+                      animationEasing="ease-out"
                     />
                     <Area
                       type="monotone"
@@ -621,6 +655,9 @@ export default function DashboardContent() {
                       strokeWidth={2.5}
                       fillOpacity={1}
                       fill="url(#colorExpense)"
+                      isAnimationActive={!reducedMotion}
+                      animationDuration={1200}
+                      animationEasing="ease-out"
                     />
                   </AreaChart>
                 ) : (
@@ -645,7 +682,7 @@ export default function DashboardContent() {
                       content={({ active, payload, label }) => {
                         if (active && payload && payload.length) {
                           return (
-                            <div className="rounded-xl border border-zinc-200 bg-white p-3 shadow-xl text-xs space-y-1">
+                            <div className="dashboard-chart-tooltip rounded-xl border border-zinc-200 bg-white p-3 text-xs">
                               <p className="font-bold text-zinc-900">{label}</p>
                               <p className="text-emerald-700 font-semibold">
                                 Laba Bersih: {formatIDR(Number(payload[0]?.value || 0))}
@@ -661,10 +698,14 @@ export default function DashboardContent() {
                       name="Laba Bersih"
                       fill="#18181B"
                       radius={[6, 6, 0, 0]}
+                      isAnimationActive={!reducedMotion}
+                      animationDuration={900}
+                      animationEasing="ease-out"
                     />
                   </BarChart>
                 )}
               </ResponsiveContainer>
+              </motion.div>
             )}
           </div>
 
@@ -688,10 +729,10 @@ export default function DashboardContent() {
               </p>
             </div>
           </div>
-        </div>
+        </SpotlightCard>
 
         {/* Expense Category Breakdown (5 cols) */}
-        <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm lg:col-span-5 flex flex-col justify-between">
+        <SpotlightCard className="dashboard-card dashboard-analytics-card flex flex-col justify-between p-6 lg:col-span-5">
           <div>
             <div className="flex items-center justify-between border-b border-zinc-100 pb-4">
               <div>
@@ -707,8 +748,8 @@ export default function DashboardContent() {
             </div>
 
             <div className="mt-4 h-52 w-full flex items-center justify-center">
-              {isLoading ? (
-                <div className="h-32 w-32 animate-pulse rounded-full bg-zinc-100" />
+              {isLoading || !analyticsInView ? (
+                <div className="dashboard-skeleton h-32 w-32 rounded-full" />
               ) : expenseCategories.length === 0 ? (
                 <div className="text-center text-zinc-400 text-xs">
                   <PieIcon className="h-8 w-8 mx-auto text-zinc-300 mb-1" />
@@ -723,6 +764,9 @@ export default function DashboardContent() {
                       outerRadius={80}
                       paddingAngle={3}
                       dataKey="value"
+                      isAnimationActive={!reducedMotion}
+                      animationDuration={1000}
+                      animationEasing="ease-out"
                     >
                       {expenseCategories.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
@@ -733,7 +777,7 @@ export default function DashboardContent() {
                         if (active && payload && payload.length) {
                           const data = payload[0].payload;
                           return (
-                            <div className="rounded-xl border border-zinc-200 bg-white p-2.5 shadow-xl text-xs">
+                            <div className="dashboard-chart-tooltip rounded-xl border border-zinc-200 bg-white p-2.5 text-xs">
                               <p className="font-bold text-zinc-900">{data.name}</p>
                               <p className="text-zinc-900 font-semibold mt-0.5">
                                 {formatIDR(data.value)} ({data.percent})
@@ -783,7 +827,7 @@ export default function DashboardContent() {
               </p>
             )}
           </div>
-        </div>
+        </SpotlightCard>
       </div>
 
       {/* ── Project Budget Realization Matrix ── */}
