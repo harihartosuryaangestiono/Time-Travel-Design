@@ -18,7 +18,7 @@ export function AnimatedNumber({
 }: AnimatedNumberProps) {
   const motionValue = useMotionValue(0);
   const reducedMotion = useReducedMotion();
-  const roundedValue = useTransform(motionValue, (current) => format(Math.round(current)));
+  const formattedValue = useTransform(motionValue, (current) => format(current));
 
   useEffect(() => {
     if (reducedMotion) {
@@ -33,5 +33,5 @@ export function AnimatedNumber({
     return () => controls.stop();
   }, [duration, motionValue, reducedMotion, value]);
 
-  return <motion.span className={className}>{roundedValue}</motion.span>;
+  return <motion.span className={className}>{formattedValue}</motion.span>;
 }

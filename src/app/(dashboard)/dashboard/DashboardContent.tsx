@@ -49,6 +49,8 @@ import { ProgressBar } from "@/components/ui/ProgressBar";
 import { BrandIconSvg } from "@/components/ui/BrandLogo";
 import { PulseDot } from "@/components/ui/PulseDot";
 import { SpotlightCard } from "@/components/ui/SpotlightCard";
+import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
+import { StaggerContainer, StaggerItem } from "@/components/ui/StaggerContainer";
 import { cn } from "@/lib/utils";
 import {
   getDashboardMetrics,
@@ -319,83 +321,107 @@ export default function DashboardContent() {
       </motion.div>
 
       {/* ── Executive Financial Vitality Strip ── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:gap-4">
-        <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between text-zinc-500 mb-1">
-            <span className="text-xs font-semibold uppercase tracking-wider">Cash Runway</span>
-            <Flame className="h-4 w-4 text-amber-500" />
-          </div>
-          <div className="text-xl font-bold text-zinc-950 tabular-nums">
-            {isLoading
-              ? "..."
-              : metrics.cash_runway_months > 0
-              ? `${metrics.cash_runway_months} Bulan`
-              : "—"}
-          </div>
-          <p className="mt-1 text-[11px] text-zinc-500 font-medium">
-            {metrics.cash_runway_months >= 6
-              ? "Likuiditas mencukupi (> 6 bulan)"
-              : metrics.cash_runway_months > 0
-              ? "Perlu percepatan penagihan"
-              : "Belum ada pengeluaran"}
-          </p>
-        </div>
+      <StaggerContainer
+        key={`vitality-${period}`}
+        className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:gap-4"
+      >
+        <StaggerItem>
+          <SpotlightCard className="dashboard-card dashboard-kpi-card group relative p-4">
+            <div className="mb-1 flex items-center justify-between text-zinc-500">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.12em] sm:text-xs">Cash Runway</span>
+              <Flame className="dashboard-kpi-icon h-4 w-4 text-amber-500" />
+            </div>
+            <div className="text-xl font-bold tracking-tight text-zinc-950 tabular-nums">
+              {isLoading ? (
+                <span className="dashboard-skeleton inline-block h-6 w-24 rounded-md align-middle" aria-label="Memuat" />
+              ) : metrics.cash_runway_months > 0 ? (
+                <AnimatedNumber
+                  value={metrics.cash_runway_months}
+                  format={(number) => `${Number(number.toFixed(1))} Bulan`}
+                />
+              ) : "—"}
+            </div>
+            <p className="mt-1 text-[11px] font-medium text-zinc-500">
+              {metrics.cash_runway_months >= 6
+                ? "Likuiditas mencukupi (> 6 bulan)"
+                : metrics.cash_runway_months > 0
+                ? "Perlu percepatan penagihan"
+                : "Belum ada pengeluaran"}
+            </p>
+          </SpotlightCard>
+        </StaggerItem>
 
-        <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between text-zinc-500 mb-1">
-            <span className="text-xs font-semibold uppercase tracking-wider">Net Profit Margin</span>
-            <Zap className="h-4 w-4 text-emerald-600" />
-          </div>
-          <div
-            className={cn(
-              "text-xl font-bold tabular-nums",
-              metrics.profit_margin >= 0 ? "text-emerald-600" : "text-rose-600"
-            )}
-          >
-            {isLoading ? "..." : `${metrics.profit_margin}%`}
-          </div>
-          <p className="mt-1 text-[11px] text-zinc-500">
-            {metrics.total_income > 0 ? "Berdasarkan invoice terbayar" : "Belum ada pemasukan"}
-          </p>
-        </div>
+        <StaggerItem>
+          <SpotlightCard className="dashboard-card dashboard-kpi-card group relative p-4">
+            <div className="mb-1 flex items-center justify-between text-zinc-500">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.12em] sm:text-xs">Net Profit Margin</span>
+              <Zap className="dashboard-kpi-icon h-4 w-4 text-emerald-600" />
+            </div>
+            <div className={cn("text-xl font-bold tracking-tight tabular-nums", metrics.profit_margin >= 0 ? "text-emerald-600" : "text-rose-600")}>
+              {isLoading ? (
+                <span className="dashboard-skeleton inline-block h-6 w-20 rounded-md align-middle" aria-label="Memuat" />
+              ) : (
+                <AnimatedNumber
+                  value={metrics.profit_margin}
+                  format={(number) => `${Number(number.toFixed(1))}%`}
+                />
+              )}
+            </div>
+            <p className="mt-1 text-[11px] text-zinc-500">
+              {metrics.total_income > 0 ? "Berdasarkan invoice terbayar" : "Belum ada pemasukan"}
+            </p>
+          </SpotlightCard>
+        </StaggerItem>
 
-        <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between text-zinc-500 mb-1">
-            <span className="text-xs font-semibold uppercase tracking-wider">Rasio Likuiditas Cepat</span>
-            <ShieldCheck className="h-4 w-4 text-sky-500" />
-          </div>
-          <div className="text-xl font-bold text-zinc-950 tabular-nums">
-            {isLoading
-              ? "..."
-              : metrics.quick_ratio !== null
-              ? `${metrics.quick_ratio}x`
-              : metrics.total_cash > 0
-              ? "Likuid"
-              : "—"}
-          </div>
-          <p className="mt-1 text-[11px] text-zinc-500 font-medium">
-            (Kas + Piutang) vs Kewajiban
-          </p>
-        </div>
+        <StaggerItem>
+          <SpotlightCard className="dashboard-card dashboard-kpi-card group relative p-4">
+            <div className="mb-1 flex items-center justify-between text-zinc-500">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.12em] sm:text-xs">Rasio Likuiditas Cepat</span>
+              <ShieldCheck className="dashboard-kpi-icon h-4 w-4 text-sky-500" />
+            </div>
+            <div className="text-xl font-bold tracking-tight text-zinc-950 tabular-nums">
+              {isLoading ? (
+                <span className="dashboard-skeleton inline-block h-6 w-20 rounded-md align-middle" aria-label="Memuat" />
+              ) : metrics.quick_ratio !== null ? (
+                <AnimatedNumber
+                  value={metrics.quick_ratio}
+                  format={(number) => `${Number(number.toFixed(1))}x`}
+                />
+              ) : metrics.total_cash > 0 ? "Likuid" : "—"}
+            </div>
+            <p className="mt-1 text-[11px] font-medium text-zinc-500">
+              (Kas + Piutang) vs Kewajiban
+            </p>
+          </SpotlightCard>
+        </StaggerItem>
 
-        <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between text-zinc-500 mb-1">
-            <span className="text-xs font-semibold uppercase tracking-wider">Serapan Biaya Proyek</span>
-            <BarChart3 className="h-4 w-4 text-purple-500" />
-          </div>
-          <div className="text-xl font-bold text-zinc-950 tabular-nums">
-            {isLoading ? "..." : `${avgAbsorption}%`}
-          </div>
-          <p className="mt-1 text-[11px] text-zinc-500">
-            Realisasi biaya vs nilai kontrak
-          </p>
-        </div>
-      </div>
+        <StaggerItem>
+          <SpotlightCard className="dashboard-card dashboard-kpi-card group relative p-4">
+            <div className="mb-1 flex items-center justify-between text-zinc-500">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.12em] sm:text-xs">Serapan Biaya Proyek</span>
+              <BarChart3 className="dashboard-kpi-icon h-4 w-4 text-purple-500" />
+            </div>
+            <div className="text-xl font-bold tracking-tight text-zinc-950 tabular-nums">
+              {isLoading ? (
+                <span className="dashboard-skeleton inline-block h-6 w-20 rounded-md align-middle" aria-label="Memuat" />
+              ) : (
+                <AnimatedNumber value={avgAbsorption} format={(number) => `${Math.round(number)}%`} />
+              )}
+            </div>
+            <p className="mt-1 text-[11px] text-zinc-500">
+              Realisasi biaya vs nilai kontrak
+            </p>
+          </SpotlightCard>
+        </StaggerItem>
+      </StaggerContainer>
 
       {/* ── 6 Core Financial KPI Cards ── */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <StaggerContainer
+        key={`financial-${period}`}
+        className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+      >
         {/* Total Cash & Bank */}
-        <StatCard
+        <StaggerItem><StatCard
           title="Total Kas &amp; Bank"
           value={isLoading ? "..." : formatIDR(metrics.total_cash)}
           subtitle={`${accounts.length} rekening aktif terdata`}
@@ -404,40 +430,40 @@ export default function DashboardContent() {
           iconColor="text-emerald-700"
           badge="Kas Riil"
           gradient
-        />
+        /></StaggerItem>
 
         {/* Total Inflow / Pendapatan */}
-        <StatCard
+        <StaggerItem><StatCard
           title="Pemasukan Terbayar"
           value={isLoading ? "..." : formatIDR(metrics.total_income)}
           subtitle="Penerimaan invoice periode ini"
           icon={ArrowDownRight}
           iconBgColor="bg-teal-500/10"
           iconColor="text-teal-700"
-        />
+        /></StaggerItem>
 
         {/* Total Outflow / Pengeluaran */}
-        <StatCard
+        <StaggerItem><StatCard
           title="Total Pengeluaran"
           value={isLoading ? "..." : formatIDR(metrics.total_expenses)}
           subtitle="Biaya operasional &amp; proyek"
           icon={Receipt}
           iconBgColor="bg-rose-500/10"
           iconColor="text-rose-600"
-        />
+        /></StaggerItem>
 
         {/* Laba Bersih */}
-        <StatCard
+        <StaggerItem><StatCard
           title="Laba Bersih Operasional"
           value={isLoading ? "..." : formatIDR(metrics.net_profit)}
           subtitle={`Margin bersih ${metrics.profit_margin}%`}
           icon={TrendingUp}
           iconBgColor="bg-emerald-500/10"
           iconColor="text-emerald-700"
-        />
+        /></StaggerItem>
 
         {/* Piutang Tertagih */}
-        <StatCard
+        <StaggerItem><StatCard
           title="Piutang Usaha (A/R)"
           value={isLoading ? "..." : formatIDR(metrics.outstanding_receivables)}
           subtitle={
@@ -448,10 +474,10 @@ export default function DashboardContent() {
           icon={FileText}
           iconBgColor="bg-amber-500/10"
           iconColor="text-amber-700"
-        />
+        /></StaggerItem>
 
         {/* Hutang & Kasbon Berjalan */}
-        <StatCard
+        <StaggerItem><StatCard
           title="Kewajiban &amp; Kasbon Berjalan"
           value={
             isLoading
@@ -464,8 +490,8 @@ export default function DashboardContent() {
           icon={Coins}
           iconBgColor="bg-purple-500/10"
           iconColor="text-purple-700"
-        />
-      </div>
+        /></StaggerItem>
+      </StaggerContainer>
 
       {/* ── Deep Analytics Section (Charts) ── */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">

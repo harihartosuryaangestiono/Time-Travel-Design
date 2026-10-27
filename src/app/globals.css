@@ -180,6 +180,22 @@
       linear-gradient(118deg, #09090b 0%, #111114 48%, #1a1b1e 100%);
   }
 
+  .dashboard-kpi-card {
+    min-height: 112px;
+    background: rgb(255 255 255 / 0.9);
+    backdrop-filter: blur(12px);
+  }
+
+  .dashboard-stat-icon,
+  .dashboard-kpi-icon {
+    transition: transform var(--dashboard-duration) var(--dashboard-ease);
+  }
+
+  .dashboard-card:hover .dashboard-stat-icon,
+  .dashboard-kpi-card:hover .dashboard-kpi-icon {
+    transform: scale(1.08) rotate(3deg);
+  }
+
   .dashboard-hero-orb {
     position: absolute;
     top: -55%;

@@ -52,11 +52,10 @@ export function StaggerItem({
     <motion.div
       className={className}
       variants={{
-        hidden: reducedMotion ? { opacity: 1 } : { opacity: 0, y: 18, filter: "blur(6px)" },
+        hidden: reducedMotion ? { opacity: 1 } : { opacity: 0, y: 18 },
         visible: {
           opacity: 1,
           y: 0,
-          filter: "blur(0px)",
           transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] },
         },
       }}

@@ -1,6 +1,8 @@
 import React from "react";
 import { cn } from "@/lib/utils";
 import { ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
+import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
+import { SpotlightCard } from "@/components/ui/SpotlightCard";
 
 interface StatCardProps {
   title: string;
@@ -34,13 +36,16 @@ export function StatCard({
   onClick,
 }: StatCardProps) {
   const isGood = trend?.isGood ?? trend?.isPositive;
+  const isCurrencyValue = /^-?Rp/.test(value.trim());
+  const numericValue = isCurrencyValue
+    ? Number(value.replace(/[^\d-]/g, ""))
+    : Number.NaN;
 
   return (
-    <div
+    <SpotlightCard
       onClick={onClick}
       className={cn(
-        "relative overflow-hidden rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.03)] transition-all duration-200",
-        "hover:border-zinc-300 hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)] hover:translate-y-[-1px]",
+        "dashboard-card group relative p-5",
         gradient && "bg-gradient-to-br from-white via-white to-zinc-50/80",
         onClick && "cursor-pointer",
         className
@@ -59,13 +64,28 @@ export function StatCard({
             )}
           </div>
           <div className="text-2xl font-bold tracking-tight text-slate-900 tabular-nums">
-            {value}
+            {isCurrencyValue && Number.isFinite(numericValue) ? (
+              <AnimatedNumber
+                value={numericValue}
+                format={(amount) =>
+                  new Intl.NumberFormat("id-ID", {
+                    style: "currency",
+                    currency: "IDR",
+                    maximumFractionDigits: 0,
+                  }).format(amount)
+                }
+              />
+            ) : value === "..." ? (
+              <span className="dashboard-skeleton inline-block h-7 w-36 max-w-full rounded-lg align-middle" aria-label="Memuat" />
+            ) : (
+              value
+            )}
           </div>
         </div>
 
         <div
           className={cn(
-            "flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-105",
+            "dashboard-stat-icon flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl",
             iconBgColor
           )}
         >
@@ -101,6 +121,6 @@ export function StatCard({
           )}
         </div>
       )}
-    </div>
+    </SpotlightCard>
   );
 }
