@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Wallet,
@@ -55,7 +55,7 @@ import {
   getRecentTransactions,
   DashboardMetrics,
 } from "@/app/actions/dashboardActions";
-import { createClient } from "@/lib/supabase/client";
+import { getCashAccountsWithBalances } from "@/app/actions/cashAccountActions";
 
 // Format currency in Rupiah
 function formatIDR(amount: number) {
@@ -82,8 +82,15 @@ function formatShortIDR(amount: number) {
   return amount.toString();
 }
 
+function formatLocalDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export default function DashboardContent() {
-  const [period, setPeriod] = useState("this_month");
+  const [period, setPeriod] = useState("ytd");
   const [chartView, setChartView] = useState<"flow" | "margin">("flow");
   const [isLoading, setIsLoading] = useState(true);
   const [txFilter, setTxFilter] = useState<"all" | "expense">("all");
@@ -141,33 +148,36 @@ export default function DashboardContent() {
     }[]
   >([]);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       setIsLoading(true);
 
       // Hitung rentang tanggal sesuai tab period
       const now = new Date();
       let startDate: string;
-      let endDate = now.toISOString().split("T")[0];
+      const endDate = formatLocalDate(now);
 
       if (period === "this_month") {
         const start = new Date(now.getFullYear(), now.getMonth(), 1);
-        startDate = start.toISOString().split("T")[0];
+        startDate = formatLocalDate(start);
       } else if (period === "last_quarter") {
         const start = new Date(now.getFullYear(), now.getMonth() - 3, 1);
-        startDate = start.toISOString().split("T")[0];
+        startDate = formatLocalDate(start);
       } else {
         const start = new Date(now.getFullYear(), 0, 1);
-        startDate = start.toISOString().split("T")[0];
+        startDate = formatLocalDate(start);
       }
 
       // Ambil metrik ringkasan
-      const [metricsRes, trendRes, catRes, projectsRes, txRes] = await Promise.all([
+      const [metricsRes, trendRes, catRes, projectsRes, txRes, cashAccounts] = await Promise.all([
         getDashboardMetrics({ start_date: startDate, end_date: endDate }),
-        getIncomeVsExpense(6),
+        getIncomeVsExpense(
+          period === "ytd" ? now.getMonth() + 1 : period === "last_quarter" ? 3 : 6
+        ),
         getExpensesByCategory(startDate, endDate),
         getProjectBudgetSummary(5),
         getRecentTransactions(8),
+        getCashAccountsWithBalances(),
       ]);
 
       setMetrics(metricsRes);
@@ -176,51 +186,23 @@ export default function DashboardContent() {
       setProjects(projectsRes);
       setRecentTx(txRes);
 
-      // Ambil akun kas aktif untuk widget treasury
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (user) {
-        const { data: member } = await supabase
-          .from("organization_members")
-          .select("organization_id")
-          .eq("profile_id", user.id)
-          .single();
-
-        if (member) {
-          const { data: realAccounts } = await supabase
-            .from("cash_accounts")
-            .select("name, current_balance, opening_balance, account_number")
-            .eq("organization_id", member.organization_id)
-            .eq("is_active", true)
-            .order("name");
-
-          if (realAccounts) {
-            setAccounts(
-              realAccounts.map((a: any) => ({
-                name: a.name,
-                balance:
-                  a.current_balance !== null
-                    ? parseFloat(a.current_balance)
-                    : parseFloat(a.opening_balance || "0"),
-                number: a.account_number ? `•••• ${a.account_number.slice(-4)}` : "Kas Tunai",
-              }))
-            );
-          }
-        }
-      }
+      setAccounts(
+        cashAccounts.map((account) => ({
+          name: account.name,
+          balance: account.current_balance,
+          number: account.account_number ? `•••• ${account.account_number.slice(-4)}` : "Kas Tunai",
+        }))
+      );
     } catch (e) {
       console.error("Gagal memuat analitik dashboard:", e);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [period]);
 
   useEffect(() => {
-    fetchDashboardData();
-  }, [period]);
+    void fetchDashboardData();
+  }, [fetchDashboardData]);
 
   const filteredTx = recentTx.filter((t) => {
     if (txFilter === "all") return true;

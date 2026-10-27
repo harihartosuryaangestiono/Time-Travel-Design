@@ -2,6 +2,14 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { requireAuthUser } from "@/lib/auth/auth";
+import { getAccountsWithCalculatedBalance } from "@/lib/accounting/cashBalance";
+
+function formatLocalDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 export interface DashboardMetrics {
   total_cash: number;
@@ -36,46 +44,67 @@ export async function getDashboardMetrics(period?: {
   const endDate = period?.end_date || endOfMonth.toISOString().split("T")[0];
 
   // 1. Total saldo kas riil dari seluruh rekening aktif
-  const { data: cashAccounts } = await supabase
-    .from("cash_accounts")
-    .select("current_balance, opening_balance")
-    .eq("organization_id", orgId)
-    .eq("is_active", true);
-
-  const totalCash = (cashAccounts || []).reduce((sum, acc) => {
-    const bal =
-      acc.current_balance !== null
-        ? parseFloat(acc.current_balance)
-        : parseFloat(acc.opening_balance || "0");
-    return sum + (isNaN(bal) ? 0 : bal);
-  }, 0);
+  const cashAccounts = await getAccountsWithCalculatedBalance(orgId);
+  const totalCash = cashAccounts.reduce((sum, account) => sum + account.currentBalance, 0);
 
   // 2. Total pengeluaran dalam periode
-  const { data: expenses } = await supabase
+  const { data: expenses, error: expensesError } = await supabase
     .from("expenses")
     .select("total_amount")
     .eq("organization_id", orgId)
     .in("status", ["APPROVED", "POSTED"])
     .gte("date", startDate)
-    .lte("date", endDate);
+    .lte("date", `${endDate}T23:59:59.999Z`);
+  if (expensesError) throw new Error(`Gagal memuat pengeluaran dashboard: ${expensesError.message}`);
 
   const totalExpenses = (expenses || []).reduce((sum, exp) => {
     const amt = parseFloat(exp.total_amount || "0");
     return sum + (isNaN(amt) ? 0 : amt);
   }, 0);
 
-  // 3. Total penerimaan pendapatan dari invoice
-  const { data: invoices } = await supabase
-    .from("invoices")
-    .select("total, amount_paid")
-    .eq("organization_id", orgId)
-    .in("status", ["ISSUED", "PARTIAL", "PAID"])
-    .gte("invoice_date", startDate)
-    .lte("invoice_date", endDate);
+  // 3. Total penerimaan kas berdasarkan tanggal pembayaran/penerimaan.
+  const [{ data: projectRevenues, error: projectRevenuesError },
+    { data: cashReceipts, error: cashReceiptsError },
+    { data: organizationInvoices, error: organizationInvoicesError }] = await Promise.all([
+      supabase
+        .from("project_revenues")
+        .select("amount")
+        .eq("organization_id", orgId)
+        .gte("date", startDate)
+        .lte("date", `${endDate}T23:59:59.999Z`),
+      supabase
+        .from("cash_receipts")
+        .select("amount")
+        .eq("organization_id", orgId)
+        .gte("date", startDate)
+        .lte("date", `${endDate}T23:59:59.999Z`),
+      supabase
+        .from("invoices")
+        .select("id")
+        .eq("organization_id", orgId),
+    ]);
+  if (projectRevenuesError) throw new Error(`Gagal memuat pendapatan proyek dashboard: ${projectRevenuesError.message}`);
+  if (cashReceiptsError) throw new Error(`Gagal memuat penerimaan kas dashboard: ${cashReceiptsError.message}`);
+  if (organizationInvoicesError) throw new Error(`Gagal memuat invoice dashboard: ${organizationInvoicesError.message}`);
 
-  const totalIncome = (invoices || []).reduce((sum, inv) => {
-    const paid = parseFloat(inv.amount_paid || "0");
-    return sum + (isNaN(paid) ? 0 : paid);
+  const invoiceIds = (organizationInvoices || []).map((invoice) => invoice.id);
+  const { data: invoicePayments, error: invoicePaymentsError } = invoiceIds.length
+    ? await supabase
+        .from("invoice_payments")
+        .select("amount")
+        .in("invoice_id", invoiceIds)
+        .gte("payment_date", startDate)
+        .lte("payment_date", `${endDate}T23:59:59.999Z`)
+    : { data: [], error: null };
+  if (invoicePaymentsError) throw new Error(`Gagal memuat pembayaran invoice dashboard: ${invoicePaymentsError.message}`);
+
+  const totalIncome = [
+    ...(projectRevenues || []),
+    ...(cashReceipts || []),
+    ...(invoicePayments || []),
+  ].reduce((sum, row) => {
+    const amount = parseFloat(row.amount || "0");
+    return sum + (Number.isFinite(amount) ? amount : 0);
   }, 0);
 
   // 4. Piutang belum tertagih (A/R)
@@ -160,7 +189,7 @@ export async function getDashboardMetrics(period?: {
     outstanding_payables: outstandingPayables,
     outstanding_cash_advances: outstandingCashAdvances,
     overdue_invoices: overdueInvoices || 0,
-    accounts_count: (cashAccounts || []).length,
+    accounts_count: cashAccounts.length,
     cash_runway_months: cashRunwayMonths,
     quick_ratio: quickRatio,
   };
@@ -222,35 +251,70 @@ export async function getProjectBudgetSummary(limit: number = 5) {
 
   if (!projects || projects.length === 0) return [];
 
-  const result = await Promise.all(
-    projects.map(async (project) => {
-      const { data: allocations } = await supabase
-        .from("expense_allocations")
-        .select("amount")
-        .eq("project_id", project.id);
+  const projectIds = projects.map((project) => project.id);
+  const { data: allocations, error: allocationsError } = await supabase
+    .from("expense_allocations")
+    .select("expense_id, project_id, amount")
+    .in("project_id", projectIds);
+  if (allocationsError) throw new Error(`Gagal memuat alokasi proyek dashboard: ${allocationsError.message}`);
 
-      const spent = (allocations || []).reduce((sum, a) => {
-        const val = parseFloat(a.amount || "0");
-        return sum + (isNaN(val) ? 0 : val);
-      }, 0);
+  const allocatedExpenseIds = Array.from(new Set((allocations || []).map((allocation) => allocation.expense_id)));
+  const [{ data: allocatedExpenses, error: allocatedExpensesError },
+    { data: directExpenses, error: directExpensesError }] = await Promise.all([
+      allocatedExpenseIds.length
+        ? supabase
+            .from("expenses")
+            .select("id")
+            .eq("organization_id", user.organizationId)
+            .in("id", allocatedExpenseIds)
+            .in("status", ["APPROVED", "POSTED"])
+        : Promise.resolve({ data: [], error: null }),
+      supabase
+        .from("expenses")
+        .select("id, project_id, total_amount")
+        .eq("organization_id", user.organizationId)
+        .in("project_id", projectIds)
+        .in("status", ["APPROVED", "POSTED"]),
+    ]);
+  if (allocatedExpensesError) throw new Error(`Gagal memuat pengeluaran alokasi dashboard: ${allocatedExpensesError.message}`);
+  if (directExpensesError) throw new Error(`Gagal memuat pengeluaran proyek dashboard: ${directExpensesError.message}`);
 
-      const contract = parseFloat(project.contract_value || "0") || 0;
-      const remaining = contract - spent;
+  const postedExpenseIds = new Set((allocatedExpenses || []).map((expense) => expense.id));
+  const expenseIdsWithAllocations = new Set(allocatedExpenseIds);
+  const spendByProject = new Map<string, number>();
+  (allocations || []).forEach((allocation) => {
+    if (!postedExpenseIds.has(allocation.expense_id)) return;
+    const amount = Number(allocation.amount || 0);
+    spendByProject.set(
+      allocation.project_id,
+      (spendByProject.get(allocation.project_id) || 0) + (Number.isFinite(amount) ? amount : 0)
+    );
+  });
+  (directExpenses || []).forEach((expense) => {
+    if (expenseIdsWithAllocations.has(expense.id) || !expense.project_id) return;
+    const amount = Number(expense.total_amount || 0);
+    if (Number.isFinite(amount)) {
+      spendByProject.set(
+        expense.project_id,
+        (spendByProject.get(expense.project_id) || 0) + amount
+      );
+    }
+  });
 
-      return {
-        id: project.id,
-        code: project.code,
-        name: project.name,
-        contract: contract,
-        spent: spent,
-        committed: 0,
-        remaining: remaining,
-        status: project.status,
-      };
-    })
-  );
-
-  return result;
+  return projects.map((project) => {
+    const spent = spendByProject.get(project.id) || 0;
+    const contract = parseFloat(project.contract_value || "0") || 0;
+    return {
+      id: project.id,
+      code: project.code,
+      name: project.name,
+      contract,
+      spent,
+      committed: 0,
+      remaining: contract - spent,
+      status: project.status,
+    };
+  });
 }
 
 export async function getExpensesByCategory(
@@ -266,7 +330,7 @@ export async function getExpensesByCategory(
     .eq("organization_id", user.organizationId)
     .in("status", ["APPROVED", "POSTED"])
     .gte("date", startDate)
-    .lte("date", endDate);
+    .lte("date", `${endDate}T23:59:59.999Z`);
 
   if (!expenses || expenses.length === 0) return [];
 
@@ -304,6 +368,12 @@ export async function getExpensesByCategory(
 export async function getIncomeVsExpense(months: number = 6) {
   const user = await requireAuthUser();
   const supabase = await createClient();
+  const { data: invoices, error: invoicesError } = await supabase
+    .from("invoices")
+    .select("id")
+    .eq("organization_id", user.organizationId);
+  if (invoicesError) throw new Error(`Gagal memuat invoice untuk grafik dashboard: ${invoicesError.message}`);
+  const invoiceIds = (invoices || []).map((invoice) => invoice.id);
 
   const result = [];
   const now = new Date();
@@ -316,36 +386,56 @@ export async function getIncomeVsExpense(months: number = 6) {
     const monthName = date.toLocaleString("id-ID", { month: "short" });
 
     const startDate = `${yearMonth}-01`;
-    const endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0)
-      .toISOString()
-      .split("T")[0];
+    const endDate = formatLocalDate(new Date(date.getFullYear(), date.getMonth() + 1, 0));
 
-    // Penerimaan Invoice
-    const { data: income } = await supabase
-      .from("invoices")
-      .select("amount_paid")
-      .eq("organization_id", user.organizationId)
-      .in("status", ["ISSUED", "PARTIAL", "PAID"])
-      .gte("invoice_date", startDate)
-      .lte("invoice_date", endDate);
+    const endOfDay = `${endDate}T23:59:59.999Z`;
+    const [{ data: revenues, error: revenuesError },
+      { data: receipts, error: receiptsError },
+      { data: payments, error: paymentsError },
+      { data: expenseData, error: expensesError }] = await Promise.all([
+        supabase
+          .from("project_revenues")
+          .select("amount")
+          .eq("organization_id", user.organizationId)
+          .gte("date", startDate)
+          .lte("date", endOfDay),
+        supabase
+          .from("cash_receipts")
+          .select("amount")
+          .eq("organization_id", user.organizationId)
+          .gte("date", startDate)
+          .lte("date", endOfDay),
+        invoiceIds.length
+          ? supabase
+              .from("invoice_payments")
+              .select("amount")
+              .in("invoice_id", invoiceIds)
+              .gte("payment_date", startDate)
+              .lte("payment_date", endOfDay)
+          : Promise.resolve({ data: [], error: null }),
+        supabase
+          .from("expenses")
+          .select("total_amount")
+          .eq("organization_id", user.organizationId)
+          .in("status", ["APPROVED", "POSTED"])
+          .gte("date", startDate)
+          .lte("date", endOfDay),
+      ]);
+    if (revenuesError) throw new Error(`Gagal memuat pendapatan proyek untuk grafik: ${revenuesError.message}`);
+    if (receiptsError) throw new Error(`Gagal memuat penerimaan untuk grafik: ${receiptsError.message}`);
+    if (paymentsError) throw new Error(`Gagal memuat pembayaran invoice untuk grafik: ${paymentsError.message}`);
+    if (expensesError) throw new Error(`Gagal memuat pengeluaran untuk grafik: ${expensesError.message}`);
 
-    // Pengeluaran
-    const { data: expenseData } = await supabase
-      .from("expenses")
-      .select("total_amount")
-      .eq("organization_id", user.organizationId)
-      .in("status", ["APPROVED", "POSTED"])
-      .gte("date", startDate)
-      .lte("date", endDate);
-
-    const incSum = (income || []).reduce((sum, inv) => {
-      const paid = parseFloat(inv.amount_paid || "0");
-      return sum + (isNaN(paid) ? 0 : paid);
-    }, 0);
+    const sumAmounts = (rows: Array<{ amount?: string | number | null }> | null) =>
+      (rows || []).reduce((sum, row) => {
+        const amount = Number(row.amount || 0);
+        return sum + (Number.isFinite(amount) ? amount : 0);
+      }, 0);
+    const incSum = sumAmounts(revenues) + sumAmounts(receipts) + sumAmounts(payments);
 
     const expSum = (expenseData || []).reduce((sum, exp) => {
-      const tot = parseFloat(exp.total_amount || "0");
-      return sum + (isNaN(tot) ? 0 : tot);
+      const amount = Number(exp.total_amount || 0);
+      return sum + (Number.isFinite(amount) ? amount : 0);
     }, 0);
 
     const profit = incSum - expSum;
