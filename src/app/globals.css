@@ -170,6 +170,44 @@
     transform: scale(1);
   }
 
+  .dashboard-hero {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    background:
+      radial-gradient(ellipse at 78% 12%, rgb(16 185 129 / 0.13), transparent 38%),
+      radial-gradient(ellipse at 6% 100%, rgb(63 63 70 / 0.55), transparent 48%),
+      linear-gradient(118deg, #09090b 0%, #111114 48%, #1a1b1e 100%);
+  }
+
+  .dashboard-hero-orb {
+    position: absolute;
+    top: -55%;
+    right: -5%;
+    width: min(52vw, 560px);
+    aspect-ratio: 1;
+    border-radius: 9999px;
+    background: radial-gradient(circle, rgb(16 185 129 / 0.2), rgb(16 185 129 / 0.035) 42%, transparent 70%);
+    filter: blur(2px);
+    animation: dashboard-orb-drift 14s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  .dashboard-hero-grain {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    background-image:
+      repeating-linear-gradient(0deg, rgb(255 255 255 / 0.025) 0, rgb(255 255 255 / 0.025) 1px, transparent 1px, transparent 3px),
+      repeating-linear-gradient(90deg, rgb(255 255 255 / 0.018) 0, rgb(255 255 255 / 0.018) 1px, transparent 1px, transparent 4px);
+    opacity: 0.2;
+    pointer-events: none;
+  }
+
+  .dashboard-logo-shimmer {
+    animation: dashboard-logo-shimmer 7s ease-in-out infinite;
+  }
+
   .dashboard-skeleton {
     background: linear-gradient(100deg, #f4f4f5 20%, #fafafa 38%, #f4f4f5 56%);
     background-size: 220% 100%;

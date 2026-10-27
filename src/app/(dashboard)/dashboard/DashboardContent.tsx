@@ -27,6 +27,7 @@ import {
   Flame,
   Zap,
 } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   AreaChart,
   Area,
@@ -46,6 +47,8 @@ import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { BrandIconSvg } from "@/components/ui/BrandLogo";
+import { PulseDot } from "@/components/ui/PulseDot";
+import { SpotlightCard } from "@/components/ui/SpotlightCard";
 import { cn } from "@/lib/utils";
 import {
   getDashboardMetrics,
@@ -90,6 +93,7 @@ function formatLocalDate(date: Date) {
 }
 
 export default function DashboardContent() {
+  const reducedMotion = useReducedMotion();
   const [period, setPeriod] = useState("ytd");
   const [chartView, setChartView] = useState<"flow" | "margin">("flow");
   const [isLoading, setIsLoading] = useState(true);
@@ -234,63 +238,85 @@ export default function DashboardContent() {
   return (
     <div className="space-y-8 pb-12 animate-in fade-in duration-300">
       {/* ── Top Bar: Welcome & Financial Context ── */}
-      <div className="flex flex-col gap-5 rounded-3xl border border-zinc-800 bg-gradient-to-r from-[#09090B] via-[#121212] to-[#18181B] p-6 sm:p-8 text-white shadow-2xl lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-start gap-4">
-          <div className="hidden sm:flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-zinc-900 border border-zinc-800 p-2 shadow-inner">
-            <BrandIconSvg fill="#FFFFFF" className="h-6 w-auto" />
-          </div>
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-zinc-200 border border-white/10">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Live Financial Intelligence
-              </span>
-              <span className="rounded-full bg-zinc-800/80 px-2.5 py-0.5 text-xs text-zinc-300 border border-zinc-700 font-mono text-[10px] tracking-wider uppercase">
-                TIME TRAVEL DESIGN
-              </span>
+      <motion.div
+        initial={reducedMotion ? false : { opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <SpotlightCard className="dashboard-hero flex flex-col gap-5 rounded-3xl border border-white/10 p-6 text-white shadow-2xl sm:p-8 lg:flex-row lg:items-center lg:justify-between">
+          <div className="dashboard-hero-orb" aria-hidden="true" />
+          <div className="dashboard-hero-grain" aria-hidden="true" />
+          <div className="relative z-10 flex items-start gap-4">
+            <div className="hidden h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] p-2 shadow-inner backdrop-blur sm:flex">
+              <BrandIconSvg fill="#FFFFFF" className="dashboard-logo-shimmer h-6 w-auto" />
             </div>
-            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
-              Financial Performance &amp; Cash Flow Overview
-            </h2>
-            <p className="text-xs text-zinc-400 sm:text-sm max-w-2xl leading-relaxed">
-              Pemantauan arus kas, biaya proyek, dan likuiditas kas operasional
-              secara langsung dari transaksi pembukuan.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2.5">
-          {/* Period Selector */}
-          <div className="flex items-center rounded-xl bg-zinc-900 p-1 text-xs font-medium text-zinc-300 border border-zinc-800">
-            {[
-              { id: "this_month", label: "Bulan Ini" },
-              { id: "last_quarter", label: "3 Bulan" },
-              { id: "ytd", label: "Tahun Ini" },
-            ].map((p) => (
-              <button
-                key={p.id}
-                onClick={() => setPeriod(p.id)}
-                className={cn(
-                  "rounded-lg px-3 py-1.5 transition-all duration-150",
-                  period === p.id
-                    ? "bg-white text-zinc-950 font-bold shadow-sm"
-                    : "hover:bg-zinc-800 text-zinc-400 hover:text-white"
-                )}
-              >
-                {p.label}
-              </button>
-            ))}
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.08] px-3 py-1 text-xs font-semibold text-zinc-200 backdrop-blur">
+                  <PulseDot />
+                  Live Financial Intelligence
+                </span>
+                <span className="rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-zinc-300">
+                  TIME TRAVEL DESIGN
+                </span>
+              </div>
+              <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
+                Financial Performance &amp; Cash Flow Overview
+              </h2>
+              <p className="max-w-2xl text-xs leading-relaxed text-zinc-400 sm:text-sm">
+                Pemantauan arus kas, biaya proyek, dan likuiditas kas operasional
+                secara langsung dari transaksi pembukuan.
+              </p>
+            </div>
           </div>
 
-          <button
-            onClick={() => fetchDashboardData()}
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 hover:bg-zinc-800 hover:text-white transition-all"
-            title="Muat ulang data"
-          >
-            <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
-          </button>
-        </div>
-      </div>
+          <div className="relative z-10 flex flex-wrap items-center gap-2.5">
+            {/* Period Selector */}
+            <div className="flex items-center rounded-xl border border-white/10 bg-black/25 p-1 text-xs font-medium text-zinc-300 backdrop-blur">
+              {[
+                { id: "this_month", label: "Bulan Ini" },
+                { id: "last_quarter", label: "3 Bulan" },
+                { id: "ytd", label: "Tahun Ini" },
+              ].map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => setPeriod(p.id)}
+                  className={cn(
+                    "relative rounded-lg px-3 py-1.5 transition-colors duration-200",
+                    period === p.id
+                      ? "font-bold text-zinc-950"
+                      : "text-zinc-400 hover:text-white"
+                  )}
+                >
+                  {period === p.id && (
+                    <motion.span
+                      layoutId="dashboard-period-indicator"
+                      className="absolute inset-0 rounded-lg bg-white shadow-sm"
+                      transition={
+                        reducedMotion
+                          ? { duration: 0 }
+                          : { type: "spring", stiffness: 420, damping: 34 }
+                      }
+                    />
+                  )}
+                  <span className="relative z-10">{p.label}</span>
+                </button>
+              ))}
+            </div>
+
+            <motion.button
+              whileHover={reducedMotion ? undefined : { y: -2 }}
+              whileTap={reducedMotion ? undefined : { scale: 0.94 }}
+              transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+              onClick={() => fetchDashboardData()}
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
+              title="Muat ulang data"
+            >
+              <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+            </motion.button>
+          </div>
+        </SpotlightCard>
+      </motion.div>
 
       {/* ── Executive Financial Vitality Strip ── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:gap-4">
