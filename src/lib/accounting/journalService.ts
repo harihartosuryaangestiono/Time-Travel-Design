@@ -188,20 +188,30 @@ export async function postJournal(journalId: string): Promise<{ success: boolean
   const user = await requireAuthUser();
   const supabase = await createClient();
 
-  const { data: journal } = await supabase
+  const { data: journal, error: journalError } = await supabase
     .from("journal_entries")
-    .select("*, lines:journal_lines(*)")
+    .select("id, number, date, status")
     .eq("id", journalId)
     .eq("organization_id", user.organizationId)
-    .single();
+    .maybeSingle();
 
-  if (!journal) throw new Error("Journal entry not found");
+  if (journalError) throw new Error(`Failed to load journal entry: ${journalError.message}`);
+  if (!journal) throw new Error("Journal entry not found in your organization");
   if (journal.status !== "DRAFT") throw new Error("Only draft journal entries can be posted");
 
   const periodOpen = await isPeriodOpen(supabase, user.organizationId, journal.date);
   if (!periodOpen) throw new Error("Accounting period is closed");
 
-  const lines = journal.lines.map((line: any) => ({
+  const { data: journalLines, error: linesError } = await supabase
+    .from("journal_lines")
+    .select("account_id, debit, credit")
+    .eq("journal_id", journalId);
+
+  if (linesError) throw new Error(`Failed to load journal lines: ${linesError.message}`);
+  if (!journalLines?.length) throw new Error("Journal entry has no lines");
+
+  const lines = journalLines.map((line) => ({
+    account_id: line.account_id,
     debit: line.debit,
     credit: line.credit,
   }));
@@ -213,7 +223,7 @@ export async function postJournal(journalId: string): Promise<{ success: boolean
     );
   }
 
-  const { error: postError } = await supabase
+  const { data: postedJournal, error: postError } = await supabase
     .from("journal_entries")
     .update({
       status: "POSTED",
@@ -223,9 +233,12 @@ export async function postJournal(journalId: string): Promise<{ success: boolean
     })
     .eq("id", journalId)
     .eq("organization_id", user.organizationId)
-    .eq("status", "DRAFT");
+    .eq("status", "DRAFT")
+    .select("id, number")
+    .maybeSingle();
 
   if (postError) throw new Error(`Failed to post journal entry: ${postError.message}`);
+  if (!postedJournal) throw new Error("Journal entry status changed before posting. Refresh and try again.");
 
   await supabase.from("audit_logs").insert({
     organization_id: user.organizationId,
@@ -234,7 +247,7 @@ export async function postJournal(journalId: string): Promise<{ success: boolean
     action: "POST_JOURNAL",
     entity_type: "JournalEntry",
     entity_id: journalId,
-    metadata: { journal_number: journal.number },
+    metadata: { journal_number: postedJournal.number },
   });
 
   revalidatePath("/reports/general-ledger");
@@ -243,7 +256,7 @@ export async function postJournal(journalId: string): Promise<{ success: boolean
   revalidatePath("/reports/balance-sheet");
   revalidatePath("/reports/cash-flow");
 
-  return { success: true, number: journal.number };
+  return { success: true, number: postedJournal.number };
 }
 
 // Reverse posted journal

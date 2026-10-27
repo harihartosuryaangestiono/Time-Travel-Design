@@ -1,8 +1,22 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Download, Printer, Filter, BookOpen, AlertCircle, FileSpreadsheet } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  Download,
+  Printer,
+  Filter,
+  BookOpen,
+  AlertCircle,
+  FileSpreadsheet,
+  RefreshCw,
+  Loader2,
+  X,
+} from "lucide-react";
 import { fetchGeneralLedger } from "@/app/actions/reportActions";
+import {
+  backfillCashBookLedger,
+  previewCashBookLedgerBackfill,
+} from "@/app/actions/cashBookActions";
 
 function formatCurrency(value: number): string {
   if (isNaN(value)) return "Rp 0";
@@ -40,8 +54,19 @@ export default function GeneralLedgerPage() {
   const [lines, setLines] = useState<LedgerLine[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showBackfillDialog, setShowBackfillDialog] = useState(false);
+  const [backfillPreview, setBackfillPreview] = useState<{ count: number; totalAmount: number } | null>(null);
+  const [isPreviewingBackfill, setIsPreviewingBackfill] = useState(false);
+  const [isBackfilling, setIsBackfilling] = useState(false);
+  const [backfillError, setBackfillError] = useState<string | null>(null);
+  const [backfillMessage, setBackfillMessage] = useState<string | null>(null);
+  const initialFilters = useRef({
+    startDate: `${new Date().getFullYear()}-01-01`,
+    endDate: new Date().toISOString().split("T")[0],
+    accountId: "ALL",
+  });
 
-  const loadData = async (start: string, end: string, accId: string) => {
+  const loadData = useCallback(async (start: string, end: string, accId: string) => {
     try {
       setIsLoading(true);
       setErrorMessage(null);
@@ -59,14 +84,50 @@ export default function GeneralLedgerPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    loadData(startDate, endDate, selectedAccountId);
-  }, []);
+    const filters = initialFilters.current;
+    void loadData(filters.startDate, filters.endDate, filters.accountId);
+  }, [loadData]);
 
   const handleGenerate = () => {
     loadData(startDate, endDate, selectedAccountId);
+  };
+
+  const openBackfillDialog = async () => {
+    setShowBackfillDialog(true);
+    setIsPreviewingBackfill(true);
+    setBackfillPreview(null);
+    setBackfillError(null);
+    setBackfillMessage(null);
+    try {
+      setBackfillPreview(await previewCashBookLedgerBackfill(startDate, endDate));
+    } catch (error) {
+      setBackfillError(error instanceof Error ? error.message : "Gagal memeriksa transaksi lama.");
+    } finally {
+      setIsPreviewingBackfill(false);
+    }
+  };
+
+  const runBackfill = async () => {
+    if (!backfillPreview?.count) return;
+    setIsBackfilling(true);
+    setBackfillError(null);
+    try {
+      const result = await backfillCashBookLedger(startDate, endDate);
+      setBackfillMessage(
+        `${result.postedCount} transaksi berhasil dimasukkan ke buku besar${result.failedCount ? `, ${result.failedCount} gagal` : ""}.`
+      );
+      if (result.failures.length) setBackfillError(result.failures.slice(0, 3).join(" • "));
+      setBackfillPreview(await previewCashBookLedgerBackfill(startDate, endDate));
+      await loadData(startDate, endDate, selectedAccountId);
+      if (result.failedCount === 0) setShowBackfillDialog(false);
+    } catch (error) {
+      setBackfillError(error instanceof Error ? error.message : "Gagal memposting transaksi lama.");
+    } finally {
+      setIsBackfilling(false);
+    }
   };
 
   const exportCSV = () => {
@@ -145,6 +206,14 @@ export default function GeneralLedgerPage() {
 
         <div className="flex items-center gap-2">
           <button
+            type="button"
+            onClick={() => void openBackfillDialog()}
+            className="flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100 transition-colors shadow-sm"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Masukkan Transaksi Lama
+          </button>
+          <button
             onClick={() => window.print()}
             className="flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition-colors shadow-sm"
           >
@@ -187,8 +256,16 @@ export default function GeneralLedgerPage() {
             Belum Ada Mutasi Buku Besar
           </h3>
           <p className="text-xs text-zinc-500 max-w-sm mb-4">
-            Catatan debit dan kredit akan otomatis terakumulasi di sini saat transaksi jurnal di-posting.
+            Buku besar menampilkan jurnal yang sudah diposting. Transaksi Buku Kas lama perlu dimasukkan sebagai jurnal terlebih dahulu.
           </p>
+          <button
+            type="button"
+            onClick={() => void openBackfillDialog()}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-zinc-950 px-4 py-2.5 text-xs font-semibold text-white hover:bg-zinc-800"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Periksa Transaksi Buku Kas Lama
+          </button>
         </div>
       ) : (
         <div className="rounded-3xl border border-zinc-200/90 bg-white shadow-sm overflow-hidden">
@@ -254,6 +331,133 @@ export default function GeneralLedgerPage() {
               </tfoot>
             </table>
           </div>
+        </div>
+      )}
+
+      {showBackfillDialog && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-zinc-950/60 p-4 backdrop-blur-sm"
+          onClick={() => !isBackfilling && setShowBackfillDialog(false)}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ledger-backfill-title"
+            className="relative w-full max-w-lg rounded-3xl border border-zinc-200 bg-white p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              aria-label="Tutup"
+              onClick={() => setShowBackfillDialog(false)}
+              disabled={isBackfilling}
+              className="absolute right-4 top-4 rounded-full p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 disabled:opacity-50"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div className="pr-8">
+              <h3 id="ledger-backfill-title" className="text-base font-bold text-zinc-950">
+                Masukkan transaksi Buku Kas lama
+              </h3>
+              <p className="mt-1 text-xs leading-relaxed text-zinc-500">
+                Buat jurnal debit-kredit untuk transaksi Buku Kas di periode yang dipilih. Transaksi yang sudah punya jurnal tidak akan digandakan.
+              </p>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <label className="space-y-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+                Dari tanggal
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(event) => {
+                    setStartDate(event.target.value);
+                    setBackfillPreview(null);
+                    setBackfillMessage(null);
+                  }}
+                  disabled={isBackfilling || isPreviewingBackfill}
+                  className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs font-medium normal-case tracking-normal text-zinc-900"
+                />
+              </label>
+              <label className="space-y-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+                Sampai tanggal
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(event) => {
+                    setEndDate(event.target.value);
+                    setBackfillPreview(null);
+                    setBackfillMessage(null);
+                  }}
+                  disabled={isBackfilling || isPreviewingBackfill}
+                  className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs font-medium normal-case tracking-normal text-zinc-900"
+                />
+              </label>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => void openBackfillDialog()}
+              disabled={isBackfilling || isPreviewingBackfill}
+              className="mt-3 text-xs font-semibold text-zinc-700 underline decoration-zinc-300 underline-offset-2"
+            >
+              Periksa ulang periode
+            </button>
+
+            {isPreviewingBackfill ? (
+              <div className="mt-4 flex items-center gap-2 rounded-xl bg-zinc-50 p-4 text-xs text-zinc-600">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Memeriksa transaksi yang belum masuk buku besar...
+              </div>
+            ) : backfillPreview ? (
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">Transaksi</p>
+                  <p className="mt-1 text-lg font-bold text-zinc-950">{backfillPreview.count}</p>
+                </div>
+                <div className="rounded-2xl border border-blue-100 bg-blue-50 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-700">Total nominal</p>
+                  <p className="mt-1 text-sm font-bold text-blue-900">{formatCurrency(backfillPreview.totalAmount)}</p>
+                </div>
+              </div>
+            ) : null}
+
+            {backfillMessage && (
+              <p className={`mt-3 rounded-xl border p-3 text-xs font-medium ${
+                backfillError
+                  ? "border-amber-200 bg-amber-50 text-amber-900"
+                  : "border-emerald-200 bg-emerald-50 text-emerald-800"
+              }`}>
+                {backfillMessage}
+              </p>
+            )}
+            {backfillError && (
+              <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">
+                {backfillError}
+              </p>
+            )}
+
+            <div className="mt-6 flex justify-end gap-2.5 border-t border-zinc-100 pt-4">
+              <button
+                type="button"
+                onClick={() => setShowBackfillDialog(false)}
+                disabled={isBackfilling}
+                className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+              >
+                Tutup
+              </button>
+              <button
+                type="button"
+                onClick={() => void runBackfill()}
+                disabled={!backfillPreview?.count || isBackfilling || isPreviewingBackfill}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-zinc-950 px-4 py-2.5 text-xs font-semibold text-white hover:bg-zinc-800 disabled:opacity-50"
+              >
+                {isBackfilling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BookOpen className="h-3.5 w-3.5" />}
+                {isBackfilling ? "Memposting..." : "Buat Jurnal"}
+              </button>
+            </div>
+          </section>
         </div>
       )}
     </div>

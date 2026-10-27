@@ -11,6 +11,7 @@ import {
 } from "@/lib/validation/cashBook";
 import { validateExpenseBookCategory } from "@/lib/accounting/expenseCategories";
 import { getSubcontractorPaymentOptions } from "@/app/actions/subcontractorActions";
+import { postCashBookEntryToJournal } from "@/lib/accounting/cashBookPosting";
 
 /**
  * Mengambil transaksi Buku Kas Perusahaan dengan perhitungan saldo berjalan kumulatif
@@ -204,6 +205,244 @@ export async function getRecentDescriptions(): Promise<string[]> {
   return Array.from(set).slice(0, 15);
 }
 
+type LegacyCashBookItem = {
+  sourceType:
+    | "CASH_BOOK_EXPENSE"
+    | "PROJECT_REVENUE"
+    | "CASH_RECEIPT"
+    | "INVOICE_PAYMENT"
+    | "CASH_OPENING_BALANCE";
+  sourceId: string;
+  date: string;
+  description: string;
+  amount: number;
+  category?: string | null;
+  transactionType: "INCOME" | "EXPENSE" | "INVOICE_PAYMENT" | "OPENING_BALANCE";
+  cashAccountId: string;
+  cashAccountType: "CASH" | "BANK" | "E_WALLET" | "OTHER";
+  cashAccountName?: string;
+  bankName?: string | null;
+  projectId?: string | null;
+};
+
+async function getLegacyCashBookItems(startDate: string, endDate: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate) || startDate > endDate) {
+    throw new Error("Rentang tanggal backfill tidak valid.");
+  }
+  const user = await requireAuthUser();
+  const supabase = await createClient();
+  const [{ data: accounts, error: accountsError }, { data: expenses, error: expensesError },
+    { data: revenues, error: revenuesError }, { data: receipts, error: receiptsError }] =
+    await Promise.all([
+      supabase
+        .from("cash_accounts")
+        .select("id, name, type, bank_name, opening_date, opening_balance")
+        .eq("organization_id", user.organizationId),
+      supabase
+        .from("expenses")
+        .select("id, date, description, total_amount, category, cash_account_id, project_id, journal_entry_id")
+        .eq("organization_id", user.organizationId)
+        .in("status", ["APPROVED", "POSTED"])
+        .not("cash_account_id", "is", null)
+        .is("journal_entry_id", null)
+        .gte("date", `${startDate}T00:00:00.000Z`)
+        .lte("date", `${endDate}T23:59:59.999Z`),
+      supabase
+        .from("project_revenues")
+        .select("id, date, description, amount, cash_account_id, project_id")
+        .eq("organization_id", user.organizationId)
+        .not("cash_account_id", "is", null)
+        .gte("date", `${startDate}T00:00:00.000Z`)
+        .lte("date", `${endDate}T23:59:59.999Z`),
+      supabase
+        .from("cash_receipts")
+        .select("id, date, description, amount, category, cash_account_id")
+        .eq("organization_id", user.organizationId)
+        .gte("date", `${startDate}T00:00:00.000Z`)
+        .lte("date", `${endDate}T23:59:59.999Z`),
+    ]);
+  if (accountsError) throw new Error(`Gagal memuat rekening untuk backfill: ${accountsError.message}`);
+  if (expensesError) throw new Error(`Gagal memuat pengeluaran untuk backfill: ${expensesError.message}`);
+  if (revenuesError) throw new Error(`Gagal memuat pendapatan proyek untuk backfill: ${revenuesError.message}`);
+  if (receiptsError) throw new Error(`Gagal memuat penerimaan untuk backfill: ${receiptsError.message}`);
+
+  const accountById = new Map((accounts || []).map((account) => [account.id, account]));
+  const items: LegacyCashBookItem[] = [];
+  (accounts || []).forEach((account) => {
+    const openingDate = String(account.opening_date || "").slice(0, 10);
+    const amount = Number(account.opening_balance || 0);
+    if (openingDate < startDate || openingDate > endDate || !Number.isFinite(amount) || amount <= 0) return;
+    items.push({
+      sourceType: "CASH_OPENING_BALANCE",
+      sourceId: account.id,
+      date: account.opening_date,
+      description: `Saldo awal ${account.name}`,
+      amount,
+      category: "Saldo Awal",
+      transactionType: "OPENING_BALANCE",
+      cashAccountId: account.id,
+      cashAccountType: account.type,
+      cashAccountName: account.name,
+      bankName: account.bank_name,
+    });
+  });
+  (expenses || []).forEach((row) => {
+    const account = accountById.get(row.cash_account_id);
+    if (!account) return;
+    items.push({
+      sourceType: "CASH_BOOK_EXPENSE",
+      sourceId: row.id,
+      date: row.date,
+      description: row.description,
+      amount: Number(row.total_amount || 0),
+      category: row.category,
+      transactionType: "EXPENSE",
+      cashAccountId: account.id,
+      cashAccountType: account.type,
+      cashAccountName: account.name,
+      bankName: account.bank_name,
+      projectId: row.project_id,
+    });
+  });
+  (revenues || []).forEach((row) => {
+    const account = accountById.get(row.cash_account_id);
+    if (!account) return;
+    items.push({
+      sourceType: "PROJECT_REVENUE",
+      sourceId: row.id,
+      date: row.date,
+      description: row.description,
+      amount: Number(row.amount || 0),
+      category: "Pendapatan Proyek",
+      transactionType: "INCOME",
+      cashAccountId: account.id,
+      cashAccountType: account.type,
+      cashAccountName: account.name,
+      bankName: account.bank_name,
+      projectId: row.project_id,
+    });
+  });
+  (receipts || []).forEach((row) => {
+    const account = accountById.get(row.cash_account_id);
+    if (!account) return;
+    items.push({
+      sourceType: "CASH_RECEIPT",
+      sourceId: row.id,
+      date: row.date,
+      description: row.description,
+      amount: Number(row.amount || 0),
+      category: row.category,
+      transactionType: "INCOME",
+      cashAccountId: account.id,
+      cashAccountType: account.type,
+      cashAccountName: account.name,
+      bankName: account.bank_name,
+    });
+  });
+
+  const accountIds = (accounts || []).map((account) => account.id);
+  if (accountIds.length) {
+    const { data: payments, error: paymentsError } = await supabase
+      .from("invoice_payments")
+      .select("id, payment_date, amount, invoice_id, reference, cash_account_id")
+      .in("cash_account_id", accountIds)
+      .gte("payment_date", `${startDate}T00:00:00.000Z`)
+      .lte("payment_date", `${endDate}T23:59:59.999Z`);
+    if (paymentsError) throw new Error(`Gagal memuat pembayaran invoice untuk backfill: ${paymentsError.message}`);
+
+    const invoiceIds = Array.from(new Set((payments || []).map((payment) => payment.invoice_id)));
+    const { data: invoices, error: invoicesError } = invoiceIds.length
+      ? await supabase
+          .from("invoices")
+          .select("id")
+          .eq("organization_id", user.organizationId)
+          .in("id", invoiceIds)
+      : { data: [], error: null };
+    if (invoicesError) throw new Error(`Gagal memvalidasi invoice untuk backfill: ${invoicesError.message}`);
+    const validInvoiceIds = new Set((invoices || []).map((invoice) => invoice.id));
+    (payments || []).forEach((row) => {
+      if (!validInvoiceIds.has(row.invoice_id)) return;
+      const account = accountById.get(row.cash_account_id);
+      if (!account) return;
+      items.push({
+        sourceType: "INVOICE_PAYMENT",
+        sourceId: row.id,
+        date: row.payment_date,
+        description: `Pembayaran invoice${row.reference ? ` • ${row.reference}` : ""}`,
+        amount: Number(row.amount || 0),
+        category: "Pembayaran Invoice",
+        transactionType: "INVOICE_PAYMENT",
+        cashAccountId: account.id,
+        cashAccountType: account.type,
+        cashAccountName: account.name,
+        bankName: account.bank_name,
+      });
+    });
+  }
+
+  const sourceIds = Array.from(new Set(items.map((item) => item.sourceId)));
+  if (!sourceIds.length) return items;
+  const { data: journalRows, error: journalsError } = await supabase
+    .from("journal_entries")
+    .select("source_type, source_id, status")
+    .eq("organization_id", user.organizationId)
+    .in("source_id", sourceIds);
+  if (journalsError) throw new Error(`Gagal memeriksa jurnal lama: ${journalsError.message}`);
+  const postedSources = new Set(
+    (journalRows || [])
+      .filter((journal) => journal.status === "POSTED")
+      .map((journal) => `${journal.source_type}:${journal.source_id}`)
+  );
+  return items.filter((item) => !postedSources.has(`${item.sourceType}:${item.sourceId}`));
+}
+
+export async function previewCashBookLedgerBackfill(startDate: string, endDate: string) {
+  const user = await requireAuthUser();
+  if (!["OWNER", "FINANCE"].includes(user.role)) {
+    throw new Error("Hanya Owner atau Finance yang dapat menyiapkan jurnal transaksi lama.");
+  }
+  const items = await getLegacyCashBookItems(startDate, endDate);
+  return {
+    count: items.length,
+    totalAmount: items.reduce((total, item) => total + item.amount, 0),
+  };
+}
+
+export async function backfillCashBookLedger(startDate: string, endDate: string) {
+  const user = await requireAuthUser();
+  if (!["OWNER", "FINANCE"].includes(user.role)) {
+    throw new Error("Hanya Owner atau Finance yang dapat memposting jurnal transaksi lama.");
+  }
+  const supabase = await createClient();
+  const items = await getLegacyCashBookItems(startDate, endDate);
+  const failures: string[] = [];
+  let postedCount = 0;
+
+  for (const item of items) {
+    try {
+      const journal = await postCashBookEntryToJournal(item);
+      if (item.sourceType === "CASH_BOOK_EXPENSE") {
+        const { error } = await supabase
+          .from("expenses")
+          .update({ journal_entry_id: journal.id, status: "POSTED" })
+          .eq("id", item.sourceId)
+          .eq("organization_id", user.organizationId);
+        if (error) throw new Error(`Jurnal ${journal.number} terbuat, tetapi voucher gagal ditautkan: ${error.message}`);
+      }
+      postedCount += 1;
+    } catch (error) {
+      failures.push(`${item.description}: ${error instanceof Error ? error.message : "kesalahan tidak diketahui"}`);
+    }
+  }
+
+  revalidatePath("/cash-book");
+  revalidatePath("/reports/general-ledger");
+  revalidatePath("/reports/trial-balance");
+  revalidatePath("/reports/income-statement");
+  revalidatePath("/reports/balance-sheet");
+  return { postedCount, failedCount: failures.length, failures };
+}
+
 /**
  * Simpan transaksi cepat ala Excel
  */
@@ -226,7 +465,7 @@ export async function createFastTransaction(rawInput: CreateFastTransactionInput
 
   const { data: account, error: accountError } = await supabase
     .from("cash_accounts")
-    .select("id")
+    .select("id, name, type, bank_name")
     .eq("id", input.cash_account_id)
     .eq("organization_id", user.organizationId)
     .eq("is_active", true)
@@ -332,6 +571,58 @@ export async function createFastTransaction(rawInput: CreateFastTransactionInput
     data = expense;
   }
 
+  const sourceType =
+    input.type === "EXPENSE"
+      ? "CASH_BOOK_EXPENSE"
+      : input.project_id
+        ? "PROJECT_REVENUE"
+        : "CASH_RECEIPT";
+  const sourceTable =
+    input.type === "EXPENSE"
+      ? "expenses"
+      : input.project_id
+        ? "project_revenues"
+        : "cash_receipts";
+  let journal: Awaited<ReturnType<typeof postCashBookEntryToJournal>>;
+  try {
+    journal = await postCashBookEntryToJournal({
+      sourceType,
+      sourceId: data.id,
+      date: dateObj.toISOString(),
+      description: input.description.trim(),
+      amount: input.amount,
+      category: input.category,
+      transactionType: input.type,
+      cashAccountId: account.id,
+      cashAccountType: account.type,
+      cashAccountName: account.name,
+      bankName: account.bank_name,
+      projectId: input.project_id,
+    });
+  } catch (error) {
+    const { error: cleanupError } = await supabase
+      .from(sourceTable)
+      .delete()
+      .eq("id", data.id)
+      .eq("organization_id", user.organizationId);
+    if (cleanupError) {
+      throw new Error(
+        `Gagal membuat jurnal buku besar: ${error instanceof Error ? error.message : "kesalahan tidak diketahui"}. Transaksi Buku Kas juga gagal dibersihkan: ${cleanupError.message}`
+      );
+    }
+    throw error;
+  }
+  if (input.type === "EXPENSE") {
+    const { error: linkError } = await supabase
+      .from("expenses")
+      .update({ journal_entry_id: journal.id, status: "POSTED" })
+      .eq("id", data.id)
+      .eq("organization_id", user.organizationId);
+    if (linkError) {
+      throw new Error(`Jurnal berhasil dibuat tetapi tautan ke pengeluaran gagal: ${linkError.message}`);
+    }
+  }
+
   await logAudit(user, {
     action: input.type === "INCOME" ? "CREATE_CASH_INCOME" : "CREATE_FAST_EXPENSE",
     entityType: input.type === "INCOME" ? "CASH_RECEIPT" : "EXPENSE",
@@ -351,6 +642,10 @@ export async function createFastTransaction(rawInput: CreateFastTransactionInput
   revalidatePath("/cash-accounts");
   revalidatePath("/dashboard");
   revalidatePath("/reports/cash-flow");
+  revalidatePath("/reports/general-ledger");
+  revalidatePath("/reports/trial-balance");
+  revalidatePath("/reports/income-statement");
+  revalidatePath("/reports/balance-sheet");
   revalidatePath("/subcontractor-recap");
   if (input.project_id) {
     revalidatePath(`/projects/${input.project_id}`);

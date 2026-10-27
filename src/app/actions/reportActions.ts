@@ -52,7 +52,7 @@ export async function fetchGeneralLedger(params: {
     .eq("organization_id", user.organizationId)
     .eq("status", "POSTED")
     .gte("date", params.startDate)
-    .lte("date", params.endDate)
+    .lte("date", `${params.endDate}T23:59:59.999Z`)
     .order("date", { ascending: true });
 
   if (journalsError) {
