@@ -26,6 +26,22 @@ export interface JournalInput {
   lines: JournalLineInput[];
 }
 
+interface ReversalJournal {
+  id: string;
+  organization_id: string;
+  number: string;
+  date: string;
+  description: string;
+  status: string;
+  lines: Array<{
+    account_id: string;
+    debit: number | string | null;
+    credit: number | string | null;
+    description: string | null;
+    project_id: string | null;
+  }>;
+}
+
 // Helper to safely convert to number with 2 decimal precision
 function toMoney(value: number | string | undefined): number {
   if (value === undefined || value === null) return 0;
@@ -263,20 +279,31 @@ export async function postJournal(journalId: string): Promise<{ success: boolean
 export async function reverseJournal(
   journalId: string,
   reason: string,
-  reversalDate = new Date().toISOString().split("T")[0]
+  reversalDate = new Date().toISOString().split("T")[0],
+  preloadedOriginal?: ReversalJournal
 ): Promise<{ success: boolean; reversingNumber: string }> {
   const user = await requireAuthUser();
   const supabase = await createClient();
 
-  const { data: original } = await supabase
-    .from("journal_entries")
-    .select("*, lines:journal_lines(*)")
-    .eq("id", journalId)
-    .eq("organization_id", user.organizationId)
-    .single();
+  let original = preloadedOriginal;
+  if (original) {
+    if (original.id !== journalId || original.organization_id !== user.organizationId) {
+      throw new Error("Jurnal transaksi tidak cocok dengan organisasi aktif.");
+    }
+  } else {
+    const { data, error } = await supabase
+      .from("journal_entries")
+      .select("id, organization_id, number, date, description, status, lines:journal_lines(account_id, debit, credit, description, project_id)")
+      .eq("id", journalId)
+      .eq("organization_id", user.organizationId)
+      .maybeSingle();
 
-  if (!original) throw new Error("Journal entry not found");
+    if (error) throw new Error(`Gagal memuat jurnal untuk dibalik: ${error.message}`);
+    if (!data) throw new Error("Journal entry not found");
+    original = data as ReversalJournal;
+  }
   if (original.status !== "POSTED") throw new Error("Only posted journal entries can be reversed");
+  if (!original.lines.length) throw new Error("Jurnal tidak memiliki baris untuk dibalik.");
 
   const reversingLines = original.lines.map((line: any) => ({
     account_id: line.account_id,

@@ -784,7 +784,7 @@ async function getLatestPostedCashBookJournal(
 ) {
   const { data, error } = await supabase
     .from("journal_entries")
-    .select("id, date, description, status")
+    .select("id, number, date, description, status")
     .eq("organization_id", organizationId)
     .eq("source_type", sourceType)
     .eq("source_id", sourceId)
@@ -1125,10 +1125,22 @@ async function deleteCashBookTransactionInternal(
   if (journal) {
     const reversalDate = new Date().toISOString().slice(0, 10);
     await assertAccountingDateOpen(supabase, user.organizationId, reversalDate);
+    const { data: lines, error: linesError } = await supabase
+      .from("journal_lines")
+      .select("account_id, debit, credit, description, project_id")
+      .eq("journal_id", journal.id);
+    if (linesError) throw new Error(`Gagal memuat baris jurnal untuk dibalik: ${linesError.message}`);
+    if (!lines?.length) throw new Error("Jurnal transaksi tidak memiliki baris untuk dibalik.");
+
     await reverseJournal(
       journal.id,
       "Pengguna menghapus transaksi dari Buku Kas Perusahaan.",
-      reversalDate
+      reversalDate,
+      {
+        ...journal,
+        organization_id: user.organizationId,
+        lines,
+      }
     );
   }
 
