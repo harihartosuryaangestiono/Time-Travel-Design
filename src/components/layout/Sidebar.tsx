@@ -56,6 +56,7 @@ const navigationGroups: NavGroup[] = [
     label: "Financial Operations",
     items: [
       { name: "Buku Kas Perusahaan", href: "/cash-book", icon: BookOpen },
+      { name: "Sales Person", href: "/sales-persons", icon: Users },
       { name: "Rekapitulasi Subkontraktor", href: "/subcontractor-recap", icon: Building2 },
       { name: "Cash Advances", href: "/cash-advances", icon: Coins },
       { name: "Reimbursements", href: "/reimbursements", icon: FileCheck },

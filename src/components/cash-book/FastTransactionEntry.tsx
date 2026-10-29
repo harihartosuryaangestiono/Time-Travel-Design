@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { createFastTransaction } from "@/app/actions/cashBookActions";
 import type { SubcontractorContractSummary } from "@/app/actions/subcontractorActions";
+import type { SalesPersonProjectOption } from "@/app/actions/salesActions";
 import {
   getExpenseBookCategories,
   type ExpenseBook,
@@ -27,6 +28,7 @@ interface FastTransactionEntryProps {
   projects?: Array<{ id: string; name: string }>;
   accounts: Array<{ id: string; name: string; opening_balance: number }>;
   subcontractorContracts?: SubcontractorContractSummary[];
+  salesAssignments?: SalesPersonProjectOption[];
   defaultProjectId?: string;
   allowProjectSelection?: boolean;
 }
@@ -67,6 +69,7 @@ export function FastTransactionEntry({
   projects = [],
   accounts,
   subcontractorContracts = [],
+  salesAssignments = [],
   defaultProjectId,
   allowProjectSelection = true,
 }: FastTransactionEntryProps) {
@@ -79,6 +82,7 @@ export function FastTransactionEntry({
   const [cashAccountId, setCashAccountId] = useState("");
   const [projectId, setProjectId] = useState(defaultProjectId || "");
   const [subcontractorContractId, setSubcontractorContractId] = useState("");
+  const [salesAssignmentKey, setSalesAssignmentKey] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [smartSuggestion, setSmartSuggestion] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -86,6 +90,9 @@ export function FastTransactionEntry({
   const [pasteText, setPasteText] = useState("");
 
   const descInputRef = useRef<HTMLInputElement>(null);
+  const selectedSalesAssignment = salesAssignments.find(
+    (assignment) => `${assignment.salesPersonId}:${assignment.projectId}` === salesAssignmentKey
+  );
 
   useEffect(() => {
     if (!accounts.some((account) => account.id === cashAccountId)) {
@@ -138,9 +145,15 @@ export function FastTransactionEntry({
         project_id:
           type === "INCOME"
             ? projectId || null
+            : category === "Marketing & Sales"
+            ? selectedSalesAssignment?.projectId || defaultProjectId || null
             : expenseBook === "PROJECT"
               ? projectId || null
               : null,
+        sales_person_id:
+          type === "EXPENSE" && category === "Marketing & Sales"
+            ? selectedSalesAssignment?.salesPersonId || null
+            : null,
         subcontractor_contract_id:
           type === "EXPENSE" ? subcontractorContractId || null : null,
         cash_account_id: cashAccountId,
@@ -150,6 +163,7 @@ export function FastTransactionEntry({
       setDescription("");
       setAmount("");
       setCategory("");
+      setSalesAssignmentKey("");
       setSubcontractorContractId("");
       setSmartSuggestion(null);
       if (descInputRef.current) {
@@ -270,6 +284,7 @@ export function FastTransactionEntry({
                 setCategory("");
                 setSmartSuggestion(null);
                 setSubcontractorContractId("");
+                setSalesAssignmentKey("");
                 if (nextType === "EXPENSE" && defaultProjectId) {
                   setExpenseBook("PROJECT");
                   setProjectId(defaultProjectId);
@@ -309,6 +324,7 @@ export function FastTransactionEntry({
                 setExpenseBook(nextBook);
                 setProjectId("");
                 setSubcontractorContractId("");
+                setSalesAssignmentKey("");
                 setCategory("");
                 setSmartSuggestion(null);
               }}
@@ -356,6 +372,7 @@ export function FastTransactionEntry({
                 if (selected) {
                   setExpenseBook("PROJECT");
                   setProjectId(selected.projectId);
+                  setSalesAssignmentKey("");
                   setDescription(`Pembayaran borongan ${selected.subcontractorName}`);
                   setCategory("");
                   setSmartSuggestion(null);
@@ -424,7 +441,14 @@ export function FastTransactionEntry({
           <select
             required
             value={category}
-            onChange={(e) => setCategory(e.target.value)}
+            onChange={(e) => {
+              setCategory(e.target.value);
+              if (e.target.value !== "Marketing & Sales") {
+                setSalesAssignmentKey("");
+              } else {
+                setSubcontractorContractId("");
+              }
+            }}
             className={`h-9 w-full rounded-xl border px-2.5 text-xs font-semibold focus:border-zinc-950 focus:bg-white focus:outline-none ${
               category ? "border-zinc-200 bg-zinc-50 text-zinc-900" : "border-amber-300 bg-amber-50/50 text-amber-800"
             }`}
@@ -442,10 +466,51 @@ export function FastTransactionEntry({
                 {getExpenseBookCategories(expenseBook).map((expenseCategory) => (
                   <option key={expenseCategory} value={expenseCategory}>{expenseCategory}</option>
                 ))}
+                {expenseBook === "PROJECT" && (
+                  <option value="Marketing & Sales">Marketing &amp; Sales</option>
+                )}
               </optgroup>
             )}
           </select>
         </div>
+
+        {type === "EXPENSE" && category === "Marketing & Sales" && (
+          <div className="sm:col-span-3">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-0.5">
+              Sales Person &amp; Proyek (opsional)
+            </label>
+            <select
+              value={salesAssignmentKey}
+              onChange={(event) => {
+                const assignment = salesAssignments.find(
+                  (option) => `${option.salesPersonId}:${option.projectId}` === event.target.value
+                );
+                setSalesAssignmentKey(event.target.value);
+                if (assignment) {
+                  setProjectId(assignment.projectId);
+                  setDescription(`Komisi ${assignment.salesPersonName} — ${assignment.projectName}`);
+                }
+              }}
+              className="h-9 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 text-xs font-semibold text-zinc-900"
+            >
+              <option value="">Pengeluaran marketing umum (tanpa komisi sales)</option>
+              {salesAssignments.map((assignment) => (
+                <option
+                  key={`${assignment.salesPersonId}:${assignment.projectId}`}
+                  value={`${assignment.salesPersonId}:${assignment.projectId}`}
+                >
+                  {assignment.salesPersonName} — {assignment.projectCode} {assignment.projectName} (
+                  {assignment.commissionRate}% = {new Intl.NumberFormat("id-ID").format(assignment.commissionAmount)})
+                </option>
+              ))}
+            </select>
+            {salesAssignments.length === 0 && (
+              <p className="mt-1 text-[10px] text-amber-700">
+                Belum ada sales yang ditugaskan ke proyek. Atur penugasan di halaman Sales Person.
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Nominal (Rp) */}
         <div className="sm:col-span-2">

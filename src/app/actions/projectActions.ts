@@ -174,6 +174,7 @@ export async function updateProject(
   }
 
   revalidatePath("/projects");
+  revalidatePath("/sales-persons");
   revalidatePath(`/projects/${id}`);
   return { data };
 }

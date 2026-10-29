@@ -262,7 +262,8 @@ export async function postJournal(journalId: string): Promise<{ success: boolean
 // Reverse posted journal
 export async function reverseJournal(
   journalId: string,
-  reason: string
+  reason: string,
+  reversalDate = new Date().toISOString().split("T")[0]
 ): Promise<{ success: boolean; reversingNumber: string }> {
   const user = await requireAuthUser();
   const supabase = await createClient();
@@ -286,7 +287,7 @@ export async function reverseJournal(
   }));
 
   const reversingEntry = await createJournal({
-    date: new Date().toISOString().split("T")[0],
+    date: reversalDate,
     description: `Reversal: ${original.description}. Reason: ${reason}`,
     source_type: "REVERSAL",
     source_id: original.id,

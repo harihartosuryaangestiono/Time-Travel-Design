@@ -31,6 +31,8 @@ export function CashBookEntryEditor({
 }: CashBookEntryEditorProps) {
   const isExpense = entry.source_type === "CASH_BOOK_EXPENSE";
   const isProjectRevenue = entry.source_type === "PROJECT_REVENUE";
+  const isSalesCommissionExpense =
+    isExpense && entry.category === "Marketing & Sales" && Boolean(entry.sales_person_id);
   const [date, setDate] = useState(entry.date);
   const [description, setDescription] = useState(entry.description);
   const [category, setCategory] = useState(
@@ -81,10 +83,14 @@ export function CashBookEntryEditor({
     setIsDeleting(true);
     setError(null);
     try {
-      await deleteCashBookTransaction(
+      const result = await deleteCashBookTransaction(
         entry.source_type as "CASH_BOOK_EXPENSE" | "PROJECT_REVENUE" | "CASH_RECEIPT",
         entry.id
       );
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
       await onDeleted();
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "Gagal menghapus transaksi.");
@@ -179,25 +185,35 @@ export function CashBookEntryEditor({
               </label>
             )}
             {(isExpense || isProjectRevenue) && (
-              <label className="space-y-1.5 text-xs font-semibold text-zinc-700">
-                Proyek
-                <select
-                  required={isProjectRevenue}
-                  value={projectId}
-                  onChange={(event) => {
-                    setProjectId(event.target.value);
-                    if (isExpense) setCategory("");
-                  }}
-                  className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
-                >
-                  {!isProjectRevenue && <option value="">Pengeluaran Umum</option>}
-                  {projects.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.code} — {project.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              isSalesCommissionExpense ? (
+                <div className="space-y-1.5 text-xs font-semibold text-zinc-700">
+                  Proyek &amp; Sales Person
+                  <div className="flex h-10 items-center rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-sm text-zinc-700">
+                    {projects.find((project) => project.id === projectId)?.name || "Proyek tidak ditemukan"}
+                    {entry.sales_person_name ? ` — ${entry.sales_person_name}` : ""}
+                  </div>
+                </div>
+              ) : (
+                <label className="space-y-1.5 text-xs font-semibold text-zinc-700">
+                  Proyek
+                  <select
+                    required={isProjectRevenue}
+                    value={projectId}
+                    onChange={(event) => {
+                      setProjectId(event.target.value);
+                      if (isExpense) setCategory("");
+                    }}
+                    className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                  >
+                    {!isProjectRevenue && <option value="">Pengeluaran Umum</option>}
+                    {projects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.code} — {project.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )
             )}
           </div>
 

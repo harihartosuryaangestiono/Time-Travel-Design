@@ -11,6 +11,7 @@ Sistem Manajemen Keuangan dan Akuntansi untuk Perusahaan Arsitektur dan Kontrakt
 - **Akuntansi Double-Entry** - Mesin akuntansi lengkap dengan jurnal otomatis
 - **Laporan Keuangan** - Laba rugi, neraca, arus kas, dan aging piutang
 - **Multi-Proyek** - Kelola banyak proyek dengan alokasi biaya
+- **Sales Person & Komisi** - Kelola penugasan sales per proyek, hitung komisi dari nilai kontrak, dan pantau pembayaran serta sisanya
 
 ## Tech Stack
 
@@ -52,6 +53,8 @@ npm run db:push
 ### 5. Setup RLS Policies
 
 Jalankan SQL di `supabase/migrations/001_enable_rls.sql` di Supabase SQL Editor
+
+Untuk memakai halaman Sales Person dan menghubungkan pembayaran komisi ke Buku Kas, jalankan juga `supabase/migrations/20261029_sales_commissions.sql` di Supabase SQL Editor.
 
 ### 6. Buat Akun Owner
 

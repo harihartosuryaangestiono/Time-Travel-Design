@@ -24,6 +24,8 @@ import {
   ProjectDetailData,
 } from "@/app/actions/projectDetailActions";
 import { getCashAccountsWithBalances } from "@/app/actions/cashAccountActions";
+import { getSalesPersonProjectOptions } from "@/app/actions/salesActions";
+import type { SalesPersonProjectOption } from "@/app/actions/salesActions";
 
 function formatCurrency(amount: number) {
   const safe = isNaN(amount) ? 0 : amount;
@@ -41,6 +43,7 @@ export default function ProjectDetailPage() {
 
   const [data, setData] = useState<ProjectDetailData | null>(null);
   const [accounts, setAccounts] = useState<Array<{ id: string; name: string; opening_balance: number }>>([]);
+  const [salesAssignments, setSalesAssignments] = useState<SalesPersonProjectOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,12 +51,14 @@ export default function ProjectDetailPage() {
     try {
       setIsLoading(true);
       setError(null);
-      const [res, cashAccounts] = await Promise.all([
+      const [res, cashAccounts, salesOptions] = await Promise.all([
         getProjectDetailData(projectId),
         getCashAccountsWithBalances(),
+        getSalesPersonProjectOptions(),
       ]);
       setData(res);
       setAccounts(cashAccounts);
+      setSalesAssignments(salesOptions.filter((assignment) => assignment.projectId === projectId));
     } catch (err: any) {
       console.error("Gagal memuat detail proyek:", err);
       setError(err?.message || "Gagal memuat data detail proyek.");
@@ -285,6 +290,7 @@ export default function ProjectDetailPage() {
       <FastTransactionEntry
         onSuccess={fetchProjectDetail}
         accounts={accounts}
+        salesAssignments={salesAssignments}
         defaultProjectId={projectId}
         allowProjectSelection={false}
       />

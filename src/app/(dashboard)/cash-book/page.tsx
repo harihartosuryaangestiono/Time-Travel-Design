@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import {
   BookOpen,
   Calendar,
@@ -30,6 +31,8 @@ import {
 } from "@/app/actions/cashBookActions";
 import { getSubcontractorPaymentOptions } from "@/app/actions/subcontractorActions";
 import type { SubcontractorContractSummary } from "@/app/actions/subcontractorActions";
+import { getSalesPersonProjectOptions } from "@/app/actions/salesActions";
+import type { SalesPersonProjectOption } from "@/app/actions/salesActions";
 import type { CashBookEntry } from "@/lib/validation/cashBook";
 import {
   GENERAL_EXPENSE_CATEGORIES,
@@ -73,6 +76,7 @@ export default function CashBookPage() {
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [recentDescriptions, setRecentDescriptions] = useState<string[]>([]);
   const [subcontractorContracts, setSubcontractorContracts] = useState<SubcontractorContractSummary[]>([]);
+  const [salesAssignments, setSalesAssignments] = useState<SalesPersonProjectOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingEntry, setEditingEntry] = useState<CashBookEntry | null>(null);
@@ -105,8 +109,13 @@ export default function CashBookPage() {
   };
 
   useEffect(() => {
-    Promise.all([getCashAccountsWithBalances(), getProjects(), getSubcontractorPaymentOptions()])
-      .then(([cashAccounts, projectRows, contracts]) => {
+    Promise.all([
+      getCashAccountsWithBalances(),
+      getProjects(),
+      getSubcontractorPaymentOptions(),
+      getSalesPersonProjectOptions(),
+    ])
+      .then(([cashAccounts, projectRows, contracts, salesOptions]) => {
         setAccounts(cashAccounts);
         setSelectedAccountId((current) => current || cashAccounts[0]?.id || "");
         setProjects(projectRows.map((project) => ({
@@ -115,6 +124,7 @@ export default function CashBookPage() {
           code: project.code,
         })));
         setSubcontractorContracts(contracts);
+        setSalesAssignments(salesOptions);
         setIsLoading(false);
       })
       .catch((err) => {
@@ -128,6 +138,7 @@ export default function CashBookPage() {
     await Promise.all([
       fetchBookData(),
       getSubcontractorPaymentOptions().then(setSubcontractorContracts),
+      getSalesPersonProjectOptions().then(setSalesAssignments),
     ]);
   };
 
@@ -268,6 +279,7 @@ export default function CashBookPage() {
             recentDescriptions={recentDescriptions}
             accounts={accounts}
             subcontractorContracts={subcontractorContracts}
+            salesAssignments={salesAssignments}
             projects={projects}
             defaultProjectId={undefined}
             allowProjectSelection
@@ -432,9 +444,19 @@ export default function CashBookPage() {
                   </td>
                   <td className="py-3 pr-2 text-zinc-600">
                     {ent.project_id ? (
-                      <span className="inline-block max-w-[180px] truncate rounded bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
-                        {projectNames.get(ent.project_id) || "Proyek"}
-                      </span>
+                      <div>
+                        <span className="inline-block max-w-[180px] truncate rounded bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+                          {projectNames.get(ent.project_id) || "Proyek"}
+                        </span>
+                        {ent.sales_person_name && (
+                          <Link
+                            href={`/sales-persons#${ent.sales_person_id}`}
+                            className="mt-1 block text-[10px] text-violet-700 hover:underline"
+                          >
+                            Sales: {ent.sales_person_name}
+                          </Link>
+                        )}
+                      </div>
                     ) : (
                       <span className="text-zinc-400">—</span>
                     )}

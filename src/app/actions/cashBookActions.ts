@@ -52,7 +52,7 @@ export async function getCashBookTransactions(filter?: {
     await Promise.all([
       supabase
     .from("expenses")
-    .select("id, date, number, description, total_amount, category, needs_category, project_id, source, status")
+    .select("id, date, number, description, total_amount, category, needs_category, project_id, sales_person_id, source, status")
     .eq("organization_id", user.organizationId)
     .eq("cash_account_id", selectedAccount.id)
     .in("status", ["APPROVED", "POSTED"])
@@ -81,6 +81,21 @@ export async function getCashBookTransactions(filter?: {
   if (receiptsError) throw new Error(`Gagal memuat pemasukan: ${receiptsError.message}`);
   if (revenuesError) throw new Error(`Gagal memuat pendapatan proyek: ${revenuesError.message}`);
   if (paymentsError) throw new Error(`Gagal memuat pembayaran invoice: ${paymentsError.message}`);
+
+  const salesPersonIds = Array.from(new Set(
+    (expenses || [])
+      .map((expense) => expense.sales_person_id)
+      .filter((id): id is string => Boolean(id))
+  ));
+  const { data: salesPeople, error: salesPeopleError } = salesPersonIds.length
+    ? await supabase
+        .from("sales_persons")
+        .select("id, name")
+        .eq("organization_id", user.organizationId)
+        .in("id", salesPersonIds)
+    : { data: [], error: null };
+  if (salesPeopleError) throw new Error(`Gagal memuat nama sales person: ${salesPeopleError.message}`);
+  const salesPersonNameById = new Map((salesPeople || []).map((person) => [person.id, person.name]));
 
   const invoiceIds = Array.from(new Set((invoicePayments || []).map((payment) => payment.invoice_id)));
   const { data: invoices, error: invoicesError } = invoiceIds.length
@@ -120,6 +135,8 @@ export async function getCashBookTransactions(filter?: {
       category: e.category || "Perlu dikategorikan",
       needs_category: e.needs_category || !e.category,
       project_id: e.project_id,
+      sales_person_id: e.sales_person_id,
+      sales_person_name: e.sales_person_id ? salesPersonNameById.get(e.sales_person_id) || null : null,
       type: "EXPENSE",
       source_type: "CASH_BOOK_EXPENSE",
       can_edit: e.source === "MANUAL",
@@ -472,11 +489,25 @@ export async function createFastTransaction(rawInput: CreateFastTransactionInput
     if (input.subcontractor_contract_id && !input.project_id) {
       throw new Error("Pilih proyek sebelum menghubungkan pembayaran ke borongan.");
     }
+    if (input.subcontractor_contract_id && input.sales_person_id) {
+      throw new Error("Pembayaran borongan tidak dapat ditautkan sebagai komisi sales.");
+    }
+    const isSalesCommissionExpense =
+      input.category === "Marketing & Sales" && Boolean(input.sales_person_id);
+    if (isSalesCommissionExpense && !input.project_id) {
+      throw new Error("Pilih sales person dan proyek untuk menghubungkan pembayaran komisi.");
+    }
     const categoryError = validateExpenseBookCategory(
       input.category,
-      input.project_id || input.subcontractor_contract_id ? "PROJECT" : "GENERAL"
+      (input.project_id && input.category !== "Marketing & Sales") ||
+        input.subcontractor_contract_id
+        ? "PROJECT"
+        : "GENERAL"
     );
     if (categoryError) throw new Error(categoryError);
+    if (input.sales_person_id && input.category !== "Marketing & Sales") {
+      throw new Error("Sales person hanya dapat ditautkan pada kategori Marketing & Sales.");
+    }
   }
 
   const { data: account, error: accountError } = await supabase
@@ -500,6 +531,18 @@ export async function createFastTransaction(rawInput: CreateFastTransactionInput
       .maybeSingle();
     if (projectError) throw new Error(`Gagal memvalidasi proyek: ${projectError.message}`);
     if (!project) throw new Error("Proyek tidak ditemukan atau bukan milik organisasi ini.");
+  }
+
+  if (input.sales_person_id) {
+    const { data: assignment, error: assignmentError } = await supabase
+      .from("project_sales_assignments")
+      .select("sales_person_id")
+      .eq("organization_id", user.organizationId)
+      .eq("project_id", input.project_id)
+      .eq("sales_person_id", input.sales_person_id)
+      .maybeSingle();
+    if (assignmentError) throw new Error(`Gagal memvalidasi penugasan sales: ${assignmentError.message}`);
+    if (!assignment) throw new Error("Sales person belum ditugaskan ke proyek yang dipilih.");
   }
 
   let subcontractorContract: Awaited<ReturnType<typeof getSubcontractorPaymentOptions>>[number] | null = null;
@@ -573,6 +616,7 @@ export async function createFastTransaction(rawInput: CreateFastTransactionInput
         total_amount: input.amount,
         cash_account_id: account.id,
         project_id: input.project_id || null,
+        sales_person_id: input.sales_person_id || null,
         subcontractor_contract_id: subcontractorContract?.id || null,
         category: input.category,
         status: "APPROVED",
@@ -788,9 +832,27 @@ export async function updateCashBookTransaction(rawInput: UpdateCashBookTransact
   if (isExpense) {
     const categoryError = validateExpenseBookCategory(
       input.category,
-      input.project_id ? "PROJECT" : "GENERAL"
+      input.project_id && input.category !== "Marketing & Sales" ? "PROJECT" : "GENERAL"
     );
     if (categoryError) throw new Error(categoryError);
+    if (input.category === "Marketing & Sales" && original.sales_person_id) {
+      if (!input.project_id) {
+        throw new Error("Pilih proyek untuk transaksi komisi sales.");
+      }
+      const { data: assignment, error: assignmentError } = await supabase
+        .from("project_sales_assignments")
+        .select("sales_person_id")
+        .eq("organization_id", user.organizationId)
+        .eq("project_id", input.project_id)
+        .eq("sales_person_id", original.sales_person_id)
+        .maybeSingle();
+      if (assignmentError) {
+        throw new Error(`Gagal memvalidasi penugasan sales: ${assignmentError.message}`);
+      }
+      if (!assignment) {
+        throw new Error("Sales person tidak ditugaskan ke proyek yang dipilih.");
+      }
+    }
   } else if (isProjectRevenue) {
     if (!input.project_id) throw new Error("Pendapatan proyek harus terhubung ke proyek.");
     if (input.category !== "Pendapatan Proyek") {
@@ -882,6 +944,8 @@ export async function updateCashBookTransaction(rawInput: UpdateCashBookTransact
         total_amount: input.amount,
         category: input.category,
         project_id: input.project_id || null,
+        sales_person_id:
+          input.category === "Marketing & Sales" ? original.sales_person_id || null : null,
         needs_category: false,
       }
     : isProjectRevenue
@@ -1027,7 +1091,22 @@ export async function updateCashBookTransaction(rawInput: UpdateCashBookTransact
 export async function deleteCashBookTransaction(
   sourceType: "CASH_BOOK_EXPENSE" | "PROJECT_REVENUE" | "CASH_RECEIPT",
   id: string
-) {
+): Promise<{ success: true } | { success: false; error: string }> {
+  try {
+    return await deleteCashBookTransactionInternal(sourceType, id);
+  } catch (error) {
+    console.error("Gagal menghapus transaksi Buku Kas:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Gagal menghapus transaksi.",
+    };
+  }
+}
+
+async function deleteCashBookTransactionInternal(
+  sourceType: "CASH_BOOK_EXPENSE" | "PROJECT_REVENUE" | "CASH_RECEIPT",
+  id: string
+): Promise<{ success: true }> {
   const user = await requireAuthUser();
   const supabase = await createClient();
   const { table, data: original } = await getManualTransactionSource(
@@ -1044,7 +1123,13 @@ export async function deleteCashBookTransaction(
   );
 
   if (journal) {
-    await reverseJournal(journal.id, "Pengguna menghapus transaksi dari Buku Kas Perusahaan.");
+    const reversalDate = new Date().toISOString().slice(0, 10);
+    await assertAccountingDateOpen(supabase, user.organizationId, reversalDate);
+    await reverseJournal(
+      journal.id,
+      "Pengguna menghapus transaksi dari Buku Kas Perusahaan.",
+      reversalDate
+    );
   }
 
   const { data: deleted, error } = await supabase
