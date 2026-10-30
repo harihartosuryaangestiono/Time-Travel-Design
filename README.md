@@ -5,6 +5,7 @@ Sistem Manajemen Keuangan dan Akuntansi untuk Perusahaan Arsitektur dan Kontrakt
 ## Fitur Utama
 
 - **Manajemen Proyek** - Kelola proyek arsitektur, interior, dan konstruksi dengan RAB terperinci
+- **Buku Kas Perusahaan** - Filter mutasi Buku Besar (umum) dan Buku Kecil (proyek)
 - **Scan Struk & OCR** - Unggah foto struk dan ekstrak data otomatis
 - **Kasbon Karyawan** - Kelola kasbon dan pertanggungjawabannya
 - **Approval Workflow** - Alur persetujuan pengeluaran yang fleksibel
@@ -12,6 +13,9 @@ Sistem Manajemen Keuangan dan Akuntansi untuk Perusahaan Arsitektur dan Kontrakt
 - **Laporan Keuangan** - Laba rugi, neraca, arus kas, dan aging piutang
 - **Multi-Proyek** - Kelola banyak proyek dengan alokasi biaya
 - **Sales Person & Komisi** - Kelola penugasan sales per proyek, hitung komisi dari nilai kontrak, dan pantau pembayaran serta sisanya
+- **Bonus Sales Person** - Hitung bonus otomatis dari pembayaran Marketing & Sales yang melebihi komisi proyek
+- **Subkontraktor** - Kelola data subkontraktor dan kontrak borongan per proyek
+- **Rekapitulasi per Proyek** - Tinjau pendapatan, HPP, biaya operasional, dan laba untuk setiap proyek
 
 ## Tech Stack
 
@@ -56,7 +60,13 @@ Jalankan SQL di `supabase/migrations/001_enable_rls.sql` di Supabase SQL Editor
 
 Untuk memakai halaman Sales Person dan menghubungkan pembayaran komisi ke Buku Kas, jalankan juga `supabase/migrations/20261029_sales_commissions.sql` di Supabase SQL Editor.
 
+Untuk memakai Data Subkontraktor dan Rekap Borongan, jalankan `supabase/migrations/20261026_subcontractor_contracts.sql` lalu `supabase/migrations/20261027_subcontractors.sql` di Supabase SQL Editor.
+
 Jika menghapus transaksi Buku Kas, jalankan `supabase/migrations/20261030_cash_book_expense_delete.sql` untuk memberi izin hapus pengeluaran khusus Owner/Finance.
+
+Bonus Sales Person dihitung otomatis dari pembayaran yang sudah disetujui/diposting; tidak perlu mengisi bonus secara manual. Filter Buku Besar/Buku Kecil menggunakan data transaksi yang sudah ada.
+
+Jika transaksi kategori Project Transportation gagal diposting karena akun 5400 belum tersedia, jalankan `supabase/migrations/20261030_project_transportation_account.sql` di Supabase SQL Editor.
 
 ### 6. Buat Akun Owner
 

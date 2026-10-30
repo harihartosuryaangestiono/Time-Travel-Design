@@ -57,6 +57,10 @@ const pageTitles: Record<string, { title: string; description: string }> = {
     title: "Data Subkontraktor",
     description: "Direktori khusus subkontraktor untuk data borongan proyek",
   },
+  "/reports/project-recap": {
+    title: "Rekapitulasi per Proyek",
+    description: "Pendapatan dan biaya keuangan untuk setiap proyek",
+  },
   "/reimbursements": {
     title: "Expense Claims & Reimbursements",
     description: "Employee operational expense claims, approvals, and payout records",
@@ -209,7 +213,8 @@ export default function Header({
   };
 
   // Resolve Title and Description
-  const currentRouteMeta = pageTitles[pathname] || {
+  const currentRouteMeta = pageTitles[pathname] ||
+    (pathname.startsWith("/reports/project-recap/") ? pageTitles["/reports/project-recap"] : null) || {
     title: propTitle || "Time Travel Design Finance",
     description: propDescription || "Enterprise Accounting & Financial Management",
   };

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
   AlertCircle,
   BriefcaseBusiness,
+  Gift,
   Loader2,
   Pencil,
   Plus,
@@ -52,7 +53,8 @@ function formatCurrency(amount: number) {
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
     currency: "IDR",
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(amount);
 }
 
@@ -64,7 +66,9 @@ export default function SalesPersonsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCreateFlow, setIsCreateFlow] = useState(false);
   const [draft, setDraft] = useState<SalesPersonDraft>(emptyDraft);
+  const [activeSection, setActiveSection] = useState<"commissions" | "bonuses">("commissions");
 
   const loadData = async () => {
     try {
@@ -101,12 +105,14 @@ export default function SalesPersonsPage() {
   }, [isLoading, people]);
 
   const startCreate = () => {
+    setIsCreateFlow(true);
     setDraft(emptyDraft);
     setError(null);
     setIsModalOpen(true);
   };
 
   const startEdit = (person: SalesPersonSummary) => {
+    setIsCreateFlow(false);
     setDraft({
       id: person.id,
       name: person.name,
@@ -119,13 +125,6 @@ export default function SalesPersonsPage() {
     });
     setError(null);
     setIsModalOpen(true);
-  };
-
-  const addAssignment = () => {
-    setDraft((current) => ({
-      ...current,
-      assignments: [...current.assignments, { project_id: "", commission_rate: "" }],
-    }));
   };
 
   const save = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -159,6 +158,7 @@ export default function SalesPersonsPage() {
   const totalCommission = people.reduce((sum, person) => sum + person.totalCommission, 0);
   const totalPaid = people.reduce((sum, person) => sum + person.totalPaid, 0);
   const totalRemaining = people.reduce((sum, person) => sum + person.remainingAmount, 0);
+  const totalBonus = people.reduce((sum, person) => sum + person.bonusAmount, 0);
 
   return (
     <div className="space-y-6 pb-12">
@@ -166,7 +166,7 @@ export default function SalesPersonsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Sales Person</h1>
           <p className="mt-1 text-sm text-zinc-500">
-            Kelola kontak, proyek, komisi, pembayaran, dan sisa komisi sales.
+            Kelola sales, komisi proyek, dan bonus otomatis dari pembayaran.
           </p>
         </div>
         {canManage && (
@@ -188,122 +188,204 @@ export default function SalesPersonsPage() {
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          title="Total Sales Person"
-          value={isLoading ? "..." : `${people.length} orang`}
-          subtitle="Sales terdaftar"
-          icon={UserRound}
-          iconBgColor="bg-blue-500/10"
-        />
-        <StatCard
-          title="Total Komisi"
-          value={isLoading ? "..." : formatCurrency(totalCommission)}
-          subtitle="Berdasarkan nilai kontrak proyek"
-          icon={BriefcaseBusiness}
-          iconBgColor="bg-violet-500/10"
-        />
-        <StatCard
-          title="Sudah Dibayar"
-          value={isLoading ? "..." : formatCurrency(totalPaid)}
-          subtitle="Pembayaran kategori Marketing & Sales"
-          icon={Wallet}
-          iconBgColor="bg-emerald-500/10"
-        />
-        <StatCard
-          title="Sisa Komisi"
-          value={isLoading ? "..." : formatCurrency(totalRemaining)}
-          subtitle="Komisi dikurangi pembayaran"
-          icon={Wallet}
-          iconBgColor="bg-amber-500/10"
-        />
+      <div className="flex gap-2 border-b border-zinc-200">
+        <button
+          type="button"
+          onClick={() => setActiveSection("commissions")}
+          className={`border-b-2 px-3 py-2 text-sm font-semibold ${
+            activeSection === "commissions"
+              ? "border-zinc-950 text-zinc-950"
+              : "border-transparent text-zinc-500 hover:text-zinc-800"
+          }`}
+        >
+          Komisi
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveSection("bonuses")}
+          className={`inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-semibold ${
+            activeSection === "bonuses"
+              ? "border-zinc-950 text-zinc-950"
+              : "border-transparent text-zinc-500 hover:text-zinc-800"
+          }`}
+        >
+          <Gift className="h-4 w-4" />
+          Bonus
+        </button>
       </div>
 
-      {isLoading ? (
-        <div className="flex h-48 items-center justify-center text-zinc-400">
-          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-          Memuat data Sales Person...
-        </div>
-      ) : people.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-10 text-center">
-          <UserRound className="mx-auto h-8 w-8 text-zinc-400" />
-          <h2 className="mt-3 font-semibold text-zinc-900">Belum ada Sales Person</h2>
-          <p className="mt-1 text-sm text-zinc-500">Tambahkan sales untuk mulai mengatur komisi proyek.</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {people.map((person) => (
-            <section id={person.id} key={person.id} className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
-              <div className="flex flex-col gap-4 border-b border-zinc-100 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-zinc-700">
-                    <UserRound className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h2 className="font-bold text-zinc-950">{person.name}</h2>
-                    <p className="mt-0.5 text-xs text-zinc-500">
-                      {person.phone || "No. HP belum diisi"}
-                      {person.email ? ` · ${person.email}` : ""}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-5">
-                  <div className="text-right">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">Komisi / Dibayar / Sisa</p>
-                    <p className="mt-1 text-xs font-semibold text-zinc-900">
-                      {formatCurrency(person.totalCommission)} / {formatCurrency(person.totalPaid)} / {formatCurrency(person.remainingAmount)}
-                    </p>
-                  </div>
-                  {canManage && (
-                    <button
-                      type="button"
-                      onClick={() => startEdit(person)}
-                      className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-zinc-200 px-3 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                      Edit
-                    </button>
-                  )}
-                </div>
-              </div>
+      {activeSection === "commissions" ? (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard
+              title="Total Sales Person"
+              value={isLoading ? "..." : `${people.length} orang`}
+              subtitle="Sales terdaftar"
+              icon={UserRound}
+              iconBgColor="bg-blue-500/10"
+            />
+            <StatCard
+              title="Total Komisi"
+              value={isLoading ? "..." : formatCurrency(totalCommission)}
+              subtitle="Berdasarkan nilai kontrak proyek"
+              icon={BriefcaseBusiness}
+              iconBgColor="bg-violet-500/10"
+            />
+            <StatCard
+              title="Sudah Dibayar"
+              value={isLoading ? "..." : formatCurrency(totalPaid)}
+              subtitle="Pembayaran kategori Marketing & Sales"
+              icon={Wallet}
+              iconBgColor="bg-emerald-500/10"
+            />
+            <StatCard
+              title="Sisa Komisi"
+              value={isLoading ? "..." : formatCurrency(totalRemaining)}
+              subtitle="Komisi dikurangi pembayaran"
+              icon={Wallet}
+              iconBgColor="bg-amber-500/10"
+            />
+          </div>
 
-              {person.assignments.length ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[700px] text-left text-xs">
-                    <thead className="bg-zinc-50 text-[10px] uppercase tracking-wide text-zinc-500">
-                      <tr>
-                        <th className="px-4 py-2.5">Proyek</th>
-                        <th className="px-4 py-2.5 text-right">Nilai Kontrak</th>
-                        <th className="px-4 py-2.5 text-right">Komisi</th>
-                        <th className="px-4 py-2.5 text-right">Total Komisi</th>
-                        <th className="px-4 py-2.5 text-right">Dibayar</th>
-                        <th className="px-4 py-2.5 text-right">Sisa</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-zinc-100">
-                      {person.assignments.map((assignment) => (
-                        <tr key={assignment.projectId}>
-                          <td className="px-4 py-3 font-semibold text-zinc-800">
-                            <span className="font-mono text-zinc-500">{assignment.projectCode}</span> {assignment.projectName}
-                          </td>
-                          <td className="px-4 py-3 text-right tabular-nums text-zinc-600">{formatCurrency(assignment.contractValue)}</td>
-                          <td className="px-4 py-3 text-right tabular-nums text-zinc-600">{assignment.commissionRate}%</td>
-                          <td className="px-4 py-3 text-right font-semibold tabular-nums text-zinc-900">{formatCurrency(assignment.commissionAmount)}</td>
-                          <td className="px-4 py-3 text-right font-semibold tabular-nums text-emerald-700">{formatCurrency(assignment.paidAmount)}</td>
-                          <td className={`px-4 py-3 text-right font-semibold tabular-nums ${assignment.remainingAmount < 0 ? "text-rose-700" : "text-amber-700"}`}>
-                            {formatCurrency(assignment.remainingAmount)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <p className="px-4 py-4 text-xs text-zinc-500">Belum ada proyek dan komisi yang ditugaskan.</p>
-              )}
-            </section>
-          ))}
-        </div>
+          {isLoading ? (
+            <div className="flex h-48 items-center justify-center text-zinc-400">
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              Memuat data Sales Person...
+            </div>
+          ) : people.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-10 text-center">
+              <UserRound className="mx-auto h-8 w-8 text-zinc-400" />
+              <h2 className="mt-3 font-semibold text-zinc-900">Belum ada Sales Person</h2>
+              <p className="mt-1 text-sm text-zinc-500">Tambahkan sales untuk mulai mengatur komisi proyek.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {people.map((person) => (
+                <section id={person.id} key={person.id} className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+                  <div className="flex flex-col gap-4 border-b border-zinc-100 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-zinc-700">
+                        <UserRound className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h2 className="font-bold text-zinc-950">{person.name}</h2>
+                        <p className="mt-0.5 text-xs text-zinc-500">
+                          {person.phone || "No. HP belum diisi"}
+                          {person.email ? ` · ${person.email}` : ""}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-5">
+                      <div className="text-right">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">Komisi / Dibayar / Sisa</p>
+                        <p className="mt-1 text-xs font-semibold text-zinc-900">
+                          {formatCurrency(person.totalCommission)} / {formatCurrency(person.totalPaid)} / {formatCurrency(person.remainingAmount)}
+                        </p>
+                      </div>
+                      {canManage && (
+                        <button
+                          type="button"
+                          onClick={() => startEdit(person)}
+                          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-zinc-200 px-3 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Edit
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {person.assignments.length ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[700px] text-left text-xs">
+                        <thead className="bg-zinc-50 text-[10px] uppercase tracking-wide text-zinc-500">
+                          <tr>
+                            <th className="px-4 py-2.5">Proyek</th>
+                            <th className="px-4 py-2.5 text-right">Nilai Kontrak</th>
+                            <th className="px-4 py-2.5 text-right">Komisi</th>
+                            <th className="px-4 py-2.5 text-right">Total Komisi</th>
+                            <th className="px-4 py-2.5 text-right">Dibayar</th>
+                            <th className="px-4 py-2.5 text-right">Sisa</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-100">
+                          {person.assignments.map((assignment) => (
+                            <tr key={assignment.projectId}>
+                              <td className="px-4 py-3 font-semibold text-zinc-800">
+                                <span className="font-mono text-zinc-500">{assignment.projectCode}</span> {assignment.projectName}
+                              </td>
+                              <td className="px-4 py-3 text-right tabular-nums text-zinc-600">{formatCurrency(assignment.contractValue)}</td>
+                              <td className="px-4 py-3 text-right tabular-nums text-zinc-600">{assignment.commissionRate}%</td>
+                              <td className="px-4 py-3 text-right font-semibold tabular-nums text-zinc-900">{formatCurrency(assignment.commissionAmount)}</td>
+                              <td className="px-4 py-3 text-right font-semibold tabular-nums text-emerald-700">{formatCurrency(assignment.paidAmount)}</td>
+                              <td className={`px-4 py-3 text-right font-semibold tabular-nums ${assignment.remainingAmount < 0 ? "text-rose-700" : "text-amber-700"}`}>
+                                {formatCurrency(assignment.remainingAmount)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="px-4 py-4 text-xs text-zinc-500">Belum ada proyek dan komisi yang ditugaskan.</p>
+                  )}
+                </section>
+              ))}
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <StatCard
+              title="Total Bonus Sales"
+              value={isLoading ? "..." : formatCurrency(totalBonus)}
+              subtitle="Kelebihan pembayaran di atas komisi proyek"
+              icon={Gift}
+              iconBgColor="bg-amber-500/10"
+            />
+            <StatCard
+              title="Sales Person"
+              value={isLoading ? "..." : `${people.length} orang`}
+              subtitle="Sales terdaftar"
+              icon={UserRound}
+              iconBgColor="bg-blue-500/10"
+            />
+          </div>
+          {isLoading ? (
+            <div className="flex h-40 items-center justify-center text-zinc-400">
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              Memuat bonus Sales Person...
+            </div>
+          ) : people.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-10 text-center text-sm text-zinc-500">
+              Belum ada Sales Person untuk diberi bonus.
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-2xl border border-zinc-200 bg-white shadow-sm">
+              <table className="w-full min-w-[560px] text-left text-sm">
+                <thead className="bg-zinc-50 text-[10px] uppercase tracking-wide text-zinc-500">
+                  <tr>
+                    <th className="px-4 py-3">Sales Person</th>
+                    <th className="px-4 py-3">No. HP</th>
+                    <th className="px-4 py-3 text-right">Bonus</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-100">
+                  {people.map((person) => (
+                    <tr key={person.id}>
+                      <td className="px-4 py-3 font-semibold text-zinc-900">{person.name}</td>
+                      <td className="px-4 py-3 text-zinc-500">{person.phone || "—"}</td>
+                      <td className="px-4 py-3 text-right font-semibold tabular-nums text-amber-700">
+                        {formatCurrency(person.bonusAmount)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
 
       {isModalOpen && (
@@ -326,6 +408,39 @@ export default function SalesPersonsPage() {
                 <X className="h-4 w-4" />
               </button>
             </div>
+
+            {isCreateFlow && (
+              <label className="mb-3 block text-xs font-semibold text-zinc-700">
+                Pilih atau tambah Sales Person
+                <select
+                  value={draft.id || "new"}
+                  onChange={(event) => {
+                    const selectedPerson = people.find((person) => person.id === event.target.value);
+                    setDraft(selectedPerson
+                      ? {
+                          id: selectedPerson.id,
+                          name: selectedPerson.name,
+                          phone: selectedPerson.phone || "",
+                          email: selectedPerson.email || "",
+                          assignments: selectedPerson.assignments.map((assignment) => ({
+                            project_id: assignment.projectId,
+                            commission_rate: String(assignment.commissionRate),
+                          })),
+                        }
+                      : emptyDraft);
+                    setError(null);
+                  }}
+                  className="mt-1.5 h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                >
+                  <option value="new">+ Tambah Sales baru</option>
+                  {people.map((person) => (
+                    <option key={person.id} value={person.id}>
+                      {person.name}{person.phone ? ` — ${person.phone}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
 
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="text-xs font-semibold text-zinc-700">
@@ -371,7 +486,10 @@ export default function SalesPersonsPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={addAssignment}
+                  onClick={() => setDraft((current) => ({
+                    ...current,
+                    assignments: [...current.assignments, { project_id: "", commission_rate: "" }],
+                  }))}
                   className="inline-flex h-8 items-center gap-1 rounded-lg border border-zinc-200 px-2.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
                 >
                   <Plus className="h-3.5 w-3.5" />
@@ -475,6 +593,7 @@ export default function SalesPersonsPage() {
           </form>
         </div>
       )}
+
     </div>
   );
 }

@@ -74,6 +74,7 @@ const navigationGroups: NavGroup[] = [
     label: "Financial Reports",
     items: [
       { name: "Rekapitulasi Lapkeu", href: "/reports/rekapitulasi", icon: TrendingUp },
+      { name: "Rekapitulasi per Proyek", href: "/reports/project-recap", icon: FolderKanban },
       { name: "Income Statement (P&L)", href: "/reports/income-statement", icon: TrendingUp },
       { name: "Cash Flow Statement", href: "/reports/cash-flow", icon: BarChart3 },
       { name: "Balance Sheet", href: "/reports/balance-sheet", icon: Scale },

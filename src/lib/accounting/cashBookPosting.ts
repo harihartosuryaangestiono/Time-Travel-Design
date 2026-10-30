@@ -33,9 +33,7 @@ function getAccountCodes(input: CashBookJournalInput) {
   } else if (input.cashAccountType === "BANK" && accountLabel.includes("bca")) {
     cashCode = "1110";
   } else {
-    throw new Error(
-      `Rekening "${input.cashAccountName || input.bankName || "tanpa nama"}" belum memiliki pemetaan akun buku besar.`
-    );
+    cashCode = "1100";
   }
 
   if (input.transactionType === "EXPENSE") {

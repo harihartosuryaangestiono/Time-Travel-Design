@@ -50,6 +50,281 @@ export interface RekapitulasiReportData {
   totalUncategorized: number;
 }
 
+export interface ProjectRekapitulasiSummary {
+  projectId: string;
+  projectName: string;
+  projectCode: string;
+  status: string;
+  clientName: string;
+  buildingFunction: string | null;
+  workCategory: string | null;
+  deadline: string | null;
+  contractValue: number;
+  totalRevenue: number;
+  totalHpp: number;
+  totalOpex: number;
+  totalCapex: number;
+  totalUncategorized: number;
+  netIncome: number;
+}
+
+export interface ProjectRekapitulasiData {
+  fiscalYear: number;
+  project: {
+    id: string;
+    name: string;
+    code: string;
+    status: string;
+    clientName: string;
+    buildingFunction: string | null;
+    workCategory: string | null;
+    deadline: string | null;
+    contractValue: number;
+  };
+  revenues: Array<{ date: string; description: string; amount: number }>;
+  totalRevenue: number;
+  hppCategories: CategorySummary[];
+  totalHpp: number;
+  grossProfit: number;
+  opexCategories: CategorySummary[];
+  totalOpex: number;
+  capexCategories: CategorySummary[];
+  totalCapex: number;
+  netIncome: number;
+  uncategorizedExpenses: Array<{ id: string; date: string; description: string; amount: number }>;
+  totalUncategorized: number;
+}
+
+const PROJECT_CAPEX_CATEGORIES = ["Office Renovation", "Company Legal", "Inventory"];
+const PROJECT_OPEX_CATEGORIES = GENERAL_EXPENSE_CATEGORIES.filter(
+  (category) => !PROJECT_CAPEX_CATEGORIES.includes(category)
+);
+
+async function getProjectRekapitulasiRows(
+  year: number,
+  projectId?: string
+): Promise<ProjectRekapitulasiData[]> {
+  const user = await requireAuthUser();
+  const supabase = await createClient();
+  const startDate = `${year}-01-01T00:00:00.000Z`;
+  const endDate = `${year}-12-31T23:59:59.999Z`;
+
+  let projectQuery = supabase
+    .from("projects")
+    .select("id, name, code, client_id, contract_value, status, building_function, work_category, type, end_date")
+    .eq("organization_id", user.organizationId)
+    .order("name");
+  if (projectId) projectQuery = projectQuery.eq("id", projectId);
+
+  const { data: projects, error: projectsError } = await projectQuery;
+  if (projectsError) throw new Error(`Gagal memuat proyek untuk rekapitulasi: ${projectsError.message}`);
+  if (projectId && !projects?.length) throw new Error("Proyek tidak ditemukan.");
+  if (!projects?.length) return [];
+
+  const projectIds = projects.map((project) => project.id);
+  const clientIds = Array.from(new Set(projects.map((project) => project.client_id).filter(Boolean))) as string[];
+  const [{ data: clients, error: clientsError }, { data: revenues, error: revenuesError },
+    { data: directExpenses, error: expensesError }, { data: allocations, error: allocationsError }] =
+    await Promise.all([
+      clientIds.length
+        ? supabase.from("clients").select("id, name").in("id", clientIds)
+        : Promise.resolve({ data: [], error: null }),
+      supabase
+        .from("project_revenues")
+        .select("id, project_id, date, amount, description")
+        .eq("organization_id", user.organizationId)
+        .in("project_id", projectIds)
+        .gte("date", startDate)
+        .lte("date", endDate),
+      supabase
+        .from("expenses")
+        .select("id, project_id, date, description, total_amount, category, needs_category, status")
+        .eq("organization_id", user.organizationId)
+        .in("project_id", projectIds)
+        .in("status", ["APPROVED", "POSTED"])
+        .gte("date", startDate)
+        .lte("date", endDate),
+      supabase
+        .from("expense_allocations")
+        .select("id, project_id, expense_id, amount, description")
+        .in("project_id", projectIds),
+    ]);
+
+  if (clientsError) throw new Error(`Gagal memuat klien proyek: ${clientsError.message}`);
+  if (revenuesError) throw new Error(`Gagal memuat pendapatan proyek: ${revenuesError.message}`);
+  if (expensesError) throw new Error(`Gagal memuat pengeluaran proyek: ${expensesError.message}`);
+  if (allocationsError) throw new Error(`Gagal memuat alokasi pengeluaran: ${allocationsError.message}`);
+
+  const allocationExpenseIds = Array.from(new Set((allocations || []).map((allocation) => allocation.expense_id)));
+  const { data: allocatedExpenseDetails, error: allocatedDetailsError } = allocationExpenseIds.length
+    ? await supabase
+        .from("expenses")
+        .select("id, date, category, needs_category, status, description")
+        .eq("organization_id", user.organizationId)
+        .in("id", allocationExpenseIds)
+        .in("status", ["APPROVED", "POSTED"])
+        .gte("date", startDate)
+        .lte("date", endDate)
+    : { data: [], error: null };
+  if (allocatedDetailsError) {
+    throw new Error(`Gagal memuat rincian pengeluaran alokasi: ${allocatedDetailsError.message}`);
+  }
+
+  const clientsById = new Map((clients || []).map((client) => [client.id, client.name]));
+  const allocationExpenseById = new Map((allocatedExpenseDetails || []).map((expense) => [expense.id, expense]));
+  const allocatedIds = new Set((allocations || []).map((allocation) => allocation.expense_id));
+
+  return projects.map((project) => {
+    const projectRevenues = (revenues || [])
+      .filter((revenue) => revenue.project_id === project.id)
+      .map((revenue) => ({
+        date: revenue.date ? new Date(revenue.date).toISOString().slice(0, 10) : "",
+        description: revenue.description,
+        amount: Number(revenue.amount || 0),
+      }));
+    const projectExpenses: Array<{
+      id: string;
+      date: string;
+      description: string;
+      amount: number;
+      category: string | null;
+    }> = [];
+
+    (directExpenses || []).forEach((expense) => {
+      if (expense.project_id !== project.id || allocatedIds.has(expense.id)) return;
+      projectExpenses.push({
+        id: expense.id,
+        date: expense.date ? new Date(expense.date).toISOString().slice(0, 10) : "",
+        description: expense.description,
+        amount: Number(expense.total_amount || 0),
+        category: expense.category,
+      });
+    });
+
+    (allocations || []).forEach((allocation) => {
+      if (allocation.project_id !== project.id) return;
+      const expense = allocationExpenseById.get(allocation.expense_id);
+      if (!expense) return;
+      projectExpenses.push({
+        id: allocation.id,
+        date: expense.date ? new Date(expense.date).toISOString().slice(0, 10) : "",
+        description: allocation.description || expense.description,
+        amount: Number(allocation.amount || 0),
+        category: expense.category,
+      });
+    });
+
+    const hppTotals = new Map<string, number>();
+    const opexTotals = new Map<string, number>();
+    const capexTotals = new Map<string, number>();
+    const uncategorizedExpenses: ProjectRekapitulasiData["uncategorizedExpenses"] = [];
+    projectExpenses.forEach((expense) => {
+      const category =
+        normalizeExpenseCategory(expense.category, "PROJECT") ||
+        normalizeExpenseCategory(expense.category, "GENERAL");
+      if (category) {
+        const totals = (PROJECT_EXPENSE_CATEGORIES as readonly string[]).includes(category)
+          ? hppTotals
+          : PROJECT_CAPEX_CATEGORIES.includes(category)
+            ? capexTotals
+            : opexTotals;
+        totals.set(category, (totals.get(category) || 0) + expense.amount);
+      } else {
+        uncategorizedExpenses.push({
+          id: expense.id,
+          date: expense.date,
+          description: expense.description,
+          amount: expense.amount,
+        });
+      }
+    });
+
+    const hppCategories = PROJECT_EXPENSE_CATEGORIES.map((name) => ({
+      name,
+      amount: hppTotals.get(name) || 0,
+    }));
+    const opexCategories = PROJECT_OPEX_CATEGORIES.map((name) => ({
+      name,
+      amount: opexTotals.get(name) || 0,
+    }));
+    const capexCategories = PROJECT_CAPEX_CATEGORIES.map((name) => ({
+      name,
+      amount: capexTotals.get(name) || 0,
+    }));
+    const totalRevenue = projectRevenues.reduce((total, revenue) => total + revenue.amount, 0);
+    const totalHpp = hppCategories.reduce((total, category) => total + category.amount, 0);
+    const totalOpex = opexCategories.reduce((total, category) => total + category.amount, 0);
+    const totalCapex = capexCategories.reduce((total, category) => total + category.amount, 0);
+    const totalUncategorized = uncategorizedExpenses.reduce((total, expense) => total + expense.amount, 0);
+    const grossProfit = totalRevenue - totalHpp;
+
+    return {
+      fiscalYear: year,
+      project: {
+        id: project.id,
+        name: project.name,
+        code: project.code,
+        status: project.status,
+        clientName: (project.client_id && clientsById.get(project.client_id)) || "-",
+        buildingFunction: project.building_function,
+        workCategory: project.work_category || (
+          project.type === "INTERIOR_DESIGN"
+            ? "Interior & Furniture"
+            : project.type === "RENOVATION"
+              ? "Renovation"
+              : project.type === "CONSTRUCTION"
+                ? "Build From Scratch"
+                : null
+        ),
+        deadline: project.end_date ? new Date(project.end_date).toISOString().slice(0, 10) : null,
+        contractValue: Number(project.contract_value || 0),
+      },
+      revenues: projectRevenues,
+      totalRevenue,
+      hppCategories,
+      totalHpp,
+      grossProfit,
+      opexCategories,
+      totalOpex,
+      capexCategories,
+      totalCapex,
+      netIncome: grossProfit - totalOpex,
+      uncategorizedExpenses,
+      totalUncategorized,
+    };
+  });
+}
+
+export async function getProjectRekapitulasiProjects(year: number = 2026): Promise<ProjectRekapitulasiSummary[]> {
+  const reports = await getProjectRekapitulasiRows(year);
+  return reports.map((report) => ({
+    projectId: report.project.id,
+    projectName: report.project.name,
+    projectCode: report.project.code,
+    status: report.project.status,
+    clientName: report.project.clientName,
+    buildingFunction: report.project.buildingFunction,
+    workCategory: report.project.workCategory,
+    deadline: report.project.deadline,
+    contractValue: report.project.contractValue,
+    totalRevenue: report.totalRevenue,
+    totalHpp: report.totalHpp,
+    totalOpex: report.totalOpex,
+    totalCapex: report.totalCapex,
+    totalUncategorized: report.totalUncategorized,
+    netIncome: report.netIncome,
+  }));
+}
+
+export async function getProjectRekapitulasiData(
+  projectId: string,
+  year: number = 2026
+): Promise<ProjectRekapitulasiData> {
+  const [report] = await getProjectRekapitulasiRows(year, projectId);
+  if (!report) throw new Error("Proyek tidak ditemukan.");
+  return report;
+}
+
 export async function getRekapitulasiData(year: number = 2026): Promise<RekapitulasiReportData> {
   const user = await requireAuthUser();
   const supabase = await createClient();
@@ -117,8 +392,8 @@ export async function getRekapitulasiData(year: number = 2026): Promise<Rekapitu
   }
 
   const hppNames = [...PROJECT_EXPENSE_CATEGORIES];
-  const opexNames = [...GENERAL_EXPENSE_CATEGORIES.slice(0, 7)];
-  const capexNames = [...GENERAL_EXPENSE_CATEGORIES.slice(7)];
+  const capexNames = PROJECT_CAPEX_CATEGORIES;
+  const opexNames = PROJECT_OPEX_CATEGORIES;
 
   const categoryTotals = new Map<string, number>();
   const uncategorizedList: Array<{
@@ -134,8 +409,11 @@ export async function getRekapitulasiData(year: number = 2026): Promise<Rekapitu
   (expenses || []).forEach((e: any) => {
     const amt = parseFloat(e.total_amount) || 0;
     const cat = e.category?.trim();
+    const normalizedCategory =
+      normalizeExpenseCategory(cat, "PROJECT") ||
+      normalizeExpenseCategory(cat, "GENERAL");
 
-    if (e.needs_category || !cat || cat === "Perlu dikategorikan") {
+    if (!normalizedCategory && (e.needs_category || !cat || cat === "Perlu dikategorikan")) {
       totalUncategorized += amt;
       uncategorizedList.push({
         id: e.id,
@@ -145,9 +423,6 @@ export async function getRekapitulasiData(year: number = 2026): Promise<Rekapitu
         projectName: e.project_id ? projectsById.get(e.project_id)?.name : undefined,
       });
     } else {
-      const normalizedCategory =
-        normalizeExpenseCategory(cat, "PROJECT") ||
-        normalizeExpenseCategory(cat, "GENERAL");
       if (normalizedCategory) {
         const prev = categoryTotals.get(normalizedCategory) || 0;
         categoryTotals.set(normalizedCategory, prev + amt);

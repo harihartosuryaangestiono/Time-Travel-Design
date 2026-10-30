@@ -21,6 +21,7 @@ export interface SalesPersonProjectOption {
 
 export interface SalesPersonAssignmentSummary extends SalesPersonProjectOption {
   paidAmount: number;
+  bonusAmount: number;
   remainingAmount: number;
 }
 
@@ -29,6 +30,7 @@ export interface SalesPersonSummary {
   name: string;
   phone: string | null;
   email: string | null;
+  bonusAmount: number;
   totalCommission: number;
   totalPaid: number;
   remainingAmount: number;
@@ -148,7 +150,8 @@ export async function getSalesPersonOverview(): Promise<{
       commissionRate,
       commissionAmount,
       paidAmount,
-      remainingAmount: commissionAmount - paidAmount,
+      bonusAmount: Math.max(0, paidAmount - commissionAmount),
+      remainingAmount: Math.max(0, commissionAmount - paidAmount),
     };
     const entries = assignmentsByPerson.get(assignment.sales_person_id) || [];
     entries.push(summary);
@@ -161,9 +164,10 @@ export async function getSalesPersonOverview(): Promise<{
     const totalPaid = personAssignments.reduce((total, item) => total + item.paidAmount, 0);
     return {
       ...person,
+      bonusAmount: personAssignments.reduce((total, item) => total + item.bonusAmount, 0),
       totalCommission,
       totalPaid,
-      remainingAmount: totalCommission - totalPaid,
+      remainingAmount: personAssignments.reduce((total, item) => total + item.remainingAmount, 0),
       assignments: personAssignments,
     };
   });

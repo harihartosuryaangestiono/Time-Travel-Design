@@ -86,6 +86,7 @@ export default function SubcontractorsPage() {
       await fetchData();
     } catch (err) {
       console.error("Gagal menghapus data subkontraktor:", err);
+      setDeleting(null);
       setError(err instanceof Error ? err.message : "Gagal menghapus data subkontraktor.");
     } finally {
       setIsDeleting(false);

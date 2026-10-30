@@ -47,9 +47,11 @@ export function CashBookEntryEditor({
   const [error, setError] = useState<string | null>(null);
 
   const categoryOptions = isExpense
-    ? projectId
-      ? PROJECT_EXPENSE_CATEGORIES
-      : GENERAL_EXPENSE_CATEGORIES
+    ? category === "Marketing & Sales"
+      ? GENERAL_EXPENSE_CATEGORIES
+      : projectId
+        ? PROJECT_EXPENSE_CATEGORIES
+        : GENERAL_EXPENSE_CATEGORIES
     : INCOME_CATEGORIES;
 
   const handleSave = async (event: React.FormEvent<HTMLFormElement>) => {

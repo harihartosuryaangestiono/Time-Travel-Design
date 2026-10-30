@@ -88,6 +88,7 @@ export const EXCEL_CATEGORY_TO_ACCOUNT_CODE: Record<string, string> = {
   "Office Consumption & Refreshment": "6300",
   "Hospitality & Representation": "6400",
   "Marketing & Sales": "6500",
+  Charity: "6800",
   "Office Rent & Utilities": "6800",
   "Bank Administration Fee": "6700",
   "Office Renovation": "1510",

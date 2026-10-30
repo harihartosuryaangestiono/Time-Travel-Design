@@ -26,8 +26,14 @@ function formatCurrencyAmount(amount: number) {
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
     currency: "IDR",
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(amount);
+}
+
+function parseFormattedCurrency(value: string) {
+  const normalized = value.replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", ".");
+  return Number(normalized);
 }
 
 export function StatCard({
@@ -46,14 +52,14 @@ export function StatCard({
   const isGood = trend?.isGood ?? trend?.isPositive;
   const isCurrencyValue = /^-?Rp/.test(value.trim());
   const numericValue = isCurrencyValue
-    ? Number(value.replace(/[^\d-]/g, ""))
+    ? parseFormattedCurrency(value)
     : Number.NaN;
   const currencyInSubtitle = subtitle?.match(/-?Rp[\s\u00a0]*[\d.,]+/);
   const percentInSubtitle = currencyInSubtitle ? null : subtitle?.match(/-?\d+(?:[.,]\d+)?%/);
   const currencySubtitleIndex = currencyInSubtitle?.index ?? 0;
   const percentSubtitleIndex = percentInSubtitle?.index ?? 0;
   const subtitleCurrencyValue = currencyInSubtitle
-    ? Number(currencyInSubtitle[0].replace(/[^\d-]/g, ""))
+    ? parseFormattedCurrency(currencyInSubtitle[0])
     : Number.NaN;
   const subtitlePercentValue = percentInSubtitle
     ? Number(percentInSubtitle[0].replace("%", "").replace(",", "."))

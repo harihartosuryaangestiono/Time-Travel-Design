@@ -136,7 +136,7 @@ export function FastTransactionEntry({
       setIsSubmitting(true);
       setErrorMsg(null);
 
-      await createFastTransaction({
+      const result = await createFastTransaction({
         date,
         description: description.trim(),
         category,
@@ -158,6 +158,7 @@ export function FastTransactionEntry({
           type === "EXPENSE" ? subcontractorContractId || null : null,
         cash_account_id: cashAccountId,
       });
+      if (!result.success) throw new Error(result.error);
 
       // Reset form dan fokus kembali ke input keterangan agar siap input baris berikutnya
       setDescription("");
@@ -198,7 +199,7 @@ export function FastTransactionEntry({
           const rowAmt = parseFloat(rawAmt) || 0;
 
           if (rowDesc && rowAmt > 0) {
-            await createFastTransaction({
+            const result = await createFastTransaction({
               date: rowDate.includes("-") ? rowDate : new Date().toISOString().split("T")[0],
               description: rowDesc,
               category: rowCat,
@@ -207,6 +208,7 @@ export function FastTransactionEntry({
               project_id: expenseBook === "PROJECT" ? projectId || null : null,
               cash_account_id: cashAccountId,
             });
+            if (!result.success) throw new Error(result.error);
             successCount++;
           }
         }
@@ -466,9 +468,6 @@ export function FastTransactionEntry({
                 {getExpenseBookCategories(expenseBook).map((expenseCategory) => (
                   <option key={expenseCategory} value={expenseCategory}>{expenseCategory}</option>
                 ))}
-                {expenseBook === "PROJECT" && (
-                  <option value="Marketing & Sales">Marketing &amp; Sales</option>
-                )}
               </optgroup>
             )}
           </select>

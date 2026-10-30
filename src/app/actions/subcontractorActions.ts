@@ -183,18 +183,22 @@ export async function saveSubcontractor(input: {
     phone: input.phone?.trim() || null,
     address: input.address?.trim() || null,
   };
-  const query = input.id
-    ? supabase
+  const { data: saved, error } = input.id
+    ? await supabase
         .from("subcontractors")
         .update(values)
         .eq("id", input.id)
         .eq("organization_id", user.organizationId)
-    : supabase.from("subcontractors").insert({
-        ...values,
-        organization_id: user.organizationId,
-      });
-  const { error } = await query;
+        .select("id")
+        .maybeSingle()
+    : await supabase
+        .from("subcontractors")
+        .insert({ ...values, organization_id: user.organizationId })
+        .select("id")
+        .single();
+
   if (error) throw new Error(`Gagal menyimpan data subkontraktor: ${error.message}`);
+  if (!saved) throw new Error("Data subkontraktor tidak ditemukan atau tidak dapat diubah.");
   revalidatePath("/subcontractors");
   revalidatePath("/subcontractor-recap");
   return { success: true };
@@ -206,17 +210,20 @@ export async function deleteSubcontractor(id: string) {
     throw new Error("Hanya Owner atau Finance yang dapat menghapus data subkontraktor.");
   }
   const supabase = await createClient();
-  const { error } = await supabase
+  const { data: deleted, error } = await supabase
     .from("subcontractors")
     .delete()
     .eq("id", id)
-    .eq("organization_id", user.organizationId);
+    .eq("organization_id", user.organizationId)
+    .select("id")
+    .maybeSingle();
   if (error) {
     if (error.code === "23503") {
       throw new Error("Subkontraktor sudah digunakan pada kontrak borongan dan tidak dapat dihapus.");
     }
     throw new Error(`Gagal menghapus data subkontraktor: ${error.message}`);
   }
+  if (!deleted) throw new Error("Data subkontraktor tidak ditemukan atau tidak dapat dihapus.");
   revalidatePath("/subcontractors");
   revalidatePath("/subcontractor-recap");
   return { success: true };
@@ -274,6 +281,121 @@ export async function createSubcontractorContract(input: {
   });
 
   if (error) throw new Error(`Gagal menyimpan borongan: ${error.message}`);
+  revalidatePath("/subcontractor-recap");
+  revalidatePath("/cash-book");
+  return { success: true };
+}
+
+export async function updateSubcontractorContract(input: {
+  id: string;
+  projectId: string;
+  subcontractorId: string;
+  description: string;
+  contractAmount: number;
+}) {
+  const user = await requireAuthUser();
+  if (!canManageContracts(user.role)) {
+    throw new Error("Hanya Owner atau Finance yang dapat mengubah borongan subkontraktor.");
+  }
+  if (!input.description.trim()) throw new Error("Nama pekerjaan borongan wajib diisi.");
+  if (!Number.isFinite(input.contractAmount) || input.contractAmount <= 0) {
+    throw new Error("Nilai borongan harus lebih besar dari 0.");
+  }
+
+  const supabase = await createClient();
+  const { data: contract, error: contractError } = await supabase
+    .from("subcontractor_contracts")
+    .select("id, project_id, subcontractor_id")
+    .eq("id", input.id)
+    .eq("organization_id", user.organizationId)
+    .maybeSingle();
+  if (contractError) throw new Error(`Gagal memuat borongan subkontraktor: ${contractError.message}`);
+  if (!contract) throw new Error("Borongan subkontraktor tidak ditemukan.");
+
+  const currentContract = (await getContractRows(user.organizationId))
+    .find((row) => row.id === input.id);
+  if (!currentContract) throw new Error("Data borongan subkontraktor tidak ditemukan.");
+  if (input.contractAmount < currentContract.paidAmount) {
+    throw new Error(
+      `Nilai borongan tidak boleh lebih kecil dari pembayaran yang sudah dilakukan (${currentContract.paidAmount.toLocaleString("id-ID")}).`
+    );
+  }
+  if (
+    currentContract.paidAmount > 0 &&
+    (contract.project_id !== input.projectId || contract.subcontractor_id !== input.subcontractorId)
+  ) {
+    throw new Error("Proyek atau subkontraktor tidak dapat diubah karena borongan sudah memiliki pembayaran.");
+  }
+
+  const [{ data: project, error: projectError }, { data: subcontractor, error: subcontractorError }] =
+    await Promise.all([
+      supabase
+        .from("projects")
+        .select("id")
+        .eq("id", input.projectId)
+        .eq("organization_id", user.organizationId)
+        .maybeSingle(),
+      supabase
+        .from("subcontractors")
+        .select("id")
+        .eq("id", input.subcontractorId)
+        .eq("organization_id", user.organizationId)
+        .maybeSingle(),
+    ]);
+
+  if (projectError) throw new Error(`Gagal memvalidasi proyek: ${projectError.message}`);
+  if (subcontractorError) throw new Error(`Gagal memvalidasi subkontraktor: ${subcontractorError.message}`);
+  if (!project || !subcontractor) throw new Error("Proyek atau subkontraktor tidak ditemukan di organisasi ini.");
+
+  const { data: updated, error } = await supabase
+    .from("subcontractor_contracts")
+    .update({
+      project_id: input.projectId,
+      subcontractor_id: input.subcontractorId,
+      description: input.description.trim(),
+      contract_amount: input.contractAmount,
+    })
+    .eq("id", input.id)
+    .eq("organization_id", user.organizationId)
+    .select("id")
+    .maybeSingle();
+  if (error) throw new Error(`Gagal memperbarui borongan subkontraktor: ${error.message}`);
+  if (!updated) throw new Error("Borongan subkontraktor tidak ditemukan atau tidak dapat diubah.");
+
+  revalidatePath("/subcontractor-recap");
+  revalidatePath("/cash-book");
+  return { success: true };
+}
+
+export async function deleteSubcontractorContract(id: string) {
+  const user = await requireAuthUser();
+  if (!canManageContracts(user.role)) {
+    throw new Error("Hanya Owner atau Finance yang dapat menghapus borongan subkontraktor.");
+  }
+
+  const contracts = await getContractRows(user.organizationId);
+  const contract = contracts.find((row) => row.id === id);
+  if (!contract) throw new Error("Borongan subkontraktor tidak ditemukan.");
+  if (contract.paidAmount > 0) {
+    throw new Error("Borongan sudah memiliki pembayaran dan tidak dapat dihapus.");
+  }
+
+  const supabase = await createClient();
+  const { data: deleted, error } = await supabase
+    .from("subcontractor_contracts")
+    .delete()
+    .eq("id", id)
+    .eq("organization_id", user.organizationId)
+    .select("id")
+    .maybeSingle();
+  if (error) {
+    if (error.code === "23503") {
+      throw new Error("Borongan masih terhubung ke transaksi Buku Kas dan tidak dapat dihapus.");
+    }
+    throw new Error(`Gagal menghapus borongan subkontraktor: ${error.message}`);
+  }
+  if (!deleted) throw new Error("Borongan subkontraktor tidak ditemukan atau tidak dapat dihapus.");
+
   revalidatePath("/subcontractor-recap");
   revalidatePath("/cash-book");
   return { success: true };

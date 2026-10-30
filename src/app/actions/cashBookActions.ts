@@ -13,6 +13,7 @@ import {
 } from "@/lib/validation/cashBook";
 import {
   validateExpenseBookCategory,
+  normalizeExpenseCategory,
 } from "@/lib/accounting/expenseCategories";
 import { getSubcontractorPaymentOptions } from "@/app/actions/subcontractorActions";
 import { postCashBookEntryToJournal } from "@/lib/accounting/cashBookPosting";
@@ -26,6 +27,7 @@ export async function getCashBookTransactions(filter?: {
   month?: number;
   year?: number;
   category?: string;
+  book?: "ALL" | "GENERAL" | "PROJECT";
   cashAccountId?: string;
   projectId?: string;
 }) {
@@ -206,6 +208,26 @@ export async function getCashBookTransactions(filter?: {
     filtered = filtered.filter(
       (ent) => ent.type === "OPENING" || ent.project_id === filter.projectId
     );
+  }
+
+  if (filter?.book && filter.book !== "ALL") {
+    filtered = filtered.filter((entry) => {
+      if (entry.type === "OPENING") return true;
+      if (entry.type !== "EXPENSE") {
+        return filter.book === "PROJECT"
+          ? Boolean(entry.project_id)
+          : !entry.project_id;
+      }
+
+      const expenseBook = normalizeExpenseCategory(entry.category, "GENERAL")
+        ? "GENERAL"
+        : normalizeExpenseCategory(entry.category, "PROJECT")
+          ? "PROJECT"
+          : entry.project_id
+            ? "PROJECT"
+            : "GENERAL";
+      return expenseBook === filter.book;
+    });
   }
 
   return {
@@ -480,6 +502,19 @@ export async function backfillCashBookLedger(startDate: string, endDate: string)
  * Simpan transaksi cepat ala Excel
  */
 export async function createFastTransaction(rawInput: CreateFastTransactionInput) {
+  try {
+    const data = await createFastTransactionInternal(rawInput);
+    return { success: true as const, data };
+  } catch (error) {
+    console.error("Gagal menyimpan transaksi cepat Buku Kas:", error);
+    return {
+      success: false as const,
+      error: error instanceof Error ? error.message : "Gagal menyimpan transaksi Buku Kas.",
+    };
+  }
+}
+
+async function createFastTransactionInternal(rawInput: CreateFastTransactionInput) {
   const user = await requireAuthUser();
   const input = CreateFastTransactionSchema.parse(rawInput);
   const supabase = await createClient();
@@ -699,6 +734,7 @@ export async function createFastTransaction(rawInput: CreateFastTransactionInput
 
   revalidatePath("/cash-book");
   revalidatePath("/reports/rekapitulasi");
+  revalidatePath("/reports/project-recap");
   revalidatePath("/cash-accounts");
   revalidatePath("/dashboard");
   revalidatePath("/reports/cash-flow");
@@ -718,6 +754,7 @@ function revalidateCashBookReports(projectIds: Array<string | null | undefined>)
   [
     "/cash-book",
     "/reports/rekapitulasi",
+    "/reports/project-recap",
     "/cash-accounts",
     "/dashboard",
     "/reports/cash-flow",

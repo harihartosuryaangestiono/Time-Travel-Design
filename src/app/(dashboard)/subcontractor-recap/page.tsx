@@ -2,8 +2,14 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowDownToLine, Plus, RefreshCw, Wallet } from "lucide-react";
-import { createSubcontractorContract, getSubcontractorRecap } from "@/app/actions/subcontractorActions";
+import { ArrowDownToLine, Pencil, Plus, RefreshCw, Trash2, Wallet } from "lucide-react";
+import {
+  createSubcontractorContract,
+  deleteSubcontractorContract,
+  getSubcontractorRecap,
+  updateSubcontractorContract,
+} from "@/app/actions/subcontractorActions";
+import { DeleteConfirmDialog } from "@/components/modals/DeleteConfirmDialog";
 import { StatCard } from "@/components/ui/StatCard";
 
 type RecapData = Awaited<ReturnType<typeof getSubcontractorRecap>>;
@@ -12,7 +18,8 @@ function formatCurrency(amount: number) {
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
     currency: "IDR",
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(amount);
 }
 
@@ -25,6 +32,9 @@ export default function SubcontractorRecapPage() {
   const [subcontractorId, setSubcontractorId] = useState("");
   const [description, setDescription] = useState("");
   const [contractAmount, setContractAmount] = useState<number | "">("");
+  const [editingContract, setEditingContract] = useState<RecapData["contracts"][number] | null>(null);
+  const [deletingContract, setDeletingContract] = useState<RecapData["contracts"][number] | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -61,20 +71,59 @@ export default function SubcontractorRecapPage() {
     try {
       setIsSaving(true);
       setError(null);
-      await createSubcontractorContract({
+      const input = {
         projectId,
         subcontractorId,
         description,
         contractAmount: Number(contractAmount),
-      });
-      setDescription("");
-      setContractAmount("");
+      };
+      if (editingContract) {
+        await updateSubcontractorContract({ id: editingContract.id, ...input });
+      } else {
+        await createSubcontractorContract(input);
+      }
+      resetContractForm();
       await fetchData();
     } catch (err) {
       console.error("Gagal menyimpan borongan subkontraktor:", err);
       setError(err instanceof Error ? err.message : "Gagal menyimpan borongan.");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const resetContractForm = () => {
+    setEditingContract(null);
+    setProjectId("");
+    setSubcontractorId("");
+    setDescription("");
+    setContractAmount("");
+  };
+
+  const startEditingContract = (contract: RecapData["contracts"][number]) => {
+    setEditingContract(contract);
+    setProjectId(contract.projectId);
+    setSubcontractorId(contract.subcontractorId);
+    setDescription(contract.description);
+    setContractAmount(contract.contractAmount);
+    setError(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleDeleteContract = async () => {
+    if (!deletingContract) return;
+    try {
+      setIsDeleting(true);
+      setError(null);
+      await deleteSubcontractorContract(deletingContract.id);
+      setDeletingContract(null);
+      await fetchData();
+    } catch (err) {
+      console.error("Gagal menghapus borongan subkontraktor:", err);
+      setDeletingContract(null);
+      setError(err instanceof Error ? err.message : "Gagal menghapus borongan subkontraktor.");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -120,6 +169,11 @@ export default function SubcontractorRecapPage() {
 
       {data?.canManage && (
         <form onSubmit={handleCreate} className="grid gap-3 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm sm:grid-cols-2 lg:grid-cols-5">
+          <div className="sm:col-span-2 lg:col-span-5">
+            <h3 className="text-sm font-bold text-zinc-950">
+              {editingContract ? "Edit Borongan Subkontraktor" : "Tambah Borongan Subkontraktor"}
+            </h3>
+          </div>
           <div className="sm:col-span-1">
             <label className="mb-1 block text-[10px] font-bold uppercase text-zinc-500">Proyek *</label>
             <select required value={projectId} onChange={(event) => setProjectId(event.target.value)} className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs">
@@ -148,10 +202,17 @@ export default function SubcontractorRecapPage() {
             <input required type="number" min="1" step="1" value={contractAmount} onChange={(event) => setContractAmount(Number(event.target.value) || "")} placeholder="17000000" className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-right font-mono text-xs" />
           </div>
           <div className="flex items-end">
-            <button type="submit" disabled={isSaving || !data.projects.length || !data.subcontractors.length} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 text-xs font-semibold text-white hover:bg-black disabled:opacity-50">
-              <Plus className="h-4 w-4" />
-              {isSaving ? "Menyimpan..." : "Simpan Borongan"}
-            </button>
+            <div className="flex w-full gap-2">
+              {editingContract && (
+                <button type="button" onClick={resetContractForm} disabled={isSaving} className="h-10 rounded-xl border border-zinc-200 px-3 text-xs font-semibold text-zinc-700 hover:bg-zinc-50">
+                  Batal
+                </button>
+              )}
+              <button type="submit" disabled={isSaving || !data.projects.length || !data.subcontractors.length} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 text-xs font-semibold text-white hover:bg-black disabled:opacity-50">
+                {editingContract ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                {isSaving ? "Menyimpan..." : editingContract ? "Simpan Perubahan" : "Simpan Borongan"}
+              </button>
+            </div>
           </div>
         </form>
       )}
@@ -175,13 +236,14 @@ export default function SubcontractorRecapPage() {
               <th className="pb-3 text-right">Nilai Borongan</th>
               <th className="pb-3 text-right">Sudah Dibayar</th>
               <th className="pb-3 pr-2 text-right">Sisa</th>
+              {data?.canManage && <th className="pb-3 pr-2 text-right">Aksi</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100">
             {isLoading ? (
-              <tr><td colSpan={6} className="py-10 text-center text-zinc-400">Memuat rekapitulasi...</td></tr>
+              <tr><td colSpan={data?.canManage ? 7 : 6} className="py-10 text-center text-zinc-400">Memuat rekapitulasi...</td></tr>
             ) : !data?.contracts.length ? (
-              <tr><td colSpan={6} className="py-10 text-center text-zinc-400">Belum ada nilai borongan. Tambahkan proyek dan data subkontraktor terlebih dahulu.</td></tr>
+              <tr><td colSpan={data?.canManage ? 7 : 6} className="py-10 text-center text-zinc-400">Belum ada nilai borongan. Tambahkan proyek dan data subkontraktor terlebih dahulu.</td></tr>
             ) : data.contracts.map((contract) => (
               <tr key={contract.id} className="hover:bg-zinc-50">
                 <td className="py-3 pl-2"><span className="font-semibold text-zinc-900">{contract.projectName}</span><span className="ml-1 text-zinc-400">({contract.projectCode})</span></td>
@@ -190,11 +252,33 @@ export default function SubcontractorRecapPage() {
                 <td className="py-3 text-right font-mono">{formatCurrency(contract.contractAmount)}</td>
                 <td className="py-3 text-right font-mono text-emerald-700">{formatCurrency(contract.paidAmount)}</td>
                 <td className="py-3 pr-2 text-right font-mono font-bold text-amber-700">{formatCurrency(contract.remainingAmount)}</td>
+                {data.canManage && (
+                  <td className="py-3 pr-2 text-right">
+                    <button type="button" onClick={() => startEditingContract(contract)} aria-label={`Edit borongan ${contract.description}`} className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900">
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button type="button" onClick={() => setDeletingContract(contract)} aria-label={`Hapus borongan ${contract.description}`} className="rounded-lg p-1.5 text-zinc-500 hover:bg-rose-50 hover:text-rose-700">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      <DeleteConfirmDialog
+        isOpen={Boolean(deletingContract)}
+        onClose={() => setDeletingContract(null)}
+        onConfirm={handleDeleteContract}
+        title="Hapus borongan subkontraktor?"
+        description="Borongan yang sudah memiliki pembayaran tidak dapat dihapus."
+        itemName={deletingContract?.description}
+        isDeleting={isDeleting}
+        confirmLabel="Hapus Borongan"
+        deletingLabel="Menghapus..."
+        cancelLabel="Batal"
+      />
     </div>
   );
 }

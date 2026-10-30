@@ -44,7 +44,8 @@ function formatCurrency(amount: number) {
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
     currency: "IDR",
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(safe);
 }
 
@@ -73,6 +74,7 @@ export default function CashBookPage() {
   const [openingBalance, setOpeningBalance] = useState<number>(0);
   const [selectedMonth, setSelectedMonth] = useState<number>(0); // 0 = Semua
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
+  const [selectedBook, setSelectedBook] = useState<"ALL" | "GENERAL" | "PROJECT">("ALL");
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [recentDescriptions, setRecentDescriptions] = useState<string[]>([]);
   const [subcontractorContracts, setSubcontractorContracts] = useState<SubcontractorContractSummary[]>([]);
@@ -90,6 +92,7 @@ export default function CashBookPage() {
       const res = await getCashBookTransactions({
         month: selectedMonth > 0 ? selectedMonth : undefined,
         category: selectedCategory,
+        book: selectedBook,
         cashAccountId: selectedAccountId,
         projectId: selectedProjectId || undefined,
       });
@@ -150,7 +153,7 @@ export default function CashBookPage() {
 
   useEffect(() => {
     if (selectedAccountId) void fetchBookData();
-  }, [selectedMonth, selectedCategory, selectedAccountId, selectedProjectId]);
+  }, [selectedMonth, selectedCategory, selectedBook, selectedAccountId, selectedProjectId]);
 
   const projectNames = new Map(projects.map((project) => [project.id, `${project.code} — ${project.name}`]));
 
@@ -294,6 +297,22 @@ export default function CashBookPage() {
       {/* ── Filter Controls ── */}
       <div className="flex flex-col sm:flex-row items-center justify-between rounded-2xl border border-zinc-200 bg-white p-3.5 shadow-sm gap-3">
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <div className="flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-semibold">
+            <BookOpen className="h-3.5 w-3.5 text-zinc-400" />
+            <select
+              aria-label="Filter buku pengeluaran"
+              value={selectedBook}
+              onChange={(event) =>
+                setSelectedBook(event.target.value as "ALL" | "GENERAL" | "PROJECT")
+              }
+              className="bg-transparent font-medium text-zinc-900 focus:outline-none"
+            >
+              <option value="ALL">Semua buku</option>
+              <option value="GENERAL">Buku Besar — Umum</option>
+              <option value="PROJECT">Buku Kecil — Proyek</option>
+            </select>
+          </div>
+
           {/* Filter Bulan */}
           <div className="flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-semibold">
             <Calendar className="h-3.5 w-3.5 text-zinc-400" />

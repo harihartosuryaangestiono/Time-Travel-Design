@@ -18,6 +18,7 @@ export const GENERAL_EXPENSE_CATEGORIES = [
   "Office Consumption & Refreshment",
   "Hospitality & Representation",
   "Marketing & Sales",
+  "Charity",
   "Office Rent & Utilities",
   "Bank Administration Fee",
   "Office Renovation",
@@ -36,7 +37,11 @@ const LEGACY_CATEGORY_MAP: Record<string, string> = {
   "transportasi operasional": "Operational Transportation",
   "biaya konsumsi kantor": "Office Consumption & Refreshment",
   "biaya jamuan / representasi": "Hospitality & Representation",
+  "marketing and sales": "Marketing & Sales",
+  "marketing n sales": "Marketing & Sales",
+  "marketing sales": "Marketing & Sales",
   "biaya marketing": "Marketing & Sales",
+  "charity": "Charity",
   "biaya administrasi finansial": "Bank Administration Fee",
   "renovasi kantor": "Office Renovation",
   "legalitas perusahaan": "Company Legal",
@@ -57,7 +62,10 @@ export function normalizeExpenseCategory(
   const value = category?.trim();
   if (!value) return null;
   const categories: readonly string[] = getExpenseBookCategories(book);
-  if (categories.includes(value)) return value;
+  const matchingCategory = categories.find(
+    (candidate) => candidate.toLowerCase() === value.toLowerCase()
+  );
+  if (matchingCategory) return matchingCategory;
 
   const legacyCategory = LEGACY_CATEGORY_MAP[value.toLowerCase()];
   return legacyCategory && categories.includes(legacyCategory) ? legacyCategory : null;
