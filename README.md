@@ -56,6 +56,8 @@ Jalankan SQL di `supabase/migrations/001_enable_rls.sql` di Supabase SQL Editor
 
 Untuk memakai halaman Sales Person dan menghubungkan pembayaran komisi ke Buku Kas, jalankan juga `supabase/migrations/20261029_sales_commissions.sql` di Supabase SQL Editor.
 
+Jika menghapus transaksi Buku Kas, jalankan `supabase/migrations/20261030_cash_book_expense_delete.sql` untuk memberi izin hapus pengeluaran khusus Owner/Finance.
+
 ### 6. Buat Akun Owner
 
 1. Buat user di Supabase Dashboard > Authentication > Users

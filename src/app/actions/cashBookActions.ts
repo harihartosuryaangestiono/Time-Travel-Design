@@ -1108,6 +1108,10 @@ async function deleteCashBookTransactionInternal(
   id: string
 ): Promise<{ success: true }> {
   const user = await requireAuthUser();
+  if (!["OWNER", "FINANCE"].includes(user.role)) {
+    throw new Error("Hanya Owner atau Finance yang dapat menghapus transaksi Buku Kas.");
+  }
+
   const supabase = await createClient();
   const { table, data: original } = await getManualTransactionSource(
     supabase,
@@ -1183,8 +1187,15 @@ async function deleteCashBookTransactionInternal(
         restoreError = recoveryError instanceof Error ? recoveryError.message : "kesalahan tidak diketahui";
       }
     }
+    const deleteMessage = error
+      ? error.code === "23503"
+        ? "Transaksi masih digunakan oleh data lain dan tidak dapat dihapus."
+        : error.code === "42501"
+          ? "Database menolak penghapusan. Jalankan migrasi hak hapus Buku Kas di Supabase."
+          : error.message
+      : "Transaksi tidak terhapus. Periksa hak akses hapus pada tabel transaksi di Supabase.";
     throw new Error(
-      `Gagal menghapus transaksi: ${error?.message || "data transaksi tidak ditemukan."}${restoreError ? ` Pemulihan jurnal juga gagal: ${restoreError}` : ""}`
+      `Gagal menghapus transaksi: ${deleteMessage}${restoreError ? ` Pemulihan jurnal juga gagal: ${restoreError}` : ""}`
     );
   }
 
