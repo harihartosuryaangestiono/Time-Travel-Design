@@ -228,7 +228,7 @@ export function CashAccountModal({
                   id="cash-account-opening-balance"
                   type="number"
                   min="0"
-                  step="1"
+                  step="any"
                   value={formData.opening_balance || ""}
                   onChange={(e) =>
                     setFormData({
