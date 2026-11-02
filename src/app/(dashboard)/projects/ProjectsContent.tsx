@@ -533,6 +533,12 @@ export default function ProjectsContent() {
                         {formatCurrency(spent)}
                       </span>
                     </div>
+                    <div className="mt-2 flex items-center justify-between text-xs">
+                      <span className="font-semibold text-zinc-700">Keuntungan</span>
+                      <span className={`font-mono font-bold ${project.received_amount - spent < 0 ? "text-rose-700" : "text-emerald-700"}`}>
+                        {formatCurrency(project.received_amount - spent)}
+                      </span>
+                    </div>
 
                     {/* Progress Bar */}
                     <div className="mt-3">
