@@ -17,6 +17,10 @@ import {
   Pencil,
   Trash2,
   X,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
@@ -76,6 +80,8 @@ export default function CashBookPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [selectedBook, setSelectedBook] = useState<"ALL" | "GENERAL" | "PROJECT">("ALL");
   const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [recentDescriptions, setRecentDescriptions] = useState<string[]>([]);
   const [subcontractorContracts, setSubcontractorContracts] = useState<SubcontractorContractSummary[]>([]);
   const [salesAssignments, setSalesAssignments] = useState<SalesPersonProjectOption[]>([]);
@@ -154,6 +160,27 @@ export default function CashBookPage() {
   useEffect(() => {
     if (selectedAccountId) void fetchBookData();
   }, [selectedMonth, selectedCategory, selectedBook, selectedAccountId, selectedProjectId]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedMonth, selectedCategory, selectedBook, selectedAccountId, selectedProjectId]);
+
+  const totalPages = Math.max(1, Math.ceil(entries.length / pageSize));
+  const pageStart = entries.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const pageEnd = Math.min(currentPage * pageSize, entries.length);
+  const visibleEntries = entries.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const pageButtons: Array<number | "left-ellipsis" | "right-ellipsis"> = [];
+  if (totalPages <= 5) {
+    for (let page = 1; page <= totalPages; page++) pageButtons.push(page);
+  } else {
+    pageButtons.push(1);
+    if (currentPage > 3) pageButtons.push("left-ellipsis");
+    const windowStart = Math.max(2, currentPage - 1);
+    const windowEnd = Math.min(totalPages - 1, currentPage + 1);
+    for (let page = windowStart; page <= windowEnd; page++) pageButtons.push(page);
+    if (currentPage < totalPages - 2) pageButtons.push("right-ellipsis");
+    pageButtons.push(totalPages);
+  }
 
   const projectNames = new Map(projects.map((project) => [project.id, `${project.code} — ${project.name}`]));
 
@@ -414,8 +441,9 @@ export default function CashBookPage() {
       )}
 
       {/* ── Tabel Mutasi Buku Kas Ala Excel ── */}
-      <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm overflow-x-auto">
-        <table className="w-full text-left text-xs">
+      <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+        <div className="overflow-x-auto p-6 pb-0">
+        <table className="w-full min-w-[1050px] text-left text-xs">
           <thead>
             <tr className="border-b border-zinc-100 text-zinc-400 font-bold uppercase tracking-wider text-[10px]">
               <th className="pb-3 pl-2">Tanggal</th>
@@ -442,7 +470,7 @@ export default function CashBookPage() {
                 </td>
               </tr>
             ) : (
-              entries.map((ent) => (
+              visibleEntries.map((ent) => (
                 <tr key={ent.id} className="hover:bg-zinc-50/70 transition-colors">
                   <td className="py-3 pl-2 font-mono text-zinc-500 whitespace-nowrap">
                     {ent.date}
@@ -539,6 +567,91 @@ export default function CashBookPage() {
             )}
           </tbody>
         </table>
+        </div>
+        {!isLoading && entries.length > 0 && (
+          <div className="flex flex-col gap-4 border-t border-zinc-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <div className="flex flex-col gap-1 text-xs text-zinc-500 sm:flex-row sm:items-center sm:gap-3">
+              <span>
+                Menampilkan <strong className="font-semibold text-zinc-900">{pageStart}–{pageEnd}</strong> dari{" "}
+                <strong className="font-semibold text-zinc-900">{entries.length}</strong> mutasi
+              </span>
+              <label className="flex items-center gap-2">
+                Baris per halaman
+                <select
+                  aria-label="Jumlah baris per halaman"
+                  value={pageSize}
+                  onChange={(event) => {
+                    setPageSize(Number(event.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="h-8 rounded-lg border border-zinc-200 bg-white px-2 font-semibold text-zinc-700 outline-none transition focus:border-zinc-400"
+                >
+                  {[10, 25, 50, 100].map((size) => (
+                    <option key={size} value={size}>{size}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <nav aria-label="Navigasi halaman mutasi" className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+                aria-label="Halaman pertama"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 transition hover:border-zinc-300 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronsLeft className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                disabled={currentPage === 1}
+                aria-label="Halaman sebelumnya"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 transition hover:border-zinc-300 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <div className="flex items-center gap-1 px-1">
+                {pageButtons.map((page) => typeof page === "number" ? (
+                  <button
+                    key={page}
+                    type="button"
+                    onClick={() => setCurrentPage(page)}
+                    aria-label={`Halaman ${page}`}
+                    aria-current={currentPage === page ? "page" : undefined}
+                    className={`h-9 min-w-9 rounded-lg px-2.5 text-xs font-semibold transition ${
+                      currentPage === page
+                        ? "bg-zinc-950 text-white shadow-sm"
+                        : "text-zinc-600 hover:bg-zinc-100"
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ) : (
+                  <span key={page} aria-hidden="true" className="px-1 text-zinc-400">…</span>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                disabled={currentPage === totalPages}
+                aria-label="Halaman berikutnya"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 transition hover:border-zinc-300 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages}
+                aria-label="Halaman terakhir"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 transition hover:border-zinc-300 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronsRight className="h-4 w-4" />
+              </button>
+            </nav>
+          </div>
+        )}
       </div>
       {editingEntry && (
         <CashBookEntryEditor
