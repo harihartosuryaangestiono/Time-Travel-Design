@@ -21,6 +21,35 @@ interface CashAccountModalProps {
   accountToEdit?: CashAccountFormData | null;
 }
 
+function parseOpeningBalance(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return 0;
+
+  const normalized = trimmed.replace(/\s/g, "");
+  const lastComma = normalized.lastIndexOf(",");
+  const lastPeriod = normalized.lastIndexOf(".");
+  const hasBothSeparators = lastComma >= 0 && lastPeriod >= 0;
+  const decimalSeparator = hasBothSeparators
+    ? lastComma > lastPeriod ? "," : "."
+    : lastComma >= 0 ? "," : lastPeriod >= 0 ? "." : null;
+  const separatorCount = (normalized.match(/[,.]/g) || []).length;
+  const digitsAfterSeparator = decimalSeparator
+    ? normalized.length - normalized.lastIndexOf(decimalSeparator) - 1
+    : 0;
+  const isThousandsGrouping =
+    !hasBothSeparators && decimalSeparator &&
+    (separatorCount > 1 || digitsAfterSeparator === 3);
+  const canonical = isThousandsGrouping
+    ? normalized.replace(/[,.]/g, "")
+    : decimalSeparator
+      ? normalized
+          .replace(decimalSeparator === "," ? /\./g : /,/g, "")
+          .replace(decimalSeparator, ".")
+      : normalized;
+  const amount = Number(canonical);
+  return Number.isFinite(amount) && amount >= 0 ? amount : null;
+}
+
 export function CashAccountModal({
   isOpen,
   onClose,
@@ -36,6 +65,7 @@ export function CashAccountModal({
     account_number: "",
     opening_balance: 0,
   });
+  const [openingBalanceInput, setOpeningBalanceInput] = useState("0");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -50,6 +80,7 @@ export function CashAccountModal({
         account_number: accountToEdit.account_number || "",
         opening_balance: accountToEdit.opening_balance || 0,
       });
+      setOpeningBalanceInput(String(accountToEdit.opening_balance || 0));
     } else {
       setFormData({
         name: "",
@@ -58,6 +89,7 @@ export function CashAccountModal({
         account_number: "",
         opening_balance: 0,
       });
+      setOpeningBalanceInput("0");
     }
     setErrorMsg(null);
   }, [accountToEdit, isOpen]);
@@ -68,6 +100,11 @@ export function CashAccountModal({
     e.preventDefault();
     if (!formData.name.trim()) {
       setErrorMsg("Nama akun kas/bank wajib diisi.");
+      return;
+    }
+    const openingBalance = parseOpeningBalance(openingBalanceInput);
+    if (openingBalance === null) {
+      setErrorMsg("Saldo awal harus berupa angka nol atau lebih. Gunakan koma atau titik untuk desimal.");
       return;
     }
 
@@ -82,7 +119,7 @@ export function CashAccountModal({
           type: formData.type as "BANK" | "CASH",
           bank_name: formData.bank_name,
           account_number: formData.account_number,
-          opening_balance: Number(formData.opening_balance) || 0,
+          opening_balance: openingBalance,
         });
       } else {
         savedRecord = await createCashAccountRecord({
@@ -90,7 +127,7 @@ export function CashAccountModal({
           type: formData.type as "BANK" | "CASH",
           bank_name: formData.bank_name,
           account_number: formData.account_number,
-          opening_balance: Number(formData.opening_balance) || 0,
+          opening_balance: openingBalance,
         });
       }
 
@@ -226,17 +263,11 @@ export function CashAccountModal({
                 </span>
                 <input
                   id="cash-account-opening-balance"
-                  type="number"
-                  min="0"
-                  step="any"
-                  value={formData.opening_balance || ""}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      opening_balance: Number(e.target.value) || 0,
-                    })
-                  }
-                  placeholder="100000000"
+                  type="text"
+                  inputMode="decimal"
+                  value={openingBalanceInput}
+                  onChange={(e) => setOpeningBalanceInput(e.target.value)}
+                  placeholder="100000000,00"
                   className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-10 pr-3 font-mono text-xs font-bold text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
                 />
               </div>
