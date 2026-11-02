@@ -58,7 +58,7 @@ export default function RekapitulasiPage() {
     if (!data) return;
 
     const rows: string[] = [];
-    rows.push("PT. RUMA INOVASI INDONESIA");
+    rows.push("RUMA DESAIN INOVASI");
     rows.push("Time Travel Design");
     rows.push(`Laporan Keuangan Rekapitulasi - Tahun ${data.fiscalYear}`);
     rows.push("");
@@ -123,7 +123,7 @@ export default function RekapitulasiPage() {
         <div>
           <div className="flex items-center gap-2">
             <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-zinc-500">
-              PT. RUMA INOVASI INDONESIA
+              RUMA DESAIN INOVASI
             </span>
             <span className="text-zinc-300">•</span>
             <span className="text-[10px] font-semibold text-zinc-600">Time Travel Design</span>

@@ -217,7 +217,7 @@ export default function CashBookPage() {
         <div>
           <div className="flex items-center gap-2">
             <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-zinc-500">
-              PT. RUMA INOVASI INDONESIA
+              RUMA DESAIN INOVASI
             </span>
             <span className="text-zinc-300">•</span>
             <span className="text-[10px] font-semibold text-zinc-600">Time Travel Design</span>

@@ -143,6 +143,8 @@ export default function ProjectRecapListPage() {
             {projects.map((project) => {
               const status = getProjectStatus(project.status);
               const StatusIcon = status.Icon;
+              const totalCost = project.totalHpp + project.totalOpex + project.totalCapex;
+              const profit = project.totalRevenue - totalCost;
 
               return (
                 <Link
@@ -189,9 +191,9 @@ export default function ProjectRecapListPage() {
                   </div>
 
                   <div className="mt-5 flex items-center justify-between border-t border-zinc-100 pt-4 text-sm">
-                    <span className="font-semibold text-zinc-800">Rekap Proyek</span>
-                    <span className={`font-mono font-bold tabular-nums ${project.netIncome < 0 ? "text-rose-700" : "text-emerald-700"}`}>
-                      {formatCurrency(project.netIncome)}
+                    <span className="font-semibold text-zinc-800">Keuntungan</span>
+                    <span className={`font-mono font-bold tabular-nums ${profit < 0 ? "text-rose-700" : "text-emerald-700"}`}>
+                      {formatCurrency(profit)}
                     </span>
                   </div>
                 </Link>
