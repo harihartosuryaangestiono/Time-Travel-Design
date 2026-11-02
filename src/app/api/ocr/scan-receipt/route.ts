@@ -103,7 +103,7 @@ Extract the exact real data from this specific receipt:
 2. receiptNumber: The receipt / invoice number if visible, otherwise create an appropriate reference based on the date.
 3. date: The date on the receipt in YYYY-MM-DD format (convert from Indonesian format like 15/10/2026 or 15 Okt 2026).
 4. description: A clear concise summary of what was purchased.
-5. category: Use one of the project expense categories only when the receipt clearly describes project work: "Document Printing", "Project Material Procurement", "Worker Salary", "Rent & Utilities", "Project Transportation", "Subcontractor - Glass & Aluminium", "Subcontractor - Iron & Steel", "Subcontractor - Wood Door & Window", "Subcontractor - MEP", "Subcontractor - Interior", "Construction Waste". If it is not clear, return an empty string and let the user choose.
+5. category: Use one of the project expense categories only when the receipt clearly describes project work: "Document Printing", "Project Material Procurement", "Worker Salary", "Rent & Utilities", "Project Transportation", "Subcontractor - Glass & Aluminium", "Subcontractor - Iron & Steel", "Subcontractor - Wood Door & Window", "Subcontractor - MEP", "Subcontractor - Interior", "Subcontractor - Marmer", "Subcontractor - Sofa", "Subcontractor - Gorden", "Subcontractor - Rolling Door", "Construction Waste". If it is not clear, return an empty string and let the user choose.
 6. paymentMethod: Payment method if noted ("CASH", "BANK_TRANSFER", "DEBIT"). Default to "CASH" unless bank transfer info is written.
 7. items: Extract every single line item actually written on this receipt:
    - description: Item name as written on the receipt.

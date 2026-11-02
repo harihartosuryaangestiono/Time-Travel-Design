@@ -9,6 +9,10 @@ export const PROJECT_EXPENSE_CATEGORIES = [
   "Subcontractor - Wood Door & Window",
   "Subcontractor - MEP",
   "Subcontractor - Interior",
+  "Subcontractor - Marmer",
+  "Subcontractor - Sofa",
+  "Subcontractor - Gorden",
+  "Subcontractor - Rolling Door",
   "Construction Waste",
 ] as const;
 

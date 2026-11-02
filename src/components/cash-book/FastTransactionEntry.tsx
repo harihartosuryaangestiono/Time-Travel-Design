@@ -41,6 +41,10 @@ function guessCategory(desc: string, book: ExpenseBook): string | null {
     if (lower.includes("gaji") || lower.includes("gajian") || lower.includes("thr") || lower.includes("upah")) return "Worker Salary";
     if (lower.includes("kaca") || lower.includes("glass") || lower.includes("aluminium") || lower.includes("aluminum")) return "Subcontractor - Glass & Aluminium";
     if (lower.includes("baja") || lower.includes("besi") || lower.includes("steel")) return "Subcontractor - Iron & Steel";
+    if (lower.includes("marmer") || lower.includes("marble")) return "Subcontractor - Marmer";
+    if (lower.includes("sofa")) return "Subcontractor - Sofa";
+    if (lower.includes("gorden") || lower.includes("curtain")) return "Subcontractor - Gorden";
+    if (lower.includes("rolling door") || lower.includes("rollingdoor")) return "Subcontractor - Rolling Door";
     if (lower.includes("pintu") || lower.includes("jendela") || lower.includes("door") || lower.includes("window")) return "Subcontractor - Wood Door & Window";
     if (lower.includes("mep") || lower.includes("listrik") || lower.includes("plumbing")) return "Subcontractor - MEP";
     if (lower.includes("interior") || lower.includes("furniture")) return "Subcontractor - Interior";
