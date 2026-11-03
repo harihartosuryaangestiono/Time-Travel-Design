@@ -97,6 +97,9 @@ export function FastTransactionEntry({
   const selectedSalesAssignment = salesAssignments.find(
     (assignment) => `${assignment.salesPersonId}:${assignment.projectId}` === salesAssignmentKey
   );
+  const projectSubcontractorContracts = subcontractorContracts.filter(
+    (contract) => contract.projectId === projectId
+  );
 
   useEffect(() => {
     if (!accounts.some((account) => account.id === cashAccountId)) {
@@ -386,10 +389,12 @@ export function FastTransactionEntry({
               }}
               className="h-9 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 text-xs font-semibold text-zinc-900"
             >
-              <option value="">Tidak terkait borongan</option>
-              {subcontractorContracts.map((contract) => (
+              <option value="">
+                {projectId ? "Tidak terkait borongan" : "Pilih proyek terlebih dahulu"}
+              </option>
+              {projectSubcontractorContracts.map((contract) => (
                 <option key={contract.id} value={contract.id} disabled={contract.remainingAmount <= 0}>
-                  {contract.projectName} — {contract.subcontractorName}: sisa {new Intl.NumberFormat("id-ID").format(contract.remainingAmount)}
+                  {contract.subcontractorName}: sisa {new Intl.NumberFormat("id-ID").format(contract.remainingAmount)}
                 </option>
               ))}
             </select>
