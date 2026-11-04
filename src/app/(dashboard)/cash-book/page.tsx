@@ -72,7 +72,7 @@ const MONTH_NAMES = [
 export default function CashBookPage() {
   const [entries, setEntries] = useState<CashBookEntry[]>([]);
   const [accounts, setAccounts] = useState<Array<{ id: string; name: string; opening_balance: number }>>([]);
-  const [projects, setProjects] = useState<Array<{ id: string; name: string; code: string }>>([]);
+  const [projects, setProjects] = useState<Array<{ id: string; name: string; code: string; status: string }>>([]);
   const [selectedAccountId, setSelectedAccountId] = useState("");
   const [currentBalance, setCurrentBalance] = useState<number>(0);
   const [openingBalance, setOpeningBalance] = useState<number>(0);
@@ -131,6 +131,7 @@ export default function CashBookPage() {
           id: project.id,
           name: project.name,
           code: project.code,
+          status: project.status,
         })));
         setSubcontractorContracts(contracts);
         setSalesAssignments(salesOptions);

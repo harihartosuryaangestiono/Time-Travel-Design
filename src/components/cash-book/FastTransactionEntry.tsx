@@ -25,7 +25,7 @@ import {
 interface FastTransactionEntryProps {
   onSuccess: () => void;
   recentDescriptions?: string[];
-  projects?: Array<{ id: string; name: string }>;
+  projects?: Array<{ id: string; name: string; status: string }>;
   accounts: Array<{ id: string; name: string; opening_balance: number }>;
   subcontractorContracts?: SubcontractorContractSummary[];
   salesAssignments?: SalesPersonProjectOption[];
@@ -100,6 +100,10 @@ export function FastTransactionEntry({
   const projectSubcontractorContracts = subcontractorContracts.filter(
     (contract) => contract.projectId === projectId
   );
+  const projectOptions =
+    type === "EXPENSE" && expenseBook === "PROJECT"
+      ? projects.filter((project) => project.status === "ACTIVE")
+      : projects;
 
   useEffect(() => {
     if (!accounts.some((account) => account.id === cashAccountId)) {
@@ -362,7 +366,7 @@ export function FastTransactionEntry({
               className="h-9 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 text-xs font-semibold text-zinc-900"
             >
               <option value="">{type === "EXPENSE" ? "Pilih proyek" : "Tidak terkait proyek"}</option>
-              {projects.map((project) => (
+              {projectOptions.map((project) => (
                 <option key={project.id} value={project.id}>{project.name}</option>
               ))}
             </select>
