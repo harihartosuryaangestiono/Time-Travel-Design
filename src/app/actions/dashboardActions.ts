@@ -392,7 +392,8 @@ export async function getIncomeVsExpense(months: number = 6) {
     const [{ data: revenues, error: revenuesError },
       { data: receipts, error: receiptsError },
       { data: payments, error: paymentsError },
-      { data: expenseData, error: expensesError }] = await Promise.all([
+      { data: expenseData, error: expensesError },
+      { data: invoicesForMonth, error: invoicesError }] = await Promise.all([
         supabase
           .from("project_revenues")
           .select("amount")
@@ -420,11 +421,19 @@ export async function getIncomeVsExpense(months: number = 6) {
           .in("status", ["APPROVED", "POSTED"])
           .gte("date", startDate)
           .lte("date", endOfDay),
+        supabase
+          .from("invoices")
+          .select("total, status")
+          .eq("organization_id", user.organizationId)
+          .in("status", ["ISSUED", "PARTIAL", "PAID", "OVERDUE", "CREDIT_NOTE"])
+          .gte("invoice_date", startDate)
+          .lte("invoice_date", endOfDay),
       ]);
     if (revenuesError) throw new Error(`Gagal memuat pendapatan proyek untuk grafik: ${revenuesError.message}`);
     if (receiptsError) throw new Error(`Gagal memuat penerimaan untuk grafik: ${receiptsError.message}`);
     if (paymentsError) throw new Error(`Gagal memuat pembayaran invoice untuk grafik: ${paymentsError.message}`);
     if (expensesError) throw new Error(`Gagal memuat pengeluaran untuk grafik: ${expensesError.message}`);
+    if (invoicesError) throw new Error(`Gagal memuat omzet invoice untuk grafik: ${invoicesError.message}`);
 
     const sumAmounts = (rows: Array<{ amount?: string | number | null }> | null) =>
       (rows || []).reduce((sum, row) => {
@@ -440,6 +449,11 @@ export async function getIncomeVsExpense(months: number = 6) {
 
     const profit = incSum - expSum;
     const margin = incSum > 0 ? Math.round((profit / incSum) * 1000) / 10 : 0;
+    const turnover = (invoicesForMonth || []).reduce((sum, invoice) => {
+      const amount = Number(invoice.total || 0);
+      if (!Number.isFinite(amount)) return sum;
+      return sum + (invoice.status === "CREDIT_NOTE" ? -amount : amount);
+    }, 0);
 
     result.push({
       month: monthName,
@@ -447,6 +461,7 @@ export async function getIncomeVsExpense(months: number = 6) {
       expense: expSum,
       profit: profit,
       margin: margin,
+      turnover,
     });
   }
 

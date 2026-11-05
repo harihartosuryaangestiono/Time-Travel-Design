@@ -106,7 +106,9 @@ export default function DashboardContent() {
   const analyticsRef = useRef<HTMLDivElement>(null);
   const analyticsInView = useInView(analyticsRef, { once: true, margin: "100px 0px" });
   const [period, setPeriod] = useState("ytd");
-  const [chartView, setChartView] = useState<"flow" | "margin">("flow");
+  const [chartView, setChartView] = useState<
+    "flow" | "income" | "expense" | "profit" | "turnover" | "margin"
+  >("flow");
   const [isLoading, setIsLoading] = useState(true);
   const [txFilter, setTxFilter] = useState<"all" | "expense">("all");
 
@@ -130,7 +132,7 @@ export default function DashboardContent() {
   >([]);
 
   const [trendData, setTrendData] = useState<
-    { month: string; income: number; expense: number; profit: number; margin: number }[]
+    { month: string; income: number; expense: number; profit: number; margin: number; turnover: number }[]
   >([]);
 
   const [expenseCategories, setExpenseCategories] = useState<
@@ -237,6 +239,27 @@ export default function DashboardContent() {
     trendData.length > 0
       ? Math.round(trendData.reduce((s, t) => s + t.profit, 0) / trendData.length)
       : 0;
+  const avgTurnover =
+    trendData.length > 0
+      ? Math.round(trendData.reduce((s, t) => s + t.turnover, 0) / trendData.length)
+      : 0;
+
+  const chartSeries = {
+    income: { name: "Pemasukan Kas", color: "#10B981" },
+    expense: { name: "Pengeluaran", color: "#F43F5E" },
+    profit: { name: "Laba Bersih", color: "#6366F1" },
+    turnover: { name: "Omzet Tagihan", color: "#0EA5E9" },
+    margin: { name: "Margin Bersih", color: "#8B5CF6" },
+  } as const;
+  const activeChartSeries = chartView === "flow" ? chartSeries.income : chartSeries[chartView];
+  const chartDescriptions = {
+    flow: "Perbandingan penerimaan kas dan pengeluaran tiap bulan",
+    income: "Uang yang benar-benar diterima tiap bulan",
+    expense: "Pengeluaran yang disetujui atau sudah diposting tiap bulan",
+    profit: "Pemasukan kas dikurangi pengeluaran tiap bulan",
+    turnover: "Nilai invoice non-draft berdasarkan tanggal invoice",
+    margin: "Persentase laba bersih terhadap pemasukan kas tiap bulan",
+  } satisfies Record<typeof chartView, string>;
 
   // Persentase serapan anggaran proyek aktif
   const totalContractProjects = projects.reduce((s, p) => s + p.contract, 0);
@@ -504,65 +527,59 @@ export default function DashboardContent() {
 
       {/* ── Deep Analytics Section (Charts) ── */}
       <div ref={analyticsRef} className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        {/* Main Chart: Cash Flow & Trends (7 cols) */}
-        <SpotlightCard className="dashboard-card dashboard-analytics-card p-6 lg:col-span-7">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-zinc-100 pb-4">
+        {/* Main Chart: Cash Flow & Trends (8 cols) */}
+        <SpotlightCard className="dashboard-card dashboard-analytics-card p-6 lg:col-span-8">
+          <div className="flex flex-col gap-4 border-b border-zinc-100 pb-4">
             <div>
               <h3 className="text-base font-bold text-zinc-950 flex items-center gap-2">
                 <BarChart3 className="h-5 w-5 text-zinc-950" />
-                Dinamika Arus Kas &amp; Pertumbuhan Laba
+                Analisis Keuangan Bulanan
               </h3>
               <p className="text-xs text-zinc-500 mt-0.5">
-                Perbandingan riil pemasukan vs pengeluaran 6 bulan terakhir
+                {chartDescriptions[chartView]}
               </p>
             </div>
 
             {/* View Switcher */}
-            <div className="flex items-center rounded-xl border border-zinc-200/70 bg-zinc-100/80 p-1 text-xs font-medium">
-              <button
-                onClick={() => setChartView("flow")}
-                className={cn(
-                  "relative rounded-lg px-2.5 py-1 transition-colors",
-                  chartView === "flow"
-                    ? "font-bold text-zinc-950"
-                    : "text-zinc-500 hover:text-zinc-900"
-                )}
-              >
-                {chartView === "flow" && (
-                  <motion.span
-                    layoutId="dashboard-chart-indicator"
-                    className="absolute inset-0 rounded-lg bg-white shadow-sm"
-                    transition={
-                      reducedMotion
-                        ? { duration: 0 }
-                        : { type: "spring", stiffness: 420, damping: 34 }
-                    }
-                  />
-                )}
-                <span className="relative z-10">Pemasukan vs Biaya</span>
-              </button>
-              <button
-                onClick={() => setChartView("margin")}
-                className={cn(
-                  "relative rounded-lg px-2.5 py-1 transition-colors",
-                  chartView === "margin"
-                    ? "font-bold text-zinc-950"
-                    : "text-zinc-500 hover:text-zinc-900"
-                )}
-              >
-                {chartView === "margin" && (
-                  <motion.span
-                    layoutId="dashboard-chart-indicator"
-                    className="absolute inset-0 rounded-lg bg-white shadow-sm"
-                    transition={
-                      reducedMotion
-                        ? { duration: 0 }
-                        : { type: "spring", stiffness: 420, damping: 34 }
-                    }
-                  />
-                )}
-                <span className="relative z-10">Laba Bersih</span>
-              </button>
+            <div
+              role="group"
+              aria-label="Pilih grafik keuangan"
+              className="flex w-full max-w-full gap-1 overflow-x-auto rounded-xl border border-zinc-200/70 bg-zinc-100/80 p-1 text-xs font-medium"
+            >
+              {([
+                ["flow", "Arus Kas"],
+                ["income", "Pemasukan"],
+                ["expense", "Pengeluaran"],
+                ["profit", "Laba Bersih"],
+                ["turnover", "Omzet"],
+                ["margin", "Margin"],
+              ] as const).map(([view, label]) => (
+                <button
+                  key={view}
+                  type="button"
+                  aria-pressed={chartView === view}
+                  onClick={() => setChartView(view)}
+                  className={cn(
+                    "relative shrink-0 whitespace-nowrap rounded-lg px-3 py-2 transition-colors",
+                    chartView === view
+                      ? "font-bold text-zinc-950"
+                      : "text-zinc-500 hover:text-zinc-900"
+                  )}
+                >
+                  {chartView === view && (
+                    <motion.span
+                      layoutId="dashboard-chart-indicator"
+                      className="absolute inset-0 rounded-lg bg-white shadow-sm"
+                      transition={
+                        reducedMotion
+                          ? { duration: 0 }
+                          : { type: "spring", stiffness: 420, damping: 34 }
+                      }
+                    />
+                  )}
+                  <span className="relative z-10">{label}</span>
+                </button>
+              ))}
             </div>
           </div>
 
@@ -681,7 +698,9 @@ export default function DashboardContent() {
                     />
                     <YAxis
                       tick={{ fontSize: 11, fill: "#71717A" }}
-                      tickFormatter={(val) => formatShortIDR(val)}
+                      tickFormatter={(val) =>
+                        chartView === "margin" ? `${val}%` : formatShortIDR(val)
+                      }
                       axisLine={false}
                       tickLine={false}
                     />
@@ -691,8 +710,14 @@ export default function DashboardContent() {
                           return (
                             <div className="dashboard-chart-tooltip rounded-xl border border-zinc-200 bg-white p-3 text-xs">
                               <p className="font-bold text-zinc-900">{label}</p>
-                              <p className="text-emerald-700 font-semibold">
-                                Laba Bersih: <AnimatedNumber value={Number(payload[0]?.value || 0)} format={formatIDR} />
+                              <p className="font-semibold" style={{ color: activeChartSeries.color }}>
+                                {activeChartSeries.name}:{" "}
+                                <AnimatedNumber
+                                  value={Number(payload[0]?.value || 0)}
+                                  format={chartView === "margin"
+                                    ? (value) => `${Number(value.toFixed(1))}%`
+                                    : formatIDR}
+                                />
                               </p>
                             </div>
                           );
@@ -701,9 +726,9 @@ export default function DashboardContent() {
                       }}
                     />
                     <Bar
-                      dataKey="profit"
-                      name="Laba Bersih"
-                      fill="#18181B"
+                      dataKey={chartView}
+                      name={activeChartSeries.name}
+                      fill={activeChartSeries.color}
                       radius={[6, 6, 0, 0]}
                       isAnimationActive={!reducedMotion}
                       animationDuration={900}
@@ -716,7 +741,7 @@ export default function DashboardContent() {
             )}
           </div>
 
-          <div className="mt-4 grid grid-cols-3 gap-2 rounded-2xl bg-zinc-50 p-3 text-center text-xs">
+          <div className="mt-4 grid grid-cols-2 gap-2 rounded-2xl bg-zinc-50 p-3 text-center text-xs sm:grid-cols-4">
             <div>
               <span className="text-zinc-500">Rata-rata Pemasukan</span>
               <p className="font-bold text-zinc-900 mt-0.5">
@@ -730,16 +755,22 @@ export default function DashboardContent() {
               </p>
             </div>
             <div>
-              <span className="text-zinc-500">Rata-rata Laba</span>
+              <span className="text-zinc-500">Rata-rata Laba Bersih</span>
               <p className="font-bold text-emerald-700 mt-0.5">
                 <AnimatedNumber value={avgProfit} format={formatShortIDR} /> / bln
+              </p>
+            </div>
+            <div>
+              <span className="text-zinc-500">Rata-rata Omzet</span>
+              <p className="font-bold text-sky-700 mt-0.5">
+                <AnimatedNumber value={avgTurnover} format={formatShortIDR} /> / bln
               </p>
             </div>
           </div>
         </SpotlightCard>
 
-        {/* Expense Category Breakdown (5 cols) */}
-        <SpotlightCard className="dashboard-card dashboard-analytics-card flex flex-col justify-between p-6 lg:col-span-5">
+        {/* Expense Category Breakdown (4 cols) */}
+        <SpotlightCard className="dashboard-card dashboard-analytics-card flex flex-col justify-between p-6 lg:col-span-4">
           <div>
             <div className="flex items-center justify-between border-b border-zinc-100 pb-4">
               <div>
