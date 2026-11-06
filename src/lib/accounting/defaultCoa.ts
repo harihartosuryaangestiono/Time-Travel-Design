@@ -84,6 +84,7 @@ export const EXCEL_CATEGORY_TO_ACCOUNT_CODE: Record<string, string> = {
   "Subcontractor - Sofa": "5100",
   "Subcontractor - Gorden": "5100",
   "Subcontractor - Rolling Door": "5100",
+  "Subcontractor - Rayap": "5100",
   "Construction Waste": "5400",
 
   // Buku Besar
