@@ -78,6 +78,10 @@ export function normalizeExpenseCategory(
   return legacyCategory && categories.includes(legacyCategory) ? legacyCategory : null;
 }
 
+export function isSalesMarketingCategory(category: string | null | undefined): boolean {
+  return normalizeExpenseCategory(category, "GENERAL") === "Marketing & Sales";
+}
+
 export function validateExpenseBookCategory(
   category: string | null | undefined,
   book: ExpenseBook

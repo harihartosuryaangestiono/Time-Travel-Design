@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireAuthUser } from "@/lib/auth/auth";
 import { EXCEL_CATEGORY_TO_ACCOUNT_CODE } from "@/lib/accounting/defaultCoa";
+import { isSalesMarketingCategory } from "@/lib/accounting/expenseCategories";
 import { createJournal, postJournal } from "@/lib/accounting/journalService";
 
 export interface CashBookJournalInput {
@@ -110,20 +111,24 @@ export async function postCashBookEntryToJournal(input: CashBookJournalInput) {
   }
 
   const cashIsDebit = input.transactionType !== "EXPENSE";
+  const projectId =
+    input.transactionType === "EXPENSE" && isSalesMarketingCategory(input.category)
+      ? undefined
+      : input.projectId || undefined;
   const lines = [
     {
       account_id: cashIsDebit ? cashAccountId : offsetAccountId,
       debit: cashIsDebit ? amount : 0,
       credit: cashIsDebit ? 0 : amount,
       description: input.description,
-      project_id: cashIsDebit ? undefined : input.projectId || undefined,
+      project_id: cashIsDebit ? undefined : projectId,
     },
     {
       account_id: cashIsDebit ? offsetAccountId : cashAccountId,
       debit: cashIsDebit ? 0 : amount,
       credit: cashIsDebit ? amount : 0,
       description: input.description,
-      project_id: cashIsDebit ? input.projectId || undefined : undefined,
+      project_id: cashIsDebit ? projectId : undefined,
     },
   ];
 

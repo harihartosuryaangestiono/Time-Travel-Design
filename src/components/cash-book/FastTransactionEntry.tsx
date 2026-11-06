@@ -19,8 +19,10 @@ import type { SubcontractorContractSummary } from "@/app/actions/subcontractorAc
 import type { SalesPersonProjectOption } from "@/app/actions/salesActions";
 import {
   getExpenseBookCategories,
+  isSalesMarketingCategory,
   type ExpenseBook,
 } from "@/lib/accounting/expenseCategories";
+import { parseAmountInput } from "@/lib/parseAmount";
 
 interface FastTransactionEntryProps {
   onSuccess: () => void;
@@ -36,6 +38,9 @@ interface FastTransactionEntryProps {
 // Heuristik Saran Kategori Otomatis berdasarkan kata kunci
 function guessCategory(desc: string, book: ExpenseBook): string | null {
   const lower = desc.toLowerCase();
+  if (lower.includes("sales person") || lower.includes("komisi") || lower.includes("ads") || lower.includes("iklan") || lower.includes("instagram") || lower.includes("flyer") || lower.includes("marketing") || lower.includes("brosur")) {
+    return "Marketing & Sales";
+  }
   if (book === "PROJECT") {
     if (lower.includes("print") || lower.includes("cetak")) return "Document Printing";
     if (lower.includes("gaji") || lower.includes("gajian") || lower.includes("thr") || lower.includes("upah")) return "Worker Salary";
@@ -83,7 +88,7 @@ export function FastTransactionEntry({
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
-  const [amount, setAmount] = useState<number | "">("");
+  const [amount, setAmount] = useState("");
   const [type, setType] = useState<"INCOME" | "EXPENSE">("EXPENSE");
   const [expenseBook, setExpenseBook] = useState<ExpenseBook>(defaultProjectId ? "PROJECT" : "GENERAL");
   const [cashAccountId, setCashAccountId] = useState("");
@@ -107,6 +112,7 @@ export function FastTransactionEntry({
     type === "EXPENSE" && expenseBook === "PROJECT"
       ? projects.filter((project) => project.status === "ACTIVE")
       : projects;
+  const isProjectEntry = Boolean(defaultProjectId);
 
   useEffect(() => {
     if (!accounts.some((account) => account.id === cashAccountId)) {
@@ -114,13 +120,29 @@ export function FastTransactionEntry({
     }
   }, [accounts, cashAccountId]);
 
+  const handleCategoryChange = (value: string) => {
+    setCategory(value);
+    if (type === "EXPENSE" && isSalesMarketingCategory(value)) {
+      setExpenseBook("GENERAL");
+      if (!defaultProjectId) setProjectId("");
+      setSubcontractorContractId("");
+      return;
+    }
+
+    setSalesAssignmentKey("");
+    if (type === "EXPENSE" && defaultProjectId) {
+      setExpenseBook("PROJECT");
+      setProjectId(defaultProjectId);
+    }
+  };
+
   const handleDescChange = (val: string, book = expenseBook) => {
     setDescription(val);
     const suggested = type === "EXPENSE" ? guessCategory(val, book) : null;
     if (suggested) {
       setSmartSuggestion(suggested);
       if (!category) {
-        setCategory(suggested);
+        handleCategoryChange(suggested);
       }
     } else {
       setSmartSuggestion(null);
@@ -141,7 +163,8 @@ export function FastTransactionEntry({
       setErrorMsg("Pilih rekening atau kas yang menerima atau membayar transaksi.");
       return;
     }
-    if (!amount || Number(amount) <= 0) {
+    const parsedAmount = parseAmountInput(amount);
+    if (parsedAmount === null || parsedAmount <= 0) {
       setErrorMsg("Nominal pengeluaran harus lebih besar dari 0.");
       return;
     }
@@ -154,7 +177,7 @@ export function FastTransactionEntry({
         date,
         description: description.trim(),
         category,
-        amount: Number(amount),
+        amount: parsedAmount,
         type,
         project_id:
           type === "INCOME"
@@ -209,8 +232,7 @@ export function FastTransactionEntry({
           const rowDate = cols[0]?.trim() || new Date().toISOString().split("T")[0];
           const rowDesc = cols[1]?.trim() || "";
           const rowCat = cols[2]?.trim() || guessCategory(rowDesc, expenseBook) || "";
-          const rawAmt = (cols[3] || "").replace(/[^0-9.]/g, "");
-          const rowAmt = parseFloat(rawAmt) || 0;
+          const rowAmt = parseAmountInput(cols[3] || "") || 0;
 
           if (rowDesc && rowAmt > 0) {
             const result = await createFastTransaction({
@@ -278,7 +300,7 @@ export function FastTransactionEntry({
           </div>
           <button
             type="button"
-            onClick={() => setCategory(smartSuggestion)}
+            onClick={() => handleCategoryChange(smartSuggestion)}
             className="font-bold underline hover:text-blue-950"
           >
             Terapkan
@@ -459,14 +481,7 @@ export function FastTransactionEntry({
           <select
             required
             value={category}
-            onChange={(e) => {
-              setCategory(e.target.value);
-              if (e.target.value !== "Marketing & Sales") {
-                setSalesAssignmentKey("");
-              } else {
-                setSubcontractorContractId("");
-              }
-            }}
+            onChange={(e) => handleCategoryChange(e.target.value)}
             className={`h-9 w-full rounded-xl border px-2.5 text-xs font-semibold focus:border-zinc-950 focus:bg-white focus:outline-none ${
               category ? "border-zinc-200 bg-zinc-50 text-zinc-900" : "border-amber-300 bg-amber-50/50 text-amber-800"
             }`}
@@ -479,6 +494,17 @@ export function FastTransactionEntry({
                 <option value="Bunga Bank">Bunga Bank</option>
                 <option value="Pemasukan Lainnya">Pemasukan Lainnya</option>
               </optgroup>
+            ) : isProjectEntry ? (
+              <>
+                <optgroup label="Buku Kecil — Pengeluaran Proyek">
+                  {getExpenseBookCategories("PROJECT").map((expenseCategory) => (
+                    <option key={expenseCategory} value={expenseCategory}>{expenseCategory}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Buku Besar">
+                  <option value="Marketing & Sales">Marketing &amp; Sales</option>
+                </optgroup>
+              </>
             ) : (
               <optgroup label={expenseBook === "PROJECT" ? "Buku Kecil — Pengeluaran Proyek" : "Buku Besar — Pengeluaran Umum"}>
                 {getExpenseBookCategories(expenseBook).map((expenseCategory) => (
@@ -533,14 +559,12 @@ export function FastTransactionEntry({
             Nominal (Rp) *
           </label>
           <input
-            type="number"
-            min="1"
-            step="1"
-            inputMode="numeric"
+            type="text"
+            inputMode="decimal"
             required
-            placeholder="0"
+            placeholder="0,00"
             value={amount}
-            onChange={(e) => setAmount(parseFloat(e.target.value) || "")}
+            onChange={(e) => setAmount(e.target.value)}
             className="h-9 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 font-mono text-xs font-bold text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none text-right"
           />
         </div>

@@ -5,6 +5,7 @@ import { requireAuthUser } from "@/lib/auth/auth";
 import { getAccountsWithCalculatedBalance } from "@/lib/accounting/cashBalance";
 import {
   GENERAL_EXPENSE_CATEGORIES,
+  isSalesMarketingCategory,
   PROJECT_EXPENSE_CATEGORIES,
   normalizeExpenseCategory,
 } from "@/lib/accounting/expenseCategories";
@@ -191,7 +192,11 @@ async function getProjectRekapitulasiRows(
     }> = [];
 
     (directExpenses || []).forEach((expense) => {
-      if (expense.project_id !== project.id || allocatedIds.has(expense.id)) return;
+      if (
+        expense.project_id !== project.id ||
+        allocatedIds.has(expense.id) ||
+        isSalesMarketingCategory(expense.category)
+      ) return;
       projectExpenses.push({
         id: expense.id,
         date: expense.date ? new Date(expense.date).toISOString().slice(0, 10) : "",
@@ -204,7 +209,7 @@ async function getProjectRekapitulasiRows(
     (allocations || []).forEach((allocation) => {
       if (allocation.project_id !== project.id) return;
       const expense = allocationExpenseById.get(allocation.expense_id);
-      if (!expense) return;
+      if (!expense || isSalesMarketingCategory(expense.category)) return;
       projectExpenses.push({
         id: allocation.id,
         date: expense.date ? new Date(expense.date).toISOString().slice(0, 10) : "",

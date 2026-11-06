@@ -12,6 +12,7 @@ import {
   type UpdateCashBookTransactionInput,
 } from "@/lib/validation/cashBook";
 import {
+  isSalesMarketingCategory,
   validateExpenseBookCategory,
   normalizeExpenseCategory,
 } from "@/lib/accounting/expenseCategories";
@@ -1001,7 +1002,12 @@ export async function updateCashBookTransaction(rawInput: UpdateCashBookTransact
 
   if (journal && cashLine && offsetLine && offsetAccountId) {
     const amount = input.amount.toFixed(2);
-    const projectId = isExpense || isProjectRevenue ? input.project_id || null : null;
+    const projectId =
+      isExpense && isSalesMarketingCategory(input.category)
+        ? null
+        : isExpense || isProjectRevenue
+          ? input.project_id || null
+          : null;
     const cashUpdate = isExpense
       ? { debit: "0.00", credit: amount, description: input.description, project_id: null }
       : { debit: amount, credit: "0.00", description: input.description, project_id: null };

@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireAuthUser } from "@/lib/auth/auth";
 import { getAccountsWithCalculatedBalance } from "@/lib/accounting/cashBalance";
+import { isSalesMarketingCategory } from "@/lib/accounting/expenseCategories";
 
 function formatLocalDate(date: Date) {
   const year = date.getFullYear();
@@ -80,7 +81,7 @@ export async function getDashboardMetrics(period?: {
         .lte("date", `${endDate}T23:59:59.999Z`),
       supabase
         .from("invoices")
-        .select("id")
+        .select("id, category")
         .eq("organization_id", orgId),
     ]);
   if (projectRevenuesError) throw new Error(`Gagal memuat pendapatan proyek dashboard: ${projectRevenuesError.message}`);
@@ -264,14 +265,14 @@ export async function getProjectBudgetSummary(limit: number = 5) {
       allocatedExpenseIds.length
         ? supabase
             .from("expenses")
-            .select("id")
+            .select("id, category")
             .eq("organization_id", user.organizationId)
             .in("id", allocatedExpenseIds)
             .in("status", ["APPROVED", "POSTED"])
         : Promise.resolve({ data: [], error: null }),
       supabase
         .from("expenses")
-        .select("id, project_id, total_amount")
+        .select("id, project_id, total_amount, category")
         .eq("organization_id", user.organizationId)
         .in("project_id", projectIds)
         .in("status", ["APPROVED", "POSTED"]),
@@ -279,7 +280,11 @@ export async function getProjectBudgetSummary(limit: number = 5) {
   if (allocatedExpensesError) throw new Error(`Gagal memuat pengeluaran alokasi dashboard: ${allocatedExpensesError.message}`);
   if (directExpensesError) throw new Error(`Gagal memuat pengeluaran proyek dashboard: ${directExpensesError.message}`);
 
-  const postedExpenseIds = new Set((allocatedExpenses || []).map((expense) => expense.id));
+  const postedExpenseIds = new Set(
+    (allocatedExpenses || [])
+      .filter((expense) => !isSalesMarketingCategory(expense.category))
+      .map((expense) => expense.id)
+  );
   const expenseIdsWithAllocations = new Set(allocatedExpenseIds);
   const spendByProject = new Map<string, number>();
   (allocations || []).forEach((allocation) => {
@@ -291,7 +296,11 @@ export async function getProjectBudgetSummary(limit: number = 5) {
     );
   });
   (directExpenses || []).forEach((expense) => {
-    if (expenseIdsWithAllocations.has(expense.id) || !expense.project_id) return;
+    if (
+      expenseIdsWithAllocations.has(expense.id) ||
+      !expense.project_id ||
+      isSalesMarketingCategory(expense.category)
+    ) return;
     const amount = Number(expense.total_amount || 0);
     if (Number.isFinite(amount)) {
       spendByProject.set(

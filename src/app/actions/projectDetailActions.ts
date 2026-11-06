@@ -2,7 +2,10 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { requireAuthUser } from "@/lib/auth/auth";
-import { PROJECT_EXPENSE_CATEGORIES } from "@/lib/accounting/expenseCategories";
+import {
+  isSalesMarketingCategory,
+  PROJECT_EXPENSE_CATEGORIES,
+} from "@/lib/accounting/expenseCategories";
 
 export interface ProjectTransactionLine {
   id: string;
@@ -138,7 +141,7 @@ export async function getProjectDetailData(projectId: string): Promise<ProjectDe
     (allocatedExpenses || []).map((allocation) => allocation.expense_id)
   );
   (directExpenses || []).forEach((e: any) => {
-    if (expensesWithAllocations.has(e.id)) return;
+    if (expensesWithAllocations.has(e.id) || isSalesMarketingCategory(e.category)) return;
     expenseMap.set(e.id, {
       id: e.id,
       date: e.date,
@@ -151,7 +154,11 @@ export async function getProjectDetailData(projectId: string): Promise<ProjectDe
 
   (allocatedExpenses || []).forEach((a: any) => {
     const expense = allocatedExpensesById.get(a.expense_id);
-    if (expense && (expense.status === "APPROVED" || expense.status === "POSTED")) {
+    if (
+      expense &&
+      !isSalesMarketingCategory(expense.category) &&
+      (expense.status === "APPROVED" || expense.status === "POSTED")
+    ) {
       expenseMap.set(a.id, {
         id: a.id,
         date: expense.date,

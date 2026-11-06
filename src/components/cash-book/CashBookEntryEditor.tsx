@@ -9,6 +9,7 @@ import {
   GENERAL_EXPENSE_CATEGORIES,
   PROJECT_EXPENSE_CATEGORIES,
 } from "@/lib/accounting/expenseCategories";
+import { parseAmountInput } from "@/lib/parseAmount";
 
 interface CashBookEntryEditorProps {
   entry: CashBookEntry;
@@ -59,13 +60,17 @@ export function CashBookEntryEditor({
     setIsSaving(true);
     setError(null);
     try {
+      const parsedAmount = parseAmountInput(amount);
+      if (parsedAmount === null || parsedAmount <= 0) {
+        throw new Error("Nominal harus lebih besar dari 0.");
+      }
       await updateCashBookTransaction({
         id: entry.id,
         source_type: entry.source_type as "CASH_BOOK_EXPENSE" | "PROJECT_REVENUE" | "CASH_RECEIPT",
         date,
         description,
         category: isProjectRevenue ? "Pendapatan Proyek" : category,
-        amount: Number(amount),
+        amount: parsedAmount,
         project_id: isExpense || isProjectRevenue ? projectId || null : null,
       });
       await onSaved();
@@ -147,9 +152,8 @@ export function CashBookEntryEditor({
             <label className="space-y-1.5 text-xs font-semibold text-zinc-700">
               Nominal (Rp)
               <input
-                type="number"
-                min="1"
-                step="1"
+                type="text"
+                inputMode="decimal"
                 required
                 value={amount}
                 onChange={(event) => setAmount(event.target.value)}
@@ -160,6 +164,7 @@ export function CashBookEntryEditor({
               Keterangan Transaksi
               <input
                 type="text"
+                inputMode="decimal"
                 required
                 maxLength={200}
                 value={description}

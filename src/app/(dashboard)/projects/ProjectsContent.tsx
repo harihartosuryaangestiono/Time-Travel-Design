@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { ProjectModal, ProjectFormData } from "@/components/modals/ProjectModal";
 import { DeleteConfirmDialog } from "@/components/modals/DeleteConfirmDialog";
 import { deleteProject } from "@/app/actions/projectActions";
+import { isSalesMarketingCategory } from "@/lib/accounting/expenseCategories";
 
 interface ProjectItem {
   id: string;
@@ -157,7 +158,7 @@ export default function ProjectsContent() {
         allocatedExpenseIds.length
           ? supabase
               .from("expenses")
-              .select("id, status")
+              .select("id, status, category")
               .eq("organization_id", membership.organization_id)
               .in("id", allocatedExpenseIds)
               .in("status", ["APPROVED", "POSTED"])
@@ -165,7 +166,7 @@ export default function ProjectsContent() {
         projectIds.length
           ? supabase
               .from("expenses")
-              .select("id, project_id, total_amount")
+              .select("id, project_id, total_amount, category")
               .eq("organization_id", membership.organization_id)
               .in("project_id", projectIds)
               .in("status", ["APPROVED", "POSTED"])
@@ -179,7 +180,11 @@ export default function ProjectsContent() {
         throw new Error(directExpensesError.message);
       }
 
-      const postedExpenseIds = new Set((allocatedExpenses || []).map((expense) => expense.id));
+      const postedExpenseIds = new Set(
+        (allocatedExpenses || [])
+          .filter((expense) => !isSalesMarketingCategory(expense.category))
+          .map((expense) => expense.id)
+      );
       const expenseIdsWithAllocations = new Set(allocatedExpenseIds);
       const spendByProject: Record<string, number> = {};
       const receivedByProject: Record<string, number> = {};
@@ -200,7 +205,11 @@ export default function ProjectsContent() {
       (directExpenses || []).forEach((expense) => {
         if (expenseIdsWithAllocations.has(expense.id)) return;
         const amt = Number(expense.total_amount || 0);
-        if (expense.project_id && Number.isFinite(amt)) {
+        if (
+          expense.project_id &&
+          Number.isFinite(amt) &&
+          !isSalesMarketingCategory(expense.category)
+        ) {
           spendByProject[expense.project_id] = (spendByProject[expense.project_id] || 0) + amt;
         }
       });
