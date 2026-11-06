@@ -19,12 +19,14 @@ export const CreateCashAdvanceSchema = z.object({
   id: z.string().optional(),
   number: z.string().optional(),
   date: z.string().min(1, "Tanggal pengajuan kasbon wajib diisi"),
-  advance_type: z.enum(["EMPLOYEE", "MANDOR"]).optional().default("EMPLOYEE"),
+  advance_type: z.enum(["EMPLOYEE", "OWNER", "MANDOR"]).optional().default("EMPLOYEE"),
+  recipient_name: z.string().trim().optional(),
   recipient_id: z.string().optional().nullable(),
   employee_id: z.string().optional().nullable(),
   mandor_name: z.string().optional().nullable(),
   wage_category: z.string().optional().default("Upah Tukang"),
   project_id: z.string().optional().nullable(),
+  cash_account_id: z.string().optional().nullable(),
   purpose: z.string().min(1, "Tujuan kasbon wajib diisi"),
   amount: z.number().positive("Nominal kasbon harus lebih besar dari 0"),
   notes: z.string().optional().nullable(),
@@ -48,6 +50,7 @@ export const SettleAdvanceSchema = z.object({
   description: z.string().min(1, "Keterangan pelunasan wajib diisi"),
   date: z.string().optional(),
   expense_id: z.string().optional().nullable(),
+  category: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
 });
 export type SettleAdvanceInput = z.infer<typeof SettleAdvanceSchema>;

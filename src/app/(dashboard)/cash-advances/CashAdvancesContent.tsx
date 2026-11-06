@@ -37,12 +37,13 @@ interface CashAdvanceItem {
   id: string;
   number: string;
   date: string;
-  advance_type: "EMPLOYEE" | "MANDOR";
+  advance_type: "EMPLOYEE" | "OWNER" | "MANDOR";
   purpose: string;
   employee: string;
   mandor_name?: string;
   projectName?: string;
   project_id?: string;
+  cash_account_id?: string;
   amount: number;
   disbursed_amount: number;
   settled_amount: number;
@@ -50,6 +51,7 @@ interface CashAdvanceItem {
   open_balance: number;
   status: "DRAFT" | "SUBMITTED" | "APPROVED" | "DISBURSED" | "PARTIALLY_SETTLED" | "SETTLED" | "REJECTED" | "CANCELLED";
   employee_id?: string;
+  recipient_id?: string;
   created_by?: string;
 }
 
@@ -125,7 +127,14 @@ export default function CashAdvancesContent() {
       const projectIds = Array.from(
         new Set((data || []).map((advance) => advance.project_id).filter(Boolean))
       ) as string[];
-      const [{ data: employees, error: employeesError }, { data: projects, error: projectsError }] =
+      const recipientIds = Array.from(
+        new Set((data || []).map((advance) => advance.recipient_id).filter(Boolean))
+      ) as string[];
+      const [
+        { data: employees, error: employeesError },
+        { data: projects, error: projectsError },
+        { data: recipients, error: recipientsError },
+      ] =
         await Promise.all([
           employeeIds.length
             ? supabase.from("profiles").select("id, full_name, email").in("id", employeeIds)
@@ -137,21 +146,31 @@ export default function CashAdvancesContent() {
                 .eq("organization_id", membership.organization_id)
                 .in("id", projectIds)
             : Promise.resolve({ data: [], error: null }),
+          recipientIds.length
+            ? supabase
+                .from("advance_recipients")
+                .select("id, name")
+                .eq("organization_id", membership.organization_id)
+                .in("id", recipientIds)
+            : Promise.resolve({ data: [], error: null }),
         ]);
 
       if (employeesError) throw new Error(employeesError.message);
       if (projectsError) throw new Error(projectsError.message);
+      if (recipientsError) throw new Error(recipientsError.message);
 
       const employeesById = new Map((employees || []).map((employee) => [employee.id, employee]));
       const projectsById = new Map((projects || []).map((project) => [project.id, project]));
+      const recipientsById = new Map((recipients || []).map((recipient) => [recipient.id, recipient]));
 
       const mapped: CashAdvanceItem[] = (data || []).map((ca: any) => {
         const employee = employeesById.get(ca.employee_id);
         const project = ca.project_id ? projectsById.get(ca.project_id) : undefined;
+        const recipient = ca.recipient_id ? recipientsById.get(ca.recipient_id) : undefined;
         const isMandor = ca.advance_type === "MANDOR";
         const empName = isMandor
           ? ca.mandor_name || "Mandor Proyek"
-          : employee?.full_name || employee?.email || "Karyawan";
+          : recipient?.name || employee?.full_name || employee?.email || "Karyawan";
 
         const amt = parseFloat(ca.amount || "0");
         const disb = parseFloat(ca.disbursed_amount || ca.amount || "0");
@@ -169,6 +188,7 @@ export default function CashAdvancesContent() {
           mandor_name: ca.mandor_name,
           projectName: project?.name,
           project_id: ca.project_id,
+          cash_account_id: ca.cash_account_id,
           amount: isNaN(amt) ? 0 : amt,
           disbursed_amount: isNaN(disb) ? 0 : disb,
           settled_amount: isNaN(setl) ? 0 : setl,
@@ -176,6 +196,7 @@ export default function CashAdvancesContent() {
           open_balance: isNaN(openBal) ? 0 : openBal,
           status: ca.status || "DISBURSED",
           employee_id: ca.employee_id,
+          recipient_id: ca.recipient_id,
           created_by: ca.created_by,
         };
       });
@@ -253,7 +274,11 @@ export default function CashAdvancesContent() {
 
     const rows = recapItems.map((item) => [
       `"${item.name.replace(/"/g, '""')}"`,
-      item.type === "MANDOR" ? "Mandor (Upah Tukang)" : "Karyawan / Owner",
+      item.type === "MANDOR"
+        ? "Mandor (Upah Tukang)"
+        : item.type === "OWNER"
+          ? "Owner"
+          : "Staff",
       `"${(item.projectName || "-").replace(/"/g, '""')}"`,
       item.maxAdvanceAmount,
       item.totalDisbursed,
@@ -533,8 +558,13 @@ export default function CashAdvancesContent() {
                       const isComplete = ca.status === "SETTLED";
                       const isMandor = ca.advance_type === "MANDOR";
                       const canSettle = ca.status === "DISBURSED" || ca.status === "PARTIALLY_SETTLED";
+                      const canModify =
+                        isMandor ||
+                        !["DISBURSED", "PARTIALLY_SETTLED", "SETTLED"].includes(ca.status);
                       const canApprove = (ca.status === "SUBMITTED" || ca.status === "DRAFT");
-                      const isOwnAdvance = ca.employee_id === currentUserId || ca.created_by === currentUserId;
+                      const isOwnAdvance =
+                        ca.created_by === currentUserId ||
+                        (!ca.recipient_id && ca.employee_id === currentUserId);
 
                       return (
                         <tr
@@ -557,7 +587,7 @@ export default function CashAdvancesContent() {
                               ) : (
                                 <span className="inline-flex items-center gap-1 rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 border border-blue-200">
                                   <Users className="h-3 w-3" />
-                                  Karyawan
+                                  {ca.advance_type === "OWNER" ? "Owner" : "Staff"}
                                 </span>
                               )}
                               <span className="font-semibold text-zinc-900">{ca.employee}</span>
@@ -650,42 +680,47 @@ export default function CashAdvancesContent() {
                                 </button>
                               )}
 
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedAdvance({
-                                    id: ca.id,
-                                    number: ca.number,
-                                    date: ca.date,
-                                    advance_type: ca.advance_type,
-                                    purpose: ca.purpose,
-                                    employee: ca.employee,
-                                    mandor_name: ca.mandor_name,
-                                    project_id: ca.project_id,
-                                    amount: ca.amount,
-                                    disbursed_amount: ca.disbursed_amount,
-                                    settled_amount: ca.settled_amount,
-                                    returned_amount: ca.returned_amount,
-                                    status: ca.status as any,
-                                  });
-                                  setShowModal(true);
-                                }}
-                                className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-800 transition-colors"
-                                title="Edit Kasbon"
-                              >
-                                <Edit3 className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setAdvanceToDelete(ca);
-                                  setShowDelete(true);
-                                }}
-                                className="rounded-lg p-1 text-zinc-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
-                                title="Hapus Kasbon"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
+                              {canModify && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedAdvance({
+                                        id: ca.id,
+                                        number: ca.number,
+                                        date: ca.date,
+                                        advance_type: ca.advance_type,
+                                        purpose: ca.purpose,
+                                        employee: ca.employee,
+                                        mandor_name: ca.mandor_name,
+                                        project_id: ca.project_id,
+                                        cash_account_id: ca.cash_account_id,
+                                        amount: ca.amount,
+                                        disbursed_amount: ca.disbursed_amount,
+                                        settled_amount: ca.settled_amount,
+                                        returned_amount: ca.returned_amount,
+                                        status: ca.status as any,
+                                      });
+                                      setShowModal(true);
+                                    }}
+                                    className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-800 transition-colors"
+                                    title="Edit Kasbon"
+                                  >
+                                    <Edit3 className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setAdvanceToDelete(ca);
+                                      setShowDelete(true);
+                                    }}
+                                    className="rounded-lg p-1 text-zinc-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                                    title="Hapus Kasbon"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -759,7 +794,7 @@ export default function CashAdvancesContent() {
                         ) : (
                           <span className="inline-flex items-center gap-1 rounded bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700 border border-blue-200">
                             <Users className="h-3 w-3" />
-                            Karyawan / Tim
+                            {item.type === "OWNER" ? "Owner" : "Staff"}
                           </span>
                         )}
                       </td>

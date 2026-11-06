@@ -4,6 +4,10 @@ import { useState, useEffect } from "react";
 import { X, CheckCircle, DollarSign, Calendar, FileText, Loader2, CreditCard } from "lucide-react";
 import { settleCashAdvanceRecord } from "@/app/actions/cashAdvanceActions";
 import type { SettleAdvanceInput } from "@/lib/validation/cashAdvance";
+import {
+  GENERAL_EXPENSE_CATEGORIES,
+  PROJECT_EXPENSE_CATEGORIES,
+} from "@/lib/accounting/expenseCategories";
 
 interface AdvanceSettlementModalProps {
   isOpen: boolean;
@@ -17,6 +21,7 @@ interface AdvanceSettlementModalProps {
     disbursed_amount: number;
     settled_amount: number;
     returned_amount: number;
+    advance_type: "EMPLOYEE" | "OWNER" | "MANDOR";
   } | null;
 }
 
@@ -31,12 +36,18 @@ export function AdvanceSettlementModal({
   const [description, setDescription] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
+  const [category, setCategory] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const openBalance = advance
     ? Math.max(0, advance.disbursed_amount - advance.settled_amount - advance.returned_amount)
     : 0;
+  const isInternalAdvance = Boolean(advance && advance.advance_type !== "MANDOR");
+  const expenseCategories = Array.from(new Set([
+    ...GENERAL_EXPENSE_CATEGORIES,
+    ...PROJECT_EXPENSE_CATEGORIES,
+  ]));
 
   useEffect(() => {
     if (advance) {
@@ -45,6 +56,7 @@ export function AdvanceSettlementModal({
       setDate(new Date().toISOString().split("T")[0]);
       setMethod("CASH");
       setNotes("");
+      setCategory("");
       setErrorMsg(null);
     }
   }, [advance, isOpen, openBalance]);
@@ -76,6 +88,7 @@ export function AdvanceSettlementModal({
         settlement_method: method,
         description: description.trim(),
         date,
+        category: method === "EXPENSE" ? category : undefined,
         notes: notes.trim() || undefined,
       });
 
@@ -154,12 +167,18 @@ export function AdvanceSettlementModal({
               Metode Pelunasan
             </label>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {[
+              {(isInternalAdvance
+                ? [
+                    { id: "CASH", label: "Pengembalian Tunai" },
+                    { id: "EXPENSE", label: "Nota Bon" },
+                  ]
+                : [
                 { id: "CASH", label: "Tunai" },
                 { id: "INSTALLMENT", label: "Cicilan" },
                 { id: "PAYROLL_DEDUCTION", label: "Potong Gaji" },
                 { id: "EXPENSE", label: "Nota Bon" },
-              ].map((m) => (
+                ]
+              ).map((m) => (
                 <button
                   key={m.id}
                   type="button"
@@ -175,6 +194,25 @@ export function AdvanceSettlementModal({
               ))}
             </div>
           </div>
+
+          {isInternalAdvance && method === "EXPENSE" && (
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold text-zinc-700">
+                Kategori Pengeluaran dari Nota *
+              </label>
+              <select
+                required
+                value={category}
+                onChange={(event) => setCategory(event.target.value)}
+                className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
+              >
+                <option value="">Pilih kategori pengeluaran</option>
+                {expenseCategories.map((expenseCategory) => (
+                  <option key={expenseCategory} value={expenseCategory}>{expenseCategory}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Nominal Pelunasan */}
           <div>

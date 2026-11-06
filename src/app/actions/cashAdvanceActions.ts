@@ -5,6 +5,13 @@ import { requireAuthUser } from "@/lib/auth/auth";
 import { revalidatePath } from "next/cache";
 import type { CashAdvanceStatus } from "@prisma/client";
 import { logAudit } from "@/lib/audit/auditLogger";
+import { EXCEL_CATEGORY_TO_ACCOUNT_CODE } from "@/lib/accounting/defaultCoa";
+import {
+  GENERAL_EXPENSE_CATEGORIES,
+  PROJECT_EXPENSE_CATEGORIES,
+  normalizeExpenseCategory,
+} from "@/lib/accounting/expenseCategories";
+import { createJournal, postJournal, reverseJournal } from "@/lib/accounting/journalService";
 import {
   CreateCashAdvanceSchema,
   SaveAdvanceRecipientSchema,
@@ -183,7 +190,7 @@ export async function getCashAdvance(id: string) {
  * - Mandor Proyek: plafon kasbon per proyek (labor_advance_limit).
  */
 export async function checkAdvanceLimit(input: {
-  advance_type: "EMPLOYEE" | "MANDOR";
+  advance_type: "EMPLOYEE" | "OWNER" | "MANDOR";
   employee_id?: string | null;
   recipient_id?: string | null;
   project_id?: string | null;
@@ -193,7 +200,54 @@ export async function checkAdvanceLimit(input: {
   const user = await requireAuthUser();
   const supabase = await createClient();
 
-  if (input.advance_type === "EMPLOYEE") {
+  if (input.advance_type !== "MANDOR") {
+    if (input.recipient_id) {
+      const { data: recipient, error: recipientError } = await supabase
+        .from("advance_recipients")
+        .select("id, name, max_advance_amount")
+        .eq("organization_id", user.organizationId)
+        .eq("id", input.recipient_id)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (recipientError) throw new Error(`Gagal memuat penerima kasbon: ${recipientError.message}`);
+      if (!recipient) throw new Error("Penerima kasbon tidak ditemukan atau tidak aktif.");
+
+      const maxLimit = Number(recipient.max_advance_amount || 0);
+      let query = supabase
+        .from("cash_advances")
+        .select("id, amount, disbursed_amount, settled_amount, returned_amount, status")
+        .eq("organization_id", user.organizationId)
+        .eq("recipient_id", recipient.id)
+        .in("status", ["DISBURSED", "PARTIALLY_SETTLED"]);
+      if (input.exclude_advance_id) query = query.neq("id", input.exclude_advance_id);
+      const { data: activeAdvances, error: advancesError } = await query;
+      if (advancesError) throw new Error(`Gagal memeriksa kasbon aktif: ${advancesError.message}`);
+
+      const currentOpenBalance = (activeAdvances || []).reduce((sum, advance) => {
+        const disbursed = Number(advance.disbursed_amount || advance.amount || 0);
+        const settled = Number(advance.settled_amount || 0);
+        const returned = Number(advance.returned_amount || 0);
+        return sum + Math.max(0, disbursed - settled - returned);
+      }, 0);
+      const remainingLimit = maxLimit > 0 ? Math.max(0, maxLimit - currentOpenBalance) : Infinity;
+      const isExceeded = maxLimit > 0 && input.proposed_amount > remainingLimit;
+      return {
+        type: input.advance_type,
+        recipientName: recipient.name,
+        maxLimit,
+        currentOpenBalance,
+        remainingLimit,
+        isExceeded,
+        message: isExceeded
+          ? `Pengajuan melebihi sisa plafon ${recipient.name} sebesar Rp ${remainingLimit.toLocaleString("id-ID")}.`
+          : "Pengajuan masih dalam batas plafon yang diizinkan.",
+      };
+    }
+
+    if (input.advance_type === "OWNER") {
+      throw new Error("Pilih nama owner penerima kasbon.");
+    }
+
     const targetEmployeeId = input.employee_id || user.profileId || user.id;
 
     // Ambil data plafon karyawan
@@ -316,6 +370,117 @@ export async function checkAdvanceLimit(input: {
   }
 }
 
+function getCashLedgerCode(type: string, bankName?: string | null, accountName?: string | null) {
+  const label = `${bankName || ""} ${accountName || ""}`.toLowerCase();
+  if (type === "BANK" && label.includes("mandiri")) return "1120";
+  if (type === "BANK" && label.includes("bca")) return "1110";
+  return "1100";
+}
+
+async function getCashLedgerCodeForAccount(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  organizationId: string,
+  cashAccountId: string | null
+) {
+  if (!cashAccountId) throw new Error("Rekening kas pencairan tidak ditemukan.");
+  const { data: cashAccount, error } = await supabase
+    .from("cash_accounts")
+    .select("name, type, bank_name")
+    .eq("organization_id", organizationId)
+    .eq("id", cashAccountId)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (error) throw new Error(`Gagal memuat rekening kas: ${error.message}`);
+  if (!cashAccount) throw new Error("Rekening kas tidak ditemukan atau tidak aktif.");
+  return getCashLedgerCode(cashAccount.type, cashAccount.bank_name, cashAccount.name);
+}
+
+async function postInternalAdvanceJournal(input: {
+  id: string;
+  date: string;
+  amount: number;
+  description: string;
+  cashAccountId: string;
+}) {
+  const user = await requireAuthUser();
+  const supabase = await createClient();
+  const { data: existingJournal, error: existingJournalError } = await supabase
+    .from("journal_entries")
+    .select("id, status")
+    .eq("organization_id", user.organizationId)
+    .eq("source_type", "CASH_ADVANCE_DISBURSEMENT")
+    .eq("source_id", input.id)
+    .maybeSingle();
+  if (existingJournalError) {
+    throw new Error(`Gagal memeriksa jurnal pencairan kasbon: ${existingJournalError.message}`);
+  }
+  if (existingJournal) {
+    if (existingJournal.status === "POSTED") return;
+    if (existingJournal.status !== "DRAFT") {
+      throw new Error(`Jurnal pencairan kasbon berstatus ${existingJournal.status} dan perlu diperiksa.`);
+    }
+    await postJournal(existingJournal.id);
+    return;
+  }
+  const { data: cashAccount, error: cashAccountError } = await supabase
+    .from("cash_accounts")
+    .select("id, name, type, bank_name")
+    .eq("organization_id", user.organizationId)
+    .eq("id", input.cashAccountId)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (cashAccountError) throw new Error(`Gagal memuat rekening kasbon: ${cashAccountError.message}`);
+  if (!cashAccount) throw new Error("Rekening kasbon tidak ditemukan atau tidak aktif.");
+
+  const cashCode = getCashLedgerCode(cashAccount.type, cashAccount.bank_name, cashAccount.name);
+  const { data: accounts, error: accountsError } = await supabase
+    .from("accounts")
+    .select("id, code")
+    .eq("organization_id", user.organizationId)
+    .eq("is_active", true)
+    .in("code", ["1300", cashCode]);
+  if (accountsError) throw new Error(`Gagal memuat akun jurnal kasbon: ${accountsError.message}`);
+
+  const accountIds = new Map((accounts || []).map((account) => [account.code, account.id]));
+  const receivableAccountId = accountIds.get("1300");
+  const cashAccountLedgerId = accountIds.get(cashCode);
+  if (!receivableAccountId || !cashAccountLedgerId) {
+    throw new Error(`Akun buku besar 1300 dan ${cashCode} harus tersedia dan aktif untuk mencairkan kasbon internal.`);
+  }
+
+  const journal = await createJournal({
+    date: input.date,
+    description: `Pencairan kasbon: ${input.description}`,
+    source_type: "CASH_ADVANCE_DISBURSEMENT",
+    source_id: input.id,
+    lines: [
+      { account_id: receivableAccountId, debit: input.amount, credit: 0 },
+      { account_id: cashAccountLedgerId, debit: 0, credit: input.amount },
+    ],
+  });
+
+  try {
+    await postJournal(journal.id);
+  } catch (error) {
+    const { error: linesError } = await supabase
+      .from("journal_lines")
+      .delete()
+      .eq("journal_id", journal.id);
+    const { error: journalError } = await supabase
+      .from("journal_entries")
+      .delete()
+      .eq("id", journal.id)
+      .eq("organization_id", user.organizationId)
+      .eq("status", "DRAFT");
+    if (linesError || journalError) {
+      throw new Error(
+        `Gagal memposting jurnal kasbon: ${error instanceof Error ? error.message : "kesalahan tidak diketahui"}. Pembersihan jurnal Draft juga gagal: ${linesError?.message || journalError?.message}`
+      );
+    }
+    throw error;
+  }
+}
+
 /**
  * Menyimpan atau memperbarui data kasbon dengan pengecekan plafon dan audit logs
  */
@@ -323,12 +488,61 @@ export async function saveCashAdvanceRecord(rawInput: CreateCashAdvanceInput) {
   const user = await requireAuthUser();
   const input = CreateCashAdvanceSchema.parse(rawInput);
   const supabase = await createClient();
+  let recipientId = input.recipient_id || null;
+  if (input.status === "APPROVED") {
+    throw new Error("Setujui kasbon melalui proses persetujuan.");
+  }
+  if (input.status === "PARTIALLY_SETTLED" || input.status === "SETTLED") {
+    throw new Error("Catat pelunasan melalui proses pelunasan kasbon.");
+  }
+
+  if (input.advance_type !== "MANDOR") {
+    const recipientName = input.recipient_name?.trim();
+    if (!recipientName) throw new Error("Nama penerima kasbon wajib diisi.");
+    if (
+      input.advance_type === "OWNER" &&
+      !["Dustin", "Emir", "Om Dodi"].includes(recipientName)
+    ) {
+      throw new Error("Pilih owner yang terdaftar.");
+    }
+
+    const { data: existingRecipient, error: recipientLookupError } = await supabase
+      .from("advance_recipients")
+      .select("id")
+      .eq("organization_id", user.organizationId)
+      .eq("type", input.advance_type)
+      .ilike("name", recipientName)
+      .eq("is_active", true)
+      .maybeSingle();
+    if (recipientLookupError) {
+      throw new Error(`Gagal memeriksa penerima kasbon: ${recipientLookupError.message}`);
+    }
+    if (existingRecipient) {
+      recipientId = existingRecipient.id;
+    } else {
+      const { data: newRecipient, error: recipientInsertError } = await supabase
+        .from("advance_recipients")
+        .insert({
+          organization_id: user.organizationId,
+          type: input.advance_type,
+          name: recipientName,
+          max_advance_amount: 5000000,
+          is_active: true,
+        })
+        .select("id")
+        .single();
+      if (recipientInsertError || !newRecipient) {
+        throw new Error(`Gagal menambahkan penerima kasbon: ${recipientInsertError?.message || "Data tidak tersedia."}`);
+      }
+      recipientId = newRecipient.id;
+    }
+  }
 
   // 1. Cek Batasan Plafon
   const limitCheck = await checkAdvanceLimit({
     advance_type: input.advance_type,
     employee_id: input.employee_id,
-    recipient_id: input.recipient_id,
+    recipient_id: recipientId,
     project_id: input.project_id,
     proposed_amount: input.amount,
     exclude_advance_id: input.id,
@@ -338,16 +552,35 @@ export async function saveCashAdvanceRecord(rawInput: CreateCashAdvanceInput) {
     throw new Error(limitCheck.message);
   }
 
+  const isInternalAdvance = input.advance_type !== "MANDOR";
+  const isDisbursed =
+    input.status === "DISBURSED";
+  if (isInternalAdvance && isDisbursed && !["OWNER", "FINANCE"].includes(user.role)) {
+    throw new Error("Hanya Bagian Keuangan atau Owner yang dapat mencairkan kasbon internal.");
+  }
+  if (isInternalAdvance && isDisbursed && !input.cash_account_id) {
+    throw new Error("Pilih rekening/kas yang digunakan untuk mencairkan kasbon.");
+  }
+
   if (input.id) {
     // UPDATE
     const { data: existing } = await supabase
       .from("cash_advances")
-      .select("status, organization_id, created_by, employee_id")
+      .select("status, organization_id, created_by, employee_id, advance_type")
       .eq("id", input.id)
       .single();
 
     if (!existing || existing.organization_id !== user.organizationId) {
       throw new Error("Data kasbon tidak ditemukan.");
+    }
+    if (
+      existing.advance_type !== "MANDOR" &&
+      ["DISBURSED", "PARTIALLY_SETTLED", "SETTLED"].includes(existing.status)
+    ) {
+      throw new Error("Kasbon yang sudah dicairkan tidak dapat diedit. Gunakan proses pelunasan.");
+    }
+    if (existing.status === "APPROVED" && input.status !== "DISBURSED") {
+      throw new Error("Kasbon yang disetujui hanya dapat dilanjutkan ke proses pencairan.");
     }
 
     const { data, error } = await supabase
@@ -355,19 +588,17 @@ export async function saveCashAdvanceRecord(rawInput: CreateCashAdvanceInput) {
       .update({
         date: input.date,
         advance_type: input.advance_type,
-        recipient_id: input.recipient_id || null,
+        recipient_id: recipientId,
         employee_id: input.employee_id || existing.employee_id,
         mandor_name: input.mandor_name || null,
         wage_category: input.advance_type === "MANDOR" ? "Upah Tukang" : input.wage_category,
         project_id: input.project_id || null,
+        cash_account_id: input.cash_account_id || null,
         purpose: input.purpose,
         amount: input.amount,
-        disbursed_amount:
-          input.status === "DISBURSED" ||
-          input.status === "PARTIALLY_SETTLED" ||
-          input.status === "SETTLED"
-            ? input.amount
-            : 0,
+        disbursed_by: isDisbursed ? user.profileId || user.id : null,
+        disbursed_at: isDisbursed ? new Date().toISOString() : null,
+        disbursed_amount: isDisbursed ? input.amount : 0,
         status: input.status,
         notes: input.notes,
         updated_at: new Date().toISOString(),
@@ -377,6 +608,40 @@ export async function saveCashAdvanceRecord(rawInput: CreateCashAdvanceInput) {
       .single();
 
     if (error) throw new Error(error.message);
+
+    if (
+      isInternalAdvance &&
+      isDisbursed &&
+      !["DISBURSED", "PARTIALLY_SETTLED", "SETTLED"].includes(existing.status)
+    ) {
+      try {
+        await postInternalAdvanceJournal({
+          id: data.id,
+          date: input.date,
+          amount: input.amount,
+          description: input.purpose,
+          cashAccountId: input.cash_account_id!,
+        });
+      } catch (journalError) {
+        const { error: rollbackError } = await supabase
+          .from("cash_advances")
+          .update({
+            status: existing.status,
+            disbursed_amount: 0,
+            cash_account_id: null,
+            disbursed_by: null,
+            disbursed_at: null,
+          })
+          .eq("id", input.id)
+          .eq("organization_id", user.organizationId);
+        if (rollbackError) {
+          throw new Error(
+            `Gagal membuat jurnal kasbon: ${journalError instanceof Error ? journalError.message : "kesalahan tidak diketahui"}. Pengembalian status juga gagal: ${rollbackError.message}`
+          );
+        }
+        throw journalError;
+      }
+    }
 
     await logAudit(user, {
       action: "UPDATE_CASH_ADVANCE",
@@ -391,6 +656,12 @@ export async function saveCashAdvanceRecord(rawInput: CreateCashAdvanceInput) {
     });
 
     revalidatePath("/cash-advances");
+    revalidatePath("/cash-book");
+    revalidatePath("/cash-accounts");
+    revalidatePath("/reports/general-ledger");
+    revalidatePath("/reports/trial-balance");
+    revalidatePath("/reports/income-statement");
+    revalidatePath("/reports/balance-sheet");
     return data;
   } else {
     // CREATE NEW
@@ -408,19 +679,17 @@ export async function saveCashAdvanceRecord(rawInput: CreateCashAdvanceInput) {
         number,
         date: input.date,
         advance_type: input.advance_type,
-        recipient_id: input.recipient_id || null,
+        recipient_id: recipientId,
         employee_id: effectiveEmployeeId,
         mandor_name: input.mandor_name || null,
         wage_category: input.advance_type === "MANDOR" ? "Upah Tukang" : input.wage_category,
         project_id: input.project_id || null,
+        cash_account_id: input.cash_account_id || null,
         purpose: input.purpose,
         amount: input.amount,
-        disbursed_amount:
-          input.status === "DISBURSED" ||
-          input.status === "PARTIALLY_SETTLED" ||
-          input.status === "SETTLED"
-            ? input.amount
-            : 0,
+        disbursed_by: isDisbursed ? user.profileId || user.id : null,
+        disbursed_at: isDisbursed ? new Date().toISOString() : null,
+        disbursed_amount: isDisbursed ? input.amount : 0,
         settled_amount: 0,
         returned_amount: 0,
         status: input.status,
@@ -431,6 +700,30 @@ export async function saveCashAdvanceRecord(rawInput: CreateCashAdvanceInput) {
       .single();
 
     if (error) throw new Error(error.message);
+
+    if (isInternalAdvance && isDisbursed) {
+      try {
+        await postInternalAdvanceJournal({
+          id: data.id,
+          date: input.date,
+          amount: input.amount,
+          description: input.purpose,
+          cashAccountId: input.cash_account_id!,
+        });
+      } catch (journalError) {
+        const { error: cleanupError } = await supabase
+          .from("cash_advances")
+          .delete()
+          .eq("id", data.id)
+          .eq("organization_id", user.organizationId);
+        if (cleanupError) {
+          throw new Error(
+            `Gagal membuat jurnal kasbon: ${journalError instanceof Error ? journalError.message : "kesalahan tidak diketahui"}. Penghapusan kasbon juga gagal: ${cleanupError.message}`
+          );
+        }
+        throw journalError;
+      }
+    }
 
     await logAudit(user, {
       action: "CREATE_CASH_ADVANCE",
@@ -445,6 +738,12 @@ export async function saveCashAdvanceRecord(rawInput: CreateCashAdvanceInput) {
     });
 
     revalidatePath("/cash-advances");
+    revalidatePath("/cash-book");
+    revalidatePath("/cash-accounts");
+    revalidatePath("/reports/general-ledger");
+    revalidatePath("/reports/trial-balance");
+    revalidatePath("/reports/income-statement");
+    revalidatePath("/reports/balance-sheet");
     return data;
   }
 }
@@ -465,7 +764,7 @@ export async function approveCashAdvance(id: string) {
 
   const { data: existing } = await supabase
     .from("cash_advances")
-    .select("id, number, status, organization_id, employee_id, created_by, amount")
+    .select("id, number, status, organization_id, employee_id, recipient_id, created_by, amount")
     .eq("id", id)
     .single();
 
@@ -480,7 +779,7 @@ export async function approveCashAdvance(id: string) {
   // ATURAN: Larang approve pengajuan sendiri
   const actorProfileId = user.profileId || user.id;
   if (
-    existing.employee_id === actorProfileId ||
+    (!existing.recipient_id && existing.employee_id === actorProfileId) ||
     existing.created_by === actorProfileId ||
     existing.created_by === user.id
   ) {
@@ -527,7 +826,7 @@ export async function disburseCashAdvance(id: string, cash_account_id: string) {
 
   const { data: existing } = await supabase
     .from("cash_advances")
-    .select("id, number, status, organization_id, amount")
+    .select("id, number, status, organization_id, amount, date, purpose, advance_type")
     .eq("id", id)
     .single();
 
@@ -540,14 +839,15 @@ export async function disburseCashAdvance(id: string, cash_account_id: string) {
   }
 
   // Validasi akun kas aktif
-  const { data: account } = await supabase
+  const { data: account, error: accountError } = await supabase
     .from("cash_accounts")
-    .select("id, name")
+    .select("id, name, type, bank_name")
     .eq("id", cash_account_id)
     .eq("organization_id", user.organizationId)
     .eq("is_active", true)
     .single();
 
+  if (accountError) throw new Error(`Gagal memvalidasi rekening kas: ${accountError.message}`);
   if (!account) {
     throw new Error("Rekening kas tidak valid atau tidak aktif.");
   }
@@ -569,6 +869,36 @@ export async function disburseCashAdvance(id: string, cash_account_id: string) {
     throw new Error(error.message);
   }
 
+  if (existing.advance_type !== "MANDOR") {
+    try {
+      await postInternalAdvanceJournal({
+        id: existing.id,
+        date: existing.date,
+        amount: Number(existing.amount),
+        description: existing.purpose,
+        cashAccountId: account.id,
+      });
+    } catch (journalError) {
+      const { error: rollbackError } = await supabase
+        .from("cash_advances")
+        .update({
+          status: "APPROVED",
+          disbursed_amount: 0,
+          cash_account_id: null,
+          disbursed_by: null,
+          disbursed_at: null,
+        })
+        .eq("id", id)
+        .eq("organization_id", user.organizationId);
+      if (rollbackError) {
+        throw new Error(
+          `Gagal membuat jurnal pencairan kasbon: ${journalError instanceof Error ? journalError.message : "kesalahan tidak diketahui"}. Pengembalian status juga gagal: ${rollbackError.message}`
+        );
+      }
+      throw journalError;
+    }
+  }
+
   await logAudit(user, {
     action: "DISBURSE_CASH_ADVANCE",
     entityType: "CASH_ADVANCE",
@@ -582,7 +912,12 @@ export async function disburseCashAdvance(id: string, cash_account_id: string) {
   });
 
   revalidatePath("/cash-advances");
+  revalidatePath("/cash-book");
   revalidatePath("/cash-accounts");
+  revalidatePath("/reports/general-ledger");
+  revalidatePath("/reports/trial-balance");
+  revalidatePath("/reports/income-statement");
+  revalidatePath("/reports/balance-sheet");
   return { success: true };
 }
 
@@ -600,7 +935,7 @@ export async function settleCashAdvanceRecord(rawInput: SettleAdvanceInput) {
 
   const { data: existing } = await supabase
     .from("cash_advances")
-    .select("id, number, status, organization_id, amount, disbursed_amount, settled_amount, returned_amount")
+    .select("id, number, status, organization_id, amount, disbursed_amount, settled_amount, returned_amount, advance_type, cash_account_id")
     .eq("id", input.cash_advance_id)
     .single();
 
@@ -625,6 +960,24 @@ export async function settleCashAdvanceRecord(rawInput: SettleAdvanceInput) {
 
   const actorProfileId = user.profileId || user.id;
   const isReturnCash = input.settlement_method === "CASH";
+  const isInternalAdvance = existing.advance_type !== "MANDOR";
+  let expenseCategory: string | null = null;
+  if (isInternalAdvance) {
+    if (!["CASH", "EXPENSE"].includes(input.settlement_method)) {
+      throw new Error("Kasbon internal hanya dapat diselesaikan dengan pengembalian tunai atau nota pengeluaran.");
+    }
+    if (input.settlement_method === "EXPENSE") {
+      expenseCategory =
+        normalizeExpenseCategory(input.category, "GENERAL") ||
+        normalizeExpenseCategory(input.category, "PROJECT");
+      if (!expenseCategory) {
+        throw new Error("Pilih kategori pengeluaran untuk mencatat nota kasbon.");
+      }
+    }
+    if (isReturnCash && !existing.cash_account_id) {
+      throw new Error("Kasbon ini belum memiliki rekening pencairan. Hubungi bagian keuangan.");
+    }
+  }
 
   // 1. Simpan baris pelunasan ke advance_settlements
   const { data: settlementRecord, error: settleErr } = await supabase
@@ -645,6 +998,59 @@ export async function settleCashAdvanceRecord(rawInput: SettleAdvanceInput) {
 
   if (settleErr) {
     throw new Error(settleErr.message);
+  }
+
+  let settlementJournalId: string | null = null;
+  const settlementDate = input.date || new Date().toISOString().slice(0, 10);
+  if (isInternalAdvance) {
+    try {
+      const counterpartCode = isReturnCash
+        ? await getCashLedgerCodeForAccount(supabase, user.organizationId, existing.cash_account_id)
+        : EXCEL_CATEGORY_TO_ACCOUNT_CODE[expenseCategory!] || "6800";
+      const { data: accounts, error: accountsError } = await supabase
+        .from("accounts")
+        .select("id, code")
+        .eq("organization_id", user.organizationId)
+        .eq("is_active", true)
+        .in("code", ["1300", counterpartCode]);
+      if (accountsError) throw new Error(`Gagal memuat akun jurnal pelunasan: ${accountsError.message}`);
+
+      const accountIds = new Map((accounts || []).map((account) => [account.code, account.id]));
+      const receivableAccountId = accountIds.get("1300");
+      const counterpartAccountId = accountIds.get(counterpartCode);
+      if (!receivableAccountId || !counterpartAccountId) {
+        throw new Error(`Akun buku besar 1300 dan ${counterpartCode} harus tersedia dan aktif.`);
+      }
+
+      const journal = await createJournal({
+        date: settlementDate,
+        description: input.description,
+        source_type: "CASH_ADVANCE_SETTLEMENT",
+        source_id: settlementRecord.id,
+        lines: isReturnCash
+          ? [
+              { account_id: counterpartAccountId, debit: input.amount, credit: 0 },
+              { account_id: receivableAccountId, debit: 0, credit: input.amount },
+            ]
+          : [
+              { account_id: counterpartAccountId, debit: input.amount, credit: 0 },
+              { account_id: receivableAccountId, debit: 0, credit: input.amount },
+            ],
+      });
+      settlementJournalId = journal.id;
+      await postJournal(journal.id);
+    } catch (journalError) {
+      const { error: cleanupError } = await supabase
+        .from("advance_settlements")
+        .delete()
+        .eq("id", settlementRecord.id);
+      if (cleanupError) {
+        throw new Error(
+          `Gagal membuat jurnal pelunasan: ${journalError instanceof Error ? journalError.message : "kesalahan tidak diketahui"}. Pembersihan pelunasan juga gagal: ${cleanupError.message}`
+        );
+      }
+      throw journalError;
+    }
   }
 
   // 2. Hitung akumulasi baru
@@ -669,6 +1075,28 @@ export async function settleCashAdvanceRecord(rawInput: SettleAdvanceInput) {
     .eq("id", input.cash_advance_id);
 
   if (updateErr) {
+    if (settlementJournalId) {
+      try {
+        await reverseJournal(
+          settlementJournalId,
+          `Pembatalan otomatis karena pembaruan kasbon gagal: ${updateErr.message}`,
+          settlementDate
+        );
+      } catch (reversalError) {
+        throw new Error(
+          `Gagal memperbarui saldo kasbon: ${updateErr.message}. Jurnal pelunasan ${settlementJournalId} juga gagal dibalik: ${reversalError instanceof Error ? reversalError.message : "kesalahan tidak diketahui"}`
+        );
+      }
+    }
+    const { error: cleanupError } = await supabase
+      .from("advance_settlements")
+      .delete()
+      .eq("id", settlementRecord.id);
+    if (cleanupError) {
+      throw new Error(
+        `Gagal memperbarui saldo kasbon: ${updateErr.message}. Penghapusan catatan pelunasan juga gagal: ${cleanupError.message}`
+      );
+    }
     throw new Error(updateErr.message);
   }
 
@@ -687,6 +1115,12 @@ export async function settleCashAdvanceRecord(rawInput: SettleAdvanceInput) {
   });
 
   revalidatePath("/cash-advances");
+  revalidatePath("/cash-book");
+  revalidatePath("/cash-accounts");
+  revalidatePath("/reports/general-ledger");
+  revalidatePath("/reports/trial-balance");
+  revalidatePath("/reports/income-statement");
+  revalidatePath("/reports/balance-sheet");
   return {
     success: true,
     settlement: settlementRecord,
@@ -700,12 +1134,18 @@ export async function deleteCashAdvance(id: string) {
 
   const { data: existing } = await supabase
     .from("cash_advances")
-    .select("number, organization_id")
+    .select("number, organization_id, status, advance_type")
     .eq("id", id)
     .single();
 
   if (!existing || existing.organization_id !== user.organizationId) {
     throw new Error("Data kasbon tidak ditemukan.");
+  }
+  if (
+    existing.advance_type !== "MANDOR" &&
+    ["DISBURSED", "PARTIALLY_SETTLED", "SETTLED"].includes(existing.status)
+  ) {
+    throw new Error("Kasbon internal yang sudah dicairkan tidak dapat dihapus karena sudah memiliki jurnal.");
   }
 
   const { error } = await supabase
@@ -791,6 +1231,7 @@ export async function getCashAdvanceRecap(): Promise<AdvanceRecapItem[]> {
 
   const employeesById = new Map((employees || []).map((employee) => [employee.id, employee]));
   const projectsById = new Map((projects || []).map((project) => [project.id, project]));
+  const recipientsById = new Map((recipientRows || []).map((recipient) => [recipient.id, recipient]));
   const registeredRecipients = (recipientRows || []).map((recipient) => ({
     ...recipient,
     project: recipient.project_id ? projectsById.get(recipient.project_id) : null,
@@ -798,6 +1239,7 @@ export async function getCashAdvanceRecap(): Promise<AdvanceRecapItem[]> {
   const advances = (advanceRows || []).map((advance) => ({
     ...advance,
     employee: advance.employee_id ? employeesById.get(advance.employee_id) : null,
+    recipient: advance.recipient_id ? recipientsById.get(advance.recipient_id) : null,
     project: advance.project_id ? projectsById.get(advance.project_id) : null,
   }));
 
@@ -833,16 +1275,17 @@ export async function getCashAdvanceRecap(): Promise<AdvanceRecapItem[]> {
     if (!recapMap.has(key)) {
       const displayName = isMandor
         ? ca.mandor_name || `Mandor (${ca.project?.name || "Proyek"})`
-        : ca.employee?.full_name || ca.employee?.email || "Karyawan";
+        : ca.recipient?.name || ca.employee?.full_name || ca.employee?.email || "Karyawan";
 
       const maxLimit = isMandor
         ? parseFloat(ca.project?.labor_advance_limit || "0") || 0
-        : parseFloat(ca.employee?.max_advance_amount || "5000000") || 5000000;
+        : parseFloat(ca.recipient?.max_advance_amount || ca.employee?.max_advance_amount || "5000000") || 5000000;
+      const recipientType = ca.recipient?.type || (isMandor ? "MANDOR" : "EMPLOYEE");
 
       recapMap.set(key, {
         id: key,
         name: displayName,
-        type: isMandor ? "MANDOR" : "EMPLOYEE",
+        type: recipientType,
         projectName: ca.project?.name || null,
         maxAdvanceAmount: maxLimit,
         totalDisbursed: 0,

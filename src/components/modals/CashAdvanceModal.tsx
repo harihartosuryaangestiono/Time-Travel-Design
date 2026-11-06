@@ -3,17 +3,21 @@
 import { useState, useEffect } from "react";
 import { saveCashAdvanceRecord, checkAdvanceLimit } from "@/app/actions/cashAdvanceActions";
 import { getProjects } from "@/app/actions/projectActions";
+import { getCashAccountsWithBalances } from "@/app/actions/cashAccountActions";
 import { X, Coins, User, Calendar, HardHat, AlertTriangle, Loader2, Check } from "lucide-react";
+
+const OWNER_RECIPIENTS = ["Dustin", "Emir", "Om Dodi"] as const;
 
 export interface CashAdvanceFormData {
   id?: string;
   number: string;
   date: string;
-  advance_type?: "EMPLOYEE" | "MANDOR";
+  advance_type?: "EMPLOYEE" | "OWNER" | "MANDOR";
   purpose: string;
   employee: string;
   mandor_name?: string;
   project_id?: string;
+  cash_account_id?: string;
   amount: number;
   disbursed_amount: number;
   settled_amount: number;
@@ -52,25 +56,30 @@ export function CashAdvanceModal({
   });
 
   const [projects, setProjects] = useState<Array<{ id: string; name: string; labor_advance_limit?: number }>>([]);
+  const [cashAccounts, setCashAccounts] = useState<Array<{ id: string; name: string }>>([]);
+  const [cashAccountId, setCashAccountId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [limitWarning, setLimitWarning] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
-      getProjects()
-        .then((data) => {
-          if (data) {
-            setProjects(
-              data.map((p: any) => ({
-                id: p.id,
-                name: p.name,
-                labor_advance_limit: parseFloat(p.labor_advance_limit || "0") || 0,
-              }))
-            );
-          }
+      Promise.all([getProjects(), getCashAccountsWithBalances()])
+        .then(([projectData, accountData]) => {
+          setProjects(
+            (projectData || []).map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              labor_advance_limit: parseFloat(p.labor_advance_limit || "0") || 0,
+            }))
+          );
+          setCashAccounts(accountData);
+          setCashAccountId((current) => current || accountData[0]?.id || "");
         })
-        .catch((err) => console.error("Error loading projects:", err));
+        .catch((err) => {
+          console.error("Error loading cash advance form data:", err);
+          setErrorMsg("Gagal memuat daftar proyek atau rekening kas.");
+        });
     }
   }, [isOpen]);
 
@@ -85,12 +94,14 @@ export function CashAdvanceModal({
         employee: advanceToEdit.employee || "",
         mandor_name: advanceToEdit.mandor_name || "",
         project_id: advanceToEdit.project_id || "",
+        cash_account_id: advanceToEdit.cash_account_id || "",
         amount: advanceToEdit.amount || 0,
         disbursed_amount: advanceToEdit.disbursed_amount || 0,
         settled_amount: advanceToEdit.settled_amount || 0,
         returned_amount: advanceToEdit.returned_amount || 0,
         status: advanceToEdit.status || "DISBURSED",
       });
+      setCashAccountId(advanceToEdit.cash_account_id || "");
     } else {
       const year = new Date().getFullYear();
       const randNum = String(Math.floor(Math.random() * 9000) + 1000);
@@ -102,12 +113,14 @@ export function CashAdvanceModal({
         employee: "",
         mandor_name: "",
         project_id: "",
+        cash_account_id: "",
         amount: 0,
         disbursed_amount: 0,
         settled_amount: 0,
         returned_amount: 0,
         status: "DISBURSED",
       });
+      setCashAccountId("");
     }
     setErrorMsg(null);
     setLimitWarning(null);
@@ -122,7 +135,7 @@ export function CashAdvanceModal({
       disbursed_amount: val,
     }));
 
-    if (val > 0) {
+    if (val > 0 && formData.advance_type === "MANDOR") {
       try {
         const check = await checkAdvanceLimit({
           advance_type: formData.advance_type || "EMPLOYEE",
@@ -164,6 +177,14 @@ export function CashAdvanceModal({
       setErrorMsg("Tujuan operasional kasbon wajib diisi.");
       return;
     }
+    if (
+      !isMandor &&
+      ["DISBURSED", "PARTIALLY_SETTLED", "SETTLED"].includes(formData.status) &&
+      !cashAccountId
+    ) {
+      setErrorMsg("Pilih rekening/kas yang digunakan untuk mencairkan kasbon.");
+      return;
+    }
 
     const amt = Number(formData.amount) || Number(formData.disbursed_amount) || 0;
     if (amt <= 0) {
@@ -180,9 +201,11 @@ export function CashAdvanceModal({
         number: formData.number,
         date: formData.date,
         advance_type: formData.advance_type || "EMPLOYEE",
+        recipient_name: isMandor ? undefined : formData.employee,
         mandor_name: isMandor ? formData.mandor_name : undefined,
         employee_id: undefined,
         project_id: formData.project_id || undefined,
+        cash_account_id: cashAccountId || undefined,
         purpose: formData.purpose,
         amount: amt,
         status: formData.status,
@@ -199,6 +222,7 @@ export function CashAdvanceModal({
   };
 
   const isMandor = formData.advance_type === "MANDOR";
+  const isOwner = formData.advance_type === "OWNER";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -227,7 +251,7 @@ export function CashAdvanceModal({
               {isEditing ? "Edit Kasbon" : "Pencairan Kasbon Baru"}
             </h3>
             <p className="text-xs text-zinc-500">
-              Kasbon Karyawan / Owner (Plafon Pribadi) atau Kasbon Mandor (Upah Tukang Proyek)
+              Kasbon internal owner/staff dicatat sebagai uang muka sampai nota atau pengembalian.
             </p>
           </div>
         </div>
@@ -242,14 +266,31 @@ export function CashAdvanceModal({
             }}
             className={`flex-1 rounded-lg py-2 text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
               !isMandor
+                && !isOwner
                 ? "bg-white text-zinc-950 shadow-sm"
                 : "text-zinc-500 hover:text-zinc-900"
             }`}
           >
             <User className="h-3.5 w-3.5" />
-            <span>Karyawan / Owner</span>
+            <span>Staff</span>
           </button>
           <button
+            type="button"
+            onClick={() => {
+              setFormData({ ...formData, advance_type: "OWNER" });
+              setLimitWarning(null);
+            }}
+            className={`flex-1 rounded-lg py-2 text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
+              isOwner
+                ? "bg-white text-zinc-950 shadow-sm"
+                : "text-zinc-500 hover:text-zinc-900"
+            }`}
+          >
+            <User className="h-3.5 w-3.5" />
+            <span>Owner</span>
+          </button>
+          <button
+            hidden={!advanceToEdit || advanceToEdit.advance_type !== "MANDOR"}
             type="button"
             onClick={() => {
               setFormData({ ...formData, advance_type: "MANDOR" });
@@ -265,6 +306,11 @@ export function CashAdvanceModal({
             <span>Mandor (Upah Tukang)</span>
           </button>
         </div>
+        {!isEditing && (
+          <p className="mb-4 rounded-lg bg-blue-50 px-3 py-2 text-[11px] text-blue-800">
+            Kasbon mandor/tukang dicatat langsung di Buku Kecil pada kategori Upah Tukang.
+          </p>
+        )}
 
         {errorMsg && (
           <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
@@ -307,8 +353,6 @@ export function CashAdvanceModal({
                 className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
               >
                 <option value="DISBURSED">Dicairkan (Dana Keluar)</option>
-                <option value="PARTIALLY_SETTLED">Sebagian Diselesaikan</option>
-                <option value="SETTLED">Lunas (100% Selesai)</option>
                 <option value="SUBMITTED">Diajukan (Menunggu Persetujuan)</option>
               </select>
             </div>
@@ -342,7 +386,7 @@ export function CashAdvanceModal({
           {/* Recipient */}
           <div>
             <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-              {isMandor ? "Nama Mandor / Kepala Tukang *" : "Nama Penerima (Karyawan / Owner) *"}
+              {isMandor ? "Nama Mandor / Kepala Tukang *" : isOwner ? "Owner *" : "Nama Staff *"}
             </label>
             <div className="relative">
               {isMandor ? (
@@ -350,20 +394,52 @@ export function CashAdvanceModal({
               ) : (
                 <User className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
               )}
-              <input
-                type="text"
-                required
-                value={isMandor ? formData.mandor_name : formData.employee}
-                onChange={(e) =>
-                  isMandor
-                    ? setFormData({ ...formData, mandor_name: e.target.value })
-                    : setFormData({ ...formData, employee: e.target.value })
-                }
-                placeholder={isMandor ? "Misal: Pak Slamet (Mandor Struktur)" : "Misal: Rian Pratama (Lead Architect)"}
-                className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
-              />
+              {isOwner ? (
+                <select
+                  required
+                  value={formData.employee}
+                  onChange={(e) => setFormData({ ...formData, employee: e.target.value })}
+                  className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
+                >
+                  <option value="">Pilih owner</option>
+                  {OWNER_RECIPIENTS.map((name) => <option key={name} value={name}>{name}</option>)}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  required
+                  value={isMandor ? formData.mandor_name : formData.employee}
+                  onChange={(e) =>
+                    isMandor
+                      ? setFormData({ ...formData, mandor_name: e.target.value })
+                      : setFormData({ ...formData, employee: e.target.value })
+                  }
+                  placeholder={isMandor ? "Misal: Pak Slamet (Mandor Struktur)" : "Masukkan nama staff"}
+                  className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
+                />
+              )}
             </div>
           </div>
+
+          {!isMandor &&
+            ["DISBURSED", "PARTIALLY_SETTLED", "SETTLED"].includes(formData.status) && (
+              <div>
+                <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
+                  Rekening / Kas Pencairan *
+                </label>
+                <select
+                  required
+                  value={cashAccountId}
+                  onChange={(e) => setCashAccountId(e.target.value)}
+                  className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs font-semibold text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
+                >
+                  <option value="">Pilih rekening / kas</option>
+                  {cashAccounts.map((account) => (
+                    <option key={account.id} value={account.id}>{account.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
           {/* Operational Purpose */}
           <div>
