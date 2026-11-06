@@ -78,34 +78,29 @@ export function StatCard({
     <SpotlightCard
       onClick={onClick}
       className={cn(
-        "dashboard-card group relative p-5",
+        "dashboard-card group relative p-4 sm:p-5",
         gradient && "bg-gradient-to-br from-white via-white to-zinc-50/80",
         onClick && "cursor-pointer",
         className
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1 space-y-1">
+      <div className="flex items-start justify-between gap-2.5">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="min-w-0 break-words text-xs font-semibold uppercase tracking-wider text-zinc-500">
+            <span className="break-words text-xs font-semibold uppercase tracking-wider text-zinc-500">
               {title}
             </span>
             {badge && (
-              <span className="rounded-full bg-zinc-900 px-2 py-0.5 text-[9px] font-black tracking-wider text-white uppercase">
+              <span className="shrink-0 rounded-full bg-zinc-900 px-2 py-0.5 text-[9px] font-black tracking-wider text-white uppercase">
                 {badge}
               </span>
             )}
           </div>
-          {!compactValue && (
-            <div className="break-words text-xl font-bold tracking-tight text-slate-900 tabular-nums sm:text-2xl">
-              {valueContent}
-            </div>
-          )}
         </div>
 
         <div
           className={cn(
-            "dashboard-stat-icon flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl",
+            "dashboard-stat-icon flex h-10 w-10 sm:h-11 sm:w-11 flex-shrink-0 items-center justify-center rounded-xl",
             iconBgColor
           )}
         >
@@ -113,11 +108,23 @@ export function StatCard({
         </div>
       </div>
 
-      {compactValue && (
-        <div className="mt-2 whitespace-nowrap text-sm font-bold tracking-tight text-slate-900 tabular-nums">
+      <div className="mt-2.5 sm:mt-3">
+        <div
+          className={cn(
+            "font-bold tracking-tight text-slate-900 tabular-nums whitespace-nowrap overflow-hidden text-ellipsis",
+            compactValue
+              ? "text-sm sm:text-base"
+              : value.length > 19
+              ? "text-sm sm:text-base lg:text-[1.15rem] xl:text-lg"
+              : value.length > 12
+              ? "text-base sm:text-lg lg:text-[1.25rem] xl:text-2xl"
+              : "text-xl sm:text-2xl"
+          )}
+          title={typeof value === "string" ? value : undefined}
+        >
           {valueContent}
         </div>
-      )}
+      </div>
 
       {(subtitle || trend) && (
         <div className="mt-3.5 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 text-xs">

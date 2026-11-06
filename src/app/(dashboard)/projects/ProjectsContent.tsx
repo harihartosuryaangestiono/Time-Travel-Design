@@ -295,7 +295,7 @@ export default function ProjectsContent() {
       {/* ── Top Summary KPIs ── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          title="Total Nilai Kontrak Proyek"
+          title="Total Nilai Kontrak"
           value={isLoading ? "..." : formatCurrency(totalContract)}
           subtitle={`${projects.length} kontrak proyek terdaftar`}
           icon={FolderKanban}
