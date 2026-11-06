@@ -271,7 +271,7 @@ export default function CashAccountsPage() {
                       Awal: {formatCurrency(acc.opening_balance)}
                     </span>
                   </div>
-                  <div className="text-2xl font-black tracking-tight text-white font-mono tabular-nums mt-0.5">
+                  <div className="mt-1 whitespace-nowrap font-sans text-xl font-bold leading-tight tracking-tight text-white tabular-nums sm:text-2xl">
                     {formatCurrency(acc.current_balance)}
                   </div>
                 </div>
