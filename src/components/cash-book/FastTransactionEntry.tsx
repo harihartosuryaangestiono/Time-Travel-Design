@@ -46,6 +46,8 @@ function guessCategory(desc: string, book: ExpenseBook): string | null {
     if (lower.includes("gorden") || lower.includes("curtain")) return "Subcontractor - Gorden";
     if (lower.includes("rolling door") || lower.includes("rollingdoor")) return "Subcontractor - Rolling Door";
     if (lower.includes("rayap") || lower.includes("termite")) return "Subcontractor - Rayap";
+    if (lower.includes("bore pile") || lower.includes("borepile") || lower.includes("bore-pile") || lower.includes("strauss pile")) return "Subcontractor - Bore Pile";
+    if (lower.includes("demobilisasi") || lower.includes("mobilisasi") || lower.includes("mob-demob") || lower.includes("mobdemob") || lower.includes("demob")) return "Subcontractor - Demobilisasi";
     if (lower.includes("pintu") || lower.includes("jendela") || lower.includes("door") || lower.includes("window")) return "Subcontractor - Wood Door & Window";
     if (lower.includes("mep") || lower.includes("listrik") || lower.includes("plumbing")) return "Subcontractor - MEP";
     if (lower.includes("interior") || lower.includes("furniture")) return "Subcontractor - Interior";
