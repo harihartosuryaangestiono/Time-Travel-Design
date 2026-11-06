@@ -66,5 +66,5 @@ export interface AdvanceRecapItem {
   openBalance: number;
   remainingLimit: number;
   activeCount: number;
-  statusLimit: "AMAN" | "MENDEKATI_LIMIT" | "MELEBIHI_LIMIT";
+  statusLimit: "TIDAK_DIBATASI" | "AMAN" | "MENDEKATI_LIMIT" | "MELEBIHI_LIMIT";
 }

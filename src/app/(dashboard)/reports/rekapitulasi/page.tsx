@@ -463,7 +463,7 @@ export default function RekapitulasiPage() {
                   <div key={oa.name} className="flex justify-between items-center p-2 rounded-xl bg-white border border-zinc-200">
                     <div>
                       <span className="font-semibold text-zinc-900 block">{oa.name}</span>
-                      <span className="text-[10px] text-zinc-400">Sisa Plafon: {formatCurrency(oa.remainingLimit)}</span>
+                      <span className="text-[10px] text-zinc-400">Tanpa batasan plafon</span>
                     </div>
                     <span className="font-mono font-bold text-amber-800">{formatCurrency(oa.amount)}</span>
                   </div>

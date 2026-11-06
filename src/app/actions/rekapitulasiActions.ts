@@ -475,7 +475,7 @@ export async function getRekapitulasiData(year: number = 2026): Promise<Rekapitu
   // 4. Kasbon Owner
   const { data: ownerRecipients } = await supabase
     .from("advance_recipients")
-    .select("id, name, max_advance_amount")
+    .select("id, name")
     .eq("organization_id", user.organizationId)
     .eq("type", "OWNER");
 
@@ -500,11 +500,10 @@ export async function getRekapitulasiData(year: number = 2026): Promise<Rekapitu
 
   const ownersList = (ownerRecipients || []).map((o: any) => {
     const openBal = advanceMap.get(o.id) || 0;
-    const maxLim = parseFloat(o.max_advance_amount || "0") || 0;
     return {
       name: o.name,
       amount: openBal,
-      remainingLimit: Math.max(0, maxLim - openBal),
+      remainingLimit: 0,
     };
   });
 

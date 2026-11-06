@@ -268,7 +268,7 @@ export default function CashAdvancesContent() {
       "Total Kasbon Dicairkan",
       "Sudah Diselesaikan / Nota",
       "Sisa Kasbon (Open Balance)",
-      "Sisa Plafon Tersedia",
+      "Sisa Plafon Proyek",
       "Status Plafon",
     ];
 
@@ -285,7 +285,9 @@ export default function CashAdvancesContent() {
       item.totalSettled,
       item.openBalance,
       item.remainingLimit,
-      item.statusLimit,
+      item.statusLimit === "TIDAK_DIBATASI"
+        ? "Tidak dibatasi"
+        : item.statusLimit,
     ]);
 
     const csvContent =
@@ -558,10 +560,7 @@ export default function CashAdvancesContent() {
                       const isComplete = ca.status === "SETTLED";
                       const isMandor = ca.advance_type === "MANDOR";
                       const canSettle = ca.status === "DISBURSED" || ca.status === "PARTIALLY_SETTLED";
-                      const canModify =
-                        isMandor ||
-                        !["DISBURSED", "PARTIALLY_SETTLED", "SETTLED"].includes(ca.status);
-                      const canApprove = (ca.status === "SUBMITTED" || ca.status === "DRAFT");
+                      const canApprove = ca.status === "SUBMITTED" || ca.status === "DRAFT";
                       const isOwnAdvance =
                         ca.created_by === currentUserId ||
                         (!ca.recipient_id && ca.employee_id === currentUserId);
@@ -680,47 +679,43 @@ export default function CashAdvancesContent() {
                                 </button>
                               )}
 
-                              {canModify && (
-                                <>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setSelectedAdvance({
-                                        id: ca.id,
-                                        number: ca.number,
-                                        date: ca.date,
-                                        advance_type: ca.advance_type,
-                                        purpose: ca.purpose,
-                                        employee: ca.employee,
-                                        mandor_name: ca.mandor_name,
-                                        project_id: ca.project_id,
-                                        cash_account_id: ca.cash_account_id,
-                                        amount: ca.amount,
-                                        disbursed_amount: ca.disbursed_amount,
-                                        settled_amount: ca.settled_amount,
-                                        returned_amount: ca.returned_amount,
-                                        status: ca.status as any,
-                                      });
-                                      setShowModal(true);
-                                    }}
-                                    className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-800 transition-colors"
-                                    title="Edit Kasbon"
-                                  >
-                                    <Edit3 className="h-3.5 w-3.5" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setAdvanceToDelete(ca);
-                                      setShowDelete(true);
-                                    }}
-                                    className="rounded-lg p-1 text-zinc-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
-                                    title="Hapus Kasbon"
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </button>
-                                </>
-                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedAdvance({
+                                    id: ca.id,
+                                    number: ca.number,
+                                    date: ca.date,
+                                    advance_type: ca.advance_type,
+                                    purpose: ca.purpose,
+                                    employee: ca.employee,
+                                    mandor_name: ca.mandor_name,
+                                    project_id: ca.project_id,
+                                    cash_account_id: ca.cash_account_id,
+                                    amount: ca.amount,
+                                    disbursed_amount: ca.disbursed_amount,
+                                    settled_amount: ca.settled_amount,
+                                    returned_amount: ca.returned_amount,
+                                    status: ca.status as any,
+                                  });
+                                  setShowModal(true);
+                                }}
+                                className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-800 transition-colors"
+                                title="Edit Kasbon"
+                              >
+                                <Edit3 className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAdvanceToDelete(ca);
+                                  setShowDelete(true);
+                                }}
+                                className="rounded-lg p-1 text-zinc-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                                title="Hapus Kasbon"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -744,7 +739,7 @@ export default function CashAdvancesContent() {
                 Rekapitulasi Kasbon &amp; Plafon per Orang
               </h3>
               <p className="text-xs text-zinc-500 mt-0.5">
-                Monitoring plafon individu, total dicairkan, sudah dibayar, Open Balance, dan sisa plafon
+                Kasbon owner dan staff tanpa batas plafon; batas yang tercantum hanya untuk kasbon mandor proyek lama.
               </p>
             </div>
             <button
@@ -764,11 +759,11 @@ export default function CashAdvancesContent() {
                   <th className="pb-3 pl-2">Nama Penerima</th>
                   <th className="pb-3">Tipe</th>
                   <th className="pb-3">Proyek Terkait</th>
-                  <th className="pb-3 text-right">Plafon (Limit)</th>
+                  <th className="pb-3 text-right">Plafon Proyek</th>
                   <th className="pb-3 text-right">Total Kasbon</th>
                   <th className="pb-3 text-right">Sudah Dibayar</th>
                   <th className="pb-3 text-right font-bold text-amber-800">Open Balance</th>
-                  <th className="pb-3 text-right font-bold text-emerald-800">Sisa Plafon</th>
+                  <th className="pb-3 text-right font-bold text-emerald-800">Sisa Plafon Proyek</th>
                   <th className="pb-3 pr-2 text-center">Status Plafon</th>
                 </tr>
               </thead>
@@ -802,7 +797,9 @@ export default function CashAdvancesContent() {
                         {item.projectName || "-"}
                       </td>
                       <td className="py-3.5 text-right font-mono font-semibold text-zinc-800 tabular-nums">
-                        {item.maxAdvanceAmount > 0 ? formatCurrency(item.maxAdvanceAmount) : "Tanpa Limit"}
+                        {item.type === "MANDOR" && item.maxAdvanceAmount > 0
+                          ? formatCurrency(item.maxAdvanceAmount)
+                          : "Tanpa Limit"}
                       </td>
                       <td className="py-3.5 text-right font-mono text-zinc-700 tabular-nums">
                         {formatCurrency(item.totalDisbursed)}
@@ -814,7 +811,9 @@ export default function CashAdvancesContent() {
                         {formatCurrency(item.openBalance)}
                       </td>
                       <td className="py-3.5 text-right font-mono font-bold text-emerald-700 tabular-nums">
-                        {item.maxAdvanceAmount > 0 ? formatCurrency(item.remainingLimit) : "Tersedia"}
+                        {item.type === "MANDOR" && item.maxAdvanceAmount > 0
+                          ? formatCurrency(item.remainingLimit)
+                          : "Tidak dibatasi"}
                       </td>
                       <td className="py-3.5 pr-2 text-center">
                         <Badge
@@ -828,7 +827,9 @@ export default function CashAdvancesContent() {
                           size="sm"
                           dot
                         >
-                          {item.statusLimit === "MELEBIHI_LIMIT"
+                          {item.statusLimit === "TIDAK_DIBATASI"
+                            ? "Tidak dibatasi"
+                            : item.statusLimit === "MELEBIHI_LIMIT"
                             ? "Melebihi Limit"
                             : item.statusLimit === "MENDEKATI_LIMIT"
                             ? "Mendekati Limit"
@@ -875,7 +876,7 @@ export default function CashAdvancesContent() {
         }}
         onConfirm={handleDeleteAdvance}
         title="Hapus Pengajuan Kasbon"
-        description="Apakah Anda yakin ingin menghapus data kasbon ini secara permanen?"
+        description="Kasbon beserta riwayat pelunasannya akan dihapus. Jurnal terkait akan dibalik agar saldo akuntansi tetap seimbang."
         itemName={advanceToDelete ? `${advanceToDelete.number} • ${advanceToDelete.employee}` : undefined}
         isDeleting={isDeleting}
       />

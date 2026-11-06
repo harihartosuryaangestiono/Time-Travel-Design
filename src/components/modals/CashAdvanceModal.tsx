@@ -22,7 +22,7 @@ export interface CashAdvanceFormData {
   disbursed_amount: number;
   settled_amount: number;
   returned_amount: number;
-  status: "DRAFT" | "SUBMITTED" | "APPROVED" | "DISBURSED" | "PARTIALLY_SETTLED" | "SETTLED";
+  status: "DRAFT" | "SUBMITTED" | "APPROVED" | "DISBURSED" | "PARTIALLY_SETTLED" | "SETTLED" | "REJECTED" | "CANCELLED";
 }
 
 interface CashAdvanceModalProps {
@@ -39,6 +39,11 @@ export function CashAdvanceModal({
   advanceToEdit,
 }: CashAdvanceModalProps) {
   const isEditing = Boolean(advanceToEdit && advanceToEdit.id);
+  const isEditingDisbursed = Boolean(
+    isEditing &&
+      advanceToEdit &&
+      ["DISBURSED", "PARTIALLY_SETTLED", "SETTLED"].includes(advanceToEdit.status)
+  );
 
   const [formData, setFormData] = useState<CashAdvanceFormData>({
     number: "",
@@ -350,10 +355,16 @@ export function CashAdvanceModal({
                 onChange={(e) =>
                   setFormData({ ...formData, status: e.target.value as any })
                 }
+                disabled={isEditingDisbursed}
                 className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
               >
+                <option value="DRAFT">Draft</option>
                 <option value="DISBURSED">Dicairkan (Dana Keluar)</option>
                 <option value="SUBMITTED">Diajukan (Menunggu Persetujuan)</option>
+                <option value="PARTIALLY_SETTLED">Sebagian Diselesaikan</option>
+                <option value="SETTLED">Lunas</option>
+                <option value="REJECTED">Ditolak</option>
+                <option value="CANCELLED">Dibatalkan</option>
               </select>
             </div>
           </div>
@@ -467,6 +478,7 @@ export function CashAdvanceModal({
               <input
                 type="date"
                 required
+                disabled={isEditingDisbursed}
                 value={formData.date}
                 onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                 className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
