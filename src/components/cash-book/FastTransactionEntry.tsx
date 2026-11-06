@@ -169,7 +169,7 @@ export function FastTransactionEntry({
             ? selectedSalesAssignment?.salesPersonId || null
             : null,
         subcontractor_contract_id:
-          type === "EXPENSE" ? subcontractorContractId || null : null,
+          type === "EXPENSE" && expenseBook === "PROJECT" ? subcontractorContractId || null : null,
         cash_account_id: cashAccountId,
       });
       if (!result.success) throw new Error(result.error);
@@ -375,7 +375,7 @@ export function FastTransactionEntry({
             </select>
           </div>
         )}
-        {type === "EXPENSE" && allowProjectSelection && (
+        {type === "EXPENSE" && expenseBook === "PROJECT" && allowProjectSelection && (
           <div className="sm:col-span-3">
             <label className="mb-0.5 block text-[10px] font-bold uppercase tracking-wider text-zinc-400">
               Borongan subkontraktor (opsional)
