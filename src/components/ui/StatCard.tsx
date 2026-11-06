@@ -18,6 +18,7 @@ interface StatCardProps {
   iconColor?: string;
   gradient?: boolean;
   className?: string;
+  compactValue?: boolean;
   badge?: string;
   onClick?: () => void;
 }
@@ -46,6 +47,7 @@ export function StatCard({
   iconColor = "text-zinc-900",
   gradient = false,
   className,
+  compactValue = false,
   badge,
   onClick,
 }: StatCardProps) {
@@ -64,6 +66,13 @@ export function StatCard({
   const subtitlePercentValue = percentInSubtitle
     ? Number(percentInSubtitle[0].replace("%", "").replace(",", "."))
     : Number.NaN;
+  const valueContent = isCurrencyValue && Number.isFinite(numericValue) ? (
+    <AnimatedNumber value={numericValue} format={formatCurrencyAmount} />
+  ) : value === "..." ? (
+    <span className="dashboard-skeleton inline-block h-7 w-36 max-w-full rounded-lg align-middle" aria-label="Memuat" />
+  ) : (
+    value
+  );
 
   return (
     <SpotlightCard
@@ -87,18 +96,11 @@ export function StatCard({
               </span>
             )}
           </div>
-          <div className="break-words text-xl font-bold tracking-tight text-slate-900 tabular-nums sm:text-2xl">
-            {isCurrencyValue && Number.isFinite(numericValue) ? (
-              <AnimatedNumber
-                value={numericValue}
-                format={formatCurrencyAmount}
-              />
-            ) : value === "..." ? (
-              <span className="dashboard-skeleton inline-block h-7 w-36 max-w-full rounded-lg align-middle" aria-label="Memuat" />
-            ) : (
-              value
-            )}
-          </div>
+          {!compactValue && (
+            <div className="break-words text-xl font-bold tracking-tight text-slate-900 tabular-nums sm:text-2xl">
+              {valueContent}
+            </div>
+          )}
         </div>
 
         <div
@@ -110,6 +112,12 @@ export function StatCard({
           <Icon className={cn("h-5 w-5", iconColor)} />
         </div>
       </div>
+
+      {compactValue && (
+        <div className="mt-2 whitespace-nowrap text-sm font-bold tracking-tight text-slate-900 tabular-nums">
+          {valueContent}
+        </div>
+      )}
 
       {(subtitle || trend) && (
         <div className="mt-3.5 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 text-xs">

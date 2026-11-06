@@ -219,6 +219,7 @@ export default function RekapitulasiPage() {
           icon={Building2}
           iconBgColor="bg-blue-500/10"
           iconColor="text-blue-700"
+          compactValue
           gradient
         />
         <StatCard
@@ -228,6 +229,7 @@ export default function RekapitulasiPage() {
           icon={TrendingUp}
           iconBgColor="bg-emerald-500/10"
           iconColor="text-emerald-700"
+          compactValue
         />
         <StatCard
           title="Laba Bersih (Net Income)"
@@ -236,6 +238,7 @@ export default function RekapitulasiPage() {
           icon={CheckCircle}
           iconBgColor="bg-purple-500/10"
           iconColor="text-purple-700"
+          compactValue
         />
         <StatCard
           title="Kas Saat Ini (Riil)"
@@ -244,6 +247,7 @@ export default function RekapitulasiPage() {
           icon={Wallet}
           iconBgColor="bg-amber-500/10"
           iconColor="text-amber-700"
+          compactValue
         />
       </div>
 
