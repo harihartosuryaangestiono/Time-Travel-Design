@@ -6,8 +6,6 @@ import { getProjects } from "@/app/actions/projectActions";
 import { getCashAccountsWithBalances } from "@/app/actions/cashAccountActions";
 import { X, Coins, User, Calendar, HardHat, AlertTriangle, Loader2, Check } from "lucide-react";
 
-const OWNER_RECIPIENTS = ["Dustin", "Emir", "Om Dodi"] as const;
-
 export interface CashAdvanceFormData {
   id?: string;
   number: string;
@@ -216,7 +214,12 @@ export function CashAdvanceModal({
         status: formData.status,
       });
 
-      onSuccess(saved || formData);
+      if (!saved.success) {
+        setErrorMsg(saved.error);
+        return;
+      }
+
+      onSuccess(saved.data || formData);
       onClose();
     } catch (err: any) {
       console.error("Cash advance save error:", err);
@@ -397,7 +400,7 @@ export function CashAdvanceModal({
           {/* Recipient */}
           <div>
             <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-              {isMandor ? "Nama Mandor / Kepala Tukang *" : isOwner ? "Owner *" : "Nama Staff *"}
+              {isMandor ? "Nama Mandor / Kepala Tukang *" : isOwner ? "Nama Owner *" : "Nama Staff *"}
             </label>
             <div className="relative">
               {isMandor ? (
@@ -405,30 +408,24 @@ export function CashAdvanceModal({
               ) : (
                 <User className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
               )}
-              {isOwner ? (
-                <select
-                  required
-                  value={formData.employee}
-                  onChange={(e) => setFormData({ ...formData, employee: e.target.value })}
-                  className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
-                >
-                  <option value="">Pilih owner</option>
-                  {OWNER_RECIPIENTS.map((name) => <option key={name} value={name}>{name}</option>)}
-                </select>
-              ) : (
-                <input
-                  type="text"
-                  required
-                  value={isMandor ? formData.mandor_name : formData.employee}
-                  onChange={(e) =>
-                    isMandor
-                      ? setFormData({ ...formData, mandor_name: e.target.value })
-                      : setFormData({ ...formData, employee: e.target.value })
-                  }
-                  placeholder={isMandor ? "Misal: Pak Slamet (Mandor Struktur)" : "Masukkan nama staff"}
-                  className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
-                />
-              )}
+              <input
+                type="text"
+                required
+                value={isMandor ? formData.mandor_name : formData.employee}
+                onChange={(e) =>
+                  isMandor
+                    ? setFormData({ ...formData, mandor_name: e.target.value })
+                    : setFormData({ ...formData, employee: e.target.value })
+                }
+                placeholder={
+                  isMandor
+                    ? "Misal: Pak Slamet (Mandor Struktur)"
+                    : isOwner
+                      ? "Masukkan nama owner"
+                      : "Masukkan nama staff"
+                }
+                className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-xs text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
+              />
             </div>
           </div>
 

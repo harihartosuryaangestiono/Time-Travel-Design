@@ -467,7 +467,26 @@ async function postInternalAdvanceEditJournal(input: {
 /**
  * Menyimpan atau memperbarui data kasbon dengan pengecekan plafon dan audit logs
  */
-export async function saveCashAdvanceRecord(rawInput: CreateCashAdvanceInput) {
+type CashAdvanceMutationResult<T> =
+  | { success: true; data: T }
+  | { success: false; error: string };
+
+export async function saveCashAdvanceRecord(
+  rawInput: CreateCashAdvanceInput
+): Promise<CashAdvanceMutationResult<Awaited<ReturnType<typeof saveCashAdvanceRecordOrThrow>>>> {
+  try {
+    const data = await saveCashAdvanceRecordOrThrow(rawInput);
+    return { success: true, data };
+  } catch (error) {
+    console.error("Cash advance save failed:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Gagal menyimpan kasbon karena kesalahan yang tidak diketahui.",
+    };
+  }
+}
+
+async function saveCashAdvanceRecordOrThrow(rawInput: CreateCashAdvanceInput) {
   const user = await requireAuthUser();
   const input = CreateCashAdvanceSchema.parse(rawInput);
   const supabase = await createClient();
@@ -485,12 +504,6 @@ export async function saveCashAdvanceRecord(rawInput: CreateCashAdvanceInput) {
   if (input.advance_type !== "MANDOR") {
     const recipientName = input.recipient_name?.trim();
     if (!recipientName) throw new Error("Nama penerima kasbon wajib diisi.");
-    if (
-      input.advance_type === "OWNER" &&
-      !["Dustin", "Emir", "Om Dodi"].includes(recipientName)
-    ) {
-      throw new Error("Pilih owner yang terdaftar.");
-    }
 
     const { data: existingRecipient, error: recipientLookupError } = await supabase
       .from("advance_recipients")
@@ -499,6 +512,7 @@ export async function saveCashAdvanceRecord(rawInput: CreateCashAdvanceInput) {
       .eq("type", input.advance_type)
       .ilike("name", recipientName)
       .eq("is_active", true)
+      .limit(1)
       .maybeSingle();
     if (recipientLookupError) {
       throw new Error(`Gagal memeriksa penerima kasbon: ${recipientLookupError.message}`);
@@ -1221,7 +1235,20 @@ export async function settleCashAdvanceRecord(rawInput: SettleAdvanceInput) {
   };
 }
 
-export async function deleteCashAdvance(id: string) {
+export async function deleteCashAdvance(id: string): Promise<CashAdvanceMutationResult<{ success: true }>> {
+  try {
+    await deleteCashAdvanceOrThrow(id);
+    return { success: true, data: { success: true } };
+  } catch (error) {
+    console.error("Cash advance delete failed:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Gagal menghapus kasbon karena kesalahan yang tidak diketahui.",
+    };
+  }
+}
+
+async function deleteCashAdvanceOrThrow(id: string) {
   const user = await requireAuthUser();
   const supabase = await createClient();
 

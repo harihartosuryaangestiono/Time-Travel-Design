@@ -246,7 +246,11 @@ export default function CashAdvancesContent() {
     if (!advanceToDelete) return;
     try {
       setIsDeleting(true);
-      await deleteCashAdvance(advanceToDelete.id);
+      const result = await deleteCashAdvance(advanceToDelete.id);
+      if (!result.success) {
+        alert(result.error);
+        return;
+      }
       await fetchAdvancesAndRecap();
       setShowDelete(false);
       setAdvanceToDelete(null);
