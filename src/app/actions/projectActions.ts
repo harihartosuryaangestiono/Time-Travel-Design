@@ -61,6 +61,7 @@ export async function getProject(id: string) {
 export async function createProject(input: {
   code: string;
   name: string;
+  project_year: number;
   client_id?: string | null;
   type: ProjectType;
   building_function?: string;
@@ -76,6 +77,9 @@ export async function createProject(input: {
 
   if (!canManageProjects(user.role)) {
     return { error: "Anda tidak memiliki izin untuk membuat proyek." };
+  }
+  if (!Number.isInteger(input.project_year) || input.project_year < 2000 || input.project_year > 2100) {
+    return { error: "Tahun proyek harus antara 2000 dan 2100." };
   }
 
   const supabase = await createClient();
@@ -115,6 +119,7 @@ export async function updateProject(
   input: {
     code?: string;
     name?: string;
+    project_year?: number;
     client_id?: string | null;
     type?: ProjectType;
     building_function?: string;
@@ -130,6 +135,12 @@ export async function updateProject(
   const user = await requireAuthUser();
   if (!canManageProjects(user.role)) {
     return { error: "Anda tidak memiliki izin untuk mengubah proyek." };
+  }
+  if (
+    input.project_year !== undefined &&
+    (!Number.isInteger(input.project_year) || input.project_year < 2000 || input.project_year > 2100)
+  ) {
+    return { error: "Tahun proyek harus antara 2000 dan 2100." };
   }
 
   const supabase = await createClient();

@@ -594,9 +594,6 @@ async function saveCashAdvanceRecordOrThrow(rawInput: CreateCashAdvanceInput) {
     if (wasDisbursed && existing.advance_type !== input.advance_type) {
       throw new Error("Jenis kasbon tidak dapat diubah setelah kasbon dicairkan.");
     }
-    if (wasDisbursed && input.date !== String(existing.date).slice(0, 10)) {
-      throw new Error("Tanggal kasbon yang sudah dicairkan tidak dapat diubah karena terkait jurnal akuntansi.");
-    }
     if (!wasDisbursed && existing.status === "APPROVED" && input.status !== "DISBURSED") {
       throw new Error("Kasbon yang disetujui hanya dapat dilanjutkan ke proses pencairan.");
     }
@@ -670,7 +667,7 @@ async function saveCashAdvanceRecordOrThrow(rawInput: CreateCashAdvanceInput) {
     const { data, error } = await supabase
       .from("cash_advances")
       .update({
-        date: input.date,
+        date: wasDisbursed ? existing.date : input.date,
         advance_type: input.advance_type,
         recipient_id: recipientId,
         employee_id: input.employee_id || existing.employee_id,

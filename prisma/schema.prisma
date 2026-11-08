@@ -133,6 +133,7 @@ model Project {
   work_category  String?
   status         ProjectStatus @default(PLANNING)
   location       String?
+  project_year   Int?
   start_date     DateTime?
   end_date       DateTime?
   completed_date DateTime?

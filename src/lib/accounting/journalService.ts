@@ -291,16 +291,23 @@ export async function reverseJournal(
       throw new Error("Jurnal transaksi tidak cocok dengan organisasi aktif.");
     }
   } else {
-    const { data, error } = await supabase
+    const { data: journal, error: journalError } = await supabase
       .from("journal_entries")
-      .select("id, organization_id, number, date, description, status, lines:journal_lines(account_id, debit, credit, description, project_id)")
+      .select("id, organization_id, number, date, description, status")
       .eq("id", journalId)
       .eq("organization_id", user.organizationId)
       .maybeSingle();
 
-    if (error) throw new Error(`Gagal memuat jurnal untuk dibalik: ${error.message}`);
-    if (!data) throw new Error("Journal entry not found");
-    original = data as ReversalJournal;
+    if (journalError) throw new Error(`Gagal memuat jurnal untuk dibalik: ${journalError.message}`);
+    if (!journal) throw new Error("Journal entry not found");
+
+    const { data: lines, error: linesError } = await supabase
+      .from("journal_lines")
+      .select("account_id, debit, credit, description, project_id")
+      .eq("journal_id", journalId);
+
+    if (linesError) throw new Error(`Gagal memuat baris jurnal untuk dibalik: ${linesError.message}`);
+    original = { ...journal, lines: lines || [] };
   }
   if (original.status !== "POSTED") throw new Error("Only posted journal entries can be reversed");
   if (!original.lines.length) throw new Error("Jurnal tidak memiliki baris untuk dibalik.");

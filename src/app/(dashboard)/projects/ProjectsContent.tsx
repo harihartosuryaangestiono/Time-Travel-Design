@@ -30,6 +30,7 @@ interface ProjectItem {
   id: string;
   code: string;
   name: string;
+  project_year: number | null;
   status: "ACTIVE" | "PLANNING" | "COMPLETED" | "ON_HOLD" | "CANCELLED";
   contract_value: number;
   received_amount: number;
@@ -227,6 +228,7 @@ export default function ProjectsContent() {
           id: p.id,
           code: p.code,
           name: p.name,
+          project_year: p.project_year ?? null,
           status: p.status || "ACTIVE",
           contract_value: isNaN(cVal) ? 0 : cVal,
           received_amount: receivedByProject[p.id] || 0,
@@ -490,6 +492,9 @@ export default function ProjectsContent() {
                   <h4 className="mt-3 text-base font-bold text-zinc-950 group-hover:text-zinc-700 transition-colors">
                     {project.name}
                   </h4>
+                  <p className="mt-1 text-xs font-semibold text-zinc-500">
+                    Tahun proyek: {project.project_year ?? "Belum ditentukan"}
+                  </p>
 
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     <span className="rounded-md bg-violet-50 px-2 py-1 text-[10px] font-medium text-violet-700">
@@ -580,6 +585,7 @@ export default function ProjectsContent() {
                           id: project.id,
                           code: project.code,
                           name: project.name,
+                          project_year: project.project_year || new Date().getFullYear(),
                           client_id: project.client?.id || "",
                           client_name: project.client?.name,
                           building_function: project.building_function || "",

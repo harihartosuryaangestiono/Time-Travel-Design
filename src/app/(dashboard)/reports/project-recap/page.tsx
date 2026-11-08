@@ -98,14 +98,15 @@ export default function ProjectRecapListPage() {
         </div>
         <label className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold shadow-sm">
           <Calendar className="h-4 w-4 text-zinc-400" />
-          <span>Tahun Buku</span>
+          <span>Tahun Proyek</span>
           <select
             value={year}
             onChange={(event) => setYear(Number(event.target.value))}
             className="bg-transparent font-bold text-zinc-900 focus:outline-none"
           >
-            <option value={2026}>2026</option>
-            <option value={2025}>2025</option>
+            {Array.from({ length: 11 }, (_, index) => new Date().getFullYear() - 5 + index).map((optionYear) => (
+              <option key={optionYear} value={optionYear}>{optionYear}</option>
+            ))}
           </select>
         </label>
       </div>
@@ -128,7 +129,7 @@ export default function ProjectRecapListPage() {
       <div>
         <div className="mb-4">
           <h2 className="text-sm font-bold text-zinc-950">Pilih Proyek</h2>
-          <p className="mt-1 text-xs text-zinc-500">Ringkasan transaksi tahun buku {year}. Pilih kartu untuk membuka rekap proyek.</p>
+          <p className="mt-1 text-xs text-zinc-500">Ringkasan transaksi untuk proyek tahun {year}. Pilih kartu untuk membuka rekap proyek.</p>
         </div>
         {isLoading ? (
           <div className="rounded-2xl border border-zinc-200 bg-white p-10 text-center text-sm text-zinc-400 shadow-sm">
@@ -165,6 +166,7 @@ export default function ProjectRecapListPage() {
                   <h3 className="mt-4 text-lg font-bold leading-snug text-zinc-950 transition-colors group-hover:text-blue-700">
                     {project.projectName}
                   </h3>
+                  <p className="mt-1 text-xs font-semibold text-zinc-500">Tahun proyek: {project.projectYear ?? "-"}</p>
 
                   <div className="mt-3 flex flex-wrap gap-2">
                     {project.buildingFunction && (

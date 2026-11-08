@@ -89,16 +89,17 @@ export default function ProjectRecapDetailPage() {
           </h1>
           {data && (
             <p className="mt-1 text-xs text-zinc-500">
-              <span className="font-mono">{data.project.code}</span> · {data.project.clientName}
+              <span className="font-mono">{data.project.code}</span> · {data.project.clientName} · Tahun proyek {data.project.projectYear ?? "-"}
             </p>
           )}
         </div>
         <label className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold shadow-sm">
           <Calendar className="h-4 w-4 text-zinc-400" />
-          <span>Tahun Buku</span>
+          <span>Tahun Transaksi</span>
           <select value={year} onChange={(event) => setYear(Number(event.target.value))} className="bg-transparent font-bold text-zinc-900 focus:outline-none">
-            <option value={2026}>2026</option>
-            <option value={2025}>2025</option>
+            {Array.from({ length: 11 }, (_, index) => new Date().getFullYear() - 5 + index).map((optionYear) => (
+              <option key={optionYear} value={optionYear}>{optionYear}</option>
+            ))}
           </select>
         </label>
       </div>

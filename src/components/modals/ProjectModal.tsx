@@ -10,6 +10,7 @@ export interface ProjectFormData {
   id?: string;
   code: string;
   name: string;
+  project_year: number;
   client_id?: string | null;
   client_name?: string;
   building_function: string;
@@ -45,6 +46,7 @@ export function ProjectModal({
   const [formData, setFormData] = useState<ProjectFormData>({
     code: "",
     name: "",
+    project_year: new Date().getFullYear(),
     client_name: "",
     building_function: "",
     work_category: "",
@@ -79,6 +81,7 @@ export function ProjectModal({
         id: projectToEdit.id,
         code: projectToEdit.code || "",
         name: projectToEdit.name || "",
+        project_year: projectToEdit.project_year || new Date().getFullYear(),
         client_id: projectToEdit.client_id || "",
         client_name: projectToEdit.client_name || "",
         building_function: projectToEdit.building_function || "",
@@ -94,6 +97,7 @@ export function ProjectModal({
       setFormData({
         code: `PRJ-${year}-${randNum}`,
         name: "",
+        project_year: new Date().getFullYear(),
         client_id: "",
         client_name: "",
         building_function: "",
@@ -125,6 +129,7 @@ export function ProjectModal({
         const result = await updateProject(formData.id, {
           code: formData.code,
           name: formData.name,
+          project_year: formData.project_year,
           client_id: formData.client_id || null,
           status: formData.status,
           type: legacyProjectType(formData.work_category),
@@ -143,6 +148,7 @@ export function ProjectModal({
         const result = await createProject({
           code: formData.code,
           name: formData.name,
+          project_year: formData.project_year,
           client_id: formData.client_id || null,
           status: formData.status,
           type: legacyProjectType(formData.work_category),
@@ -211,6 +217,21 @@ export function ProjectModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FormField id="project-year" label="Tahun proyek" required hint="Tahun pengelompokan proyek untuk rekap pendapatan.">
+              <FormSelect
+                id="project-year"
+                required
+                value={formData.project_year}
+                onChange={(event) =>
+                  setFormData({ ...formData, project_year: Number(event.target.value) })
+                }
+              >
+                {Array.from({ length: 11 }, (_, index) => new Date().getFullYear() - 5 + index).map((year) => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </FormSelect>
+            </FormField>
+
             {/* Project Code */}
             <FormField id="project-code" label="Kode proyek" required hint="Kode unik untuk pencarian dan laporan.">
               <FormInput

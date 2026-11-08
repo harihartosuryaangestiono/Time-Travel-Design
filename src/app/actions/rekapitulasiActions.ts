@@ -55,6 +55,7 @@ export interface ProjectRekapitulasiSummary {
   projectId: string;
   projectName: string;
   projectCode: string;
+  projectYear: number | null;
   status: string;
   clientName: string;
   buildingFunction: string | null;
@@ -75,6 +76,7 @@ export interface ProjectRekapitulasiData {
     id: string;
     name: string;
     code: string;
+    projectYear: number | null;
     status: string;
     clientName: string;
     buildingFunction: string | null;
@@ -112,10 +114,15 @@ async function getProjectRekapitulasiRows(
 
   let projectQuery = supabase
     .from("projects")
-    .select("id, name, code, client_id, contract_value, status, building_function, work_category, type, end_date")
+    .select("id, name, code, client_id, contract_value, status, building_function, work_category, type, end_date, project_year")
     .eq("organization_id", user.organizationId)
     .order("name");
   if (projectId) projectQuery = projectQuery.eq("id", projectId);
+  else if (year === new Date().getFullYear()) {
+    projectQuery = projectQuery.or(`project_year.eq.${year},project_year.is.null`);
+  } else {
+    projectQuery = projectQuery.eq("project_year", year);
+  }
 
   const { data: projects, error: projectsError } = await projectQuery;
   if (projectsError) throw new Error(`Gagal memuat proyek untuk rekapitulasi: ${projectsError.message}`);
@@ -269,6 +276,7 @@ async function getProjectRekapitulasiRows(
         id: project.id,
         name: project.name,
         code: project.code,
+        projectYear: project.project_year,
         status: project.status,
         clientName: (project.client_id && clientsById.get(project.client_id)) || "-",
         buildingFunction: project.building_function,
@@ -306,6 +314,7 @@ export async function getProjectRekapitulasiProjects(year: number = 2026): Promi
     projectId: report.project.id,
     projectName: report.project.name,
     projectCode: report.project.code,
+    projectYear: report.project.projectYear,
     status: report.project.status,
     clientName: report.project.clientName,
     buildingFunction: report.project.buildingFunction,
