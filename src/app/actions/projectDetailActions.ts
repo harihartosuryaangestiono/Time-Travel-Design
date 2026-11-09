@@ -19,10 +19,12 @@ export interface ProjectTransactionLine {
 }
 
 export interface ProjectDetailData {
+  fiscalYear: number;
   project: {
     id: string;
     name: string;
     code: string;
+    projectYear: number | null;
     status: string;
     clientName: string;
     laborAdvanceLimit: number;
@@ -30,6 +32,7 @@ export interface ProjectDetailData {
   };
   totalReceived: number;
   totalSpent: number;
+  openingBalance: number;
   netProfit: number;
   profitMargin: number;
   isDeficit: boolean; // Jika biaya > penerimaan
@@ -46,14 +49,19 @@ export interface ProjectDetailData {
   transactions: ProjectTransactionLine[];
 }
 
-export async function getProjectDetailData(projectId: string): Promise<ProjectDetailData> {
+export async function getProjectDetailData(
+  projectId: string,
+  year: number = new Date().getFullYear()
+): Promise<ProjectDetailData> {
   const user = await requireAuthUser();
   const supabase = await createClient();
+  const startDate = `${year}-01-01T00:00:00.000Z`;
+  const endDate = `${year}-12-31T23:59:59.999Z`;
 
   // 1. Ambil Data Proyek
   const { data: project, error: projErr } = await supabase
     .from("projects")
-    .select("id, name, code, status, contract_value, labor_advance_limit, client_id")
+    .select("id, name, code, status, contract_value, labor_advance_limit, client_id, project_year")
     .eq("id", projectId)
     .eq("organization_id", user.organizationId)
     .single();
@@ -76,19 +84,24 @@ export async function getProjectDetailData(projectId: string): Promise<ProjectDe
   }
 
   // 2. Ambil Termin Klien (project_revenues)
-  const { data: revenues } = await supabase
+  const { data: revenues, error: revenuesError } = await supabase
     .from("project_revenues")
     .select("id, date, amount, description")
     .eq("project_id", projectId)
-    .eq("organization_id", user.organizationId);
+    .eq("organization_id", user.organizationId)
+    .lte("date", endDate);
+  if (revenuesError) {
+    throw new Error(`Gagal memuat pendapatan proyek: ${revenuesError.message}`);
+  }
 
-  // 3. Ambil Pengeluaran Proyek (expenses langsung atau via allocation)
+  // Load transactions through the selected year to calculate the opening balance.
   const { data: directExpenses, error: directExpensesError } = await supabase
     .from("expenses")
     .select("id, date, number, description, total_amount, category, needs_category, status")
     .eq("project_id", projectId)
     .eq("organization_id", user.organizationId)
-    .in("status", ["APPROVED", "POSTED"]);
+    .in("status", ["APPROVED", "POSTED"])
+    .lte("date", endDate);
 
   const { data: allocatedExpenses, error: allocatedExpensesError } = await supabase
     .from("expense_allocations")
@@ -111,6 +124,7 @@ export async function getProjectDetailData(projectId: string): Promise<ProjectDe
         .select("id, date, number, description, category, needs_category, status")
         .in("id", allocatedExpenseIds)
         .eq("organization_id", user.organizationId)
+        .lte("date", endDate)
     : { data: [], error: null };
 
   if (allocatedExpenseError) {
@@ -121,11 +135,16 @@ export async function getProjectDetailData(projectId: string): Promise<ProjectDe
   );
 
   // 4. Ambil Kasbon Mandor pada Proyek Ini
-  const { data: advances } = await supabase
+  const { data: advances, error: advancesError } = await supabase
     .from("cash_advances")
     .select("id, mandor_name, employee_id, disbursed_amount, settled_amount, returned_amount, status")
     .eq("project_id", projectId)
-    .eq("organization_id", user.organizationId);
+    .eq("organization_id", user.organizationId)
+    .gte("date", startDate)
+    .lte("date", endDate);
+  if (advancesError) {
+    throw new Error(`Gagal memuat kasbon mandor proyek: ${advancesError.message}`);
+  }
 
   // Gabungkan semua pengeluaran
   const expenseMap = new Map<string, {
@@ -170,10 +189,15 @@ export async function getProjectDetailData(projectId: string): Promise<ProjectDe
     }
   });
 
+  const getTransactionYear = (date: string) => Number(date.slice(0, 4));
+  const isInSelectedYear = (date: string) => getTransactionYear(date) === year;
+  const selectedYearExpenses = Array.from(expenseMap.values()).filter((expense) =>
+    isInSelectedYear(expense.date)
+  );
   const categoryTotals = new Map<string, number>();
   let uncategorized = 0;
 
-  expenseMap.forEach((e) => {
+  selectedYearExpenses.forEach((e) => {
     if (e.needs_category || e.category === "Perlu dikategorikan") {
       uncategorized += e.amount;
     } else if ((PROJECT_EXPENSE_CATEGORIES as readonly string[]).includes(e.category)) {
@@ -227,8 +251,13 @@ export async function getProjectDetailData(projectId: string): Promise<ProjectDe
 
   allRaw.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  let runningBalance = 0;
-  const transactionLines: ProjectTransactionLine[] = allRaw.map((tx) => {
+  let runningBalance = allRaw
+    .filter((tx) => getTransactionYear(tx.date) < year)
+    .reduce((balance, tx) => balance + tx.debit - tx.kredit, 0);
+  const openingBalance = runningBalance;
+  const transactionLines: ProjectTransactionLine[] = allRaw.filter((tx) =>
+    isInSelectedYear(tx.date)
+  ).map((tx) => {
     runningBalance += tx.debit - tx.kredit;
     return {
       id: tx.id,
@@ -241,8 +270,10 @@ export async function getProjectDetailData(projectId: string): Promise<ProjectDe
     };
   });
 
-  const totalReceived = (revenues || []).reduce((sum: number, r: any) => sum + (parseFloat(r.amount) || 0), 0);
-  const totalSpent = Array.from(expenseMap.values()).reduce((sum, e) => sum + e.amount, 0);
+  const totalReceived = (revenues || [])
+    .filter((revenue: any) => isInSelectedYear(revenue.date))
+    .reduce((sum: number, revenue: any) => sum + (parseFloat(revenue.amount) || 0), 0);
+  const totalSpent = selectedYearExpenses.reduce((sum, expense) => sum + expense.amount, 0);
   const netProfit = totalReceived - totalSpent;
   const profitMargin = totalReceived > 0 ? (netProfit / totalReceived) * 100 : 0;
   const isDeficit = totalSpent > totalReceived;
@@ -263,10 +294,12 @@ export async function getProjectDetailData(projectId: string): Promise<ProjectDe
   });
 
   return {
+    fiscalYear: year,
     project: {
       id: project.id,
       name: project.name,
       code: project.code,
+      projectYear: project.project_year,
       status: project.status,
       clientName: client?.name || "-",
       laborAdvanceLimit: parseFloat(project.labor_advance_limit || "0") || 0,
@@ -274,6 +307,7 @@ export async function getProjectDetailData(projectId: string): Promise<ProjectDe
     },
     totalReceived,
     totalSpent,
+    openingBalance,
     netProfit,
     profitMargin,
     isDeficit,

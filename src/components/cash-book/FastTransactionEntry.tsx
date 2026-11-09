@@ -32,6 +32,7 @@ interface FastTransactionEntryProps {
   subcontractorContracts?: SubcontractorContractSummary[];
   salesAssignments?: SalesPersonProjectOption[];
   defaultProjectId?: string;
+  defaultTransactionYear?: number;
   allowProjectSelection?: boolean;
 }
 
@@ -83,9 +84,14 @@ export function FastTransactionEntry({
   subcontractorContracts = [],
   salesAssignments = [],
   defaultProjectId,
+  defaultTransactionYear = new Date().getFullYear(),
   allowProjectSelection = true,
 }: FastTransactionEntryProps) {
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(() =>
+    defaultTransactionYear === new Date().getFullYear()
+      ? new Date().toISOString().split("T")[0]
+      : `${defaultTransactionYear}-01-01`
+  );
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
   const [amount, setAmount] = useState("");

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -38,9 +38,10 @@ function formatCurrency(amount: number) {
 }
 
 export default function ProjectDetailPage() {
-  const router = useRouter();
   const params = useParams();
   const projectId = params.id as string;
+  const [year, setYear] = useState(new Date().getFullYear());
+  const initializedProjectYear = useRef(false);
 
   const [data, setData] = useState<ProjectDetailData | null>(null);
   const [accounts, setAccounts] = useState<Array<{ id: string; name: string; opening_balance: number }>>([]);
@@ -53,10 +54,14 @@ export default function ProjectDetailPage() {
       setIsLoading(true);
       setError(null);
       const [res, cashAccounts, salesOptions] = await Promise.all([
-        getProjectDetailData(projectId),
+        getProjectDetailData(projectId, year),
         getCashAccountsWithBalances(),
         getSalesPersonProjectOptions(),
       ]);
+      if (!initializedProjectYear.current) {
+        setYear(res.project.projectYear ?? new Date().getFullYear());
+        initializedProjectYear.current = true;
+      }
       setData(res);
       setAccounts(cashAccounts);
       setSalesAssignments(salesOptions.filter((assignment) => assignment.projectId === projectId));
@@ -66,7 +71,7 @@ export default function ProjectDetailPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, year]);
 
   useEffect(() => {
     fetchProjectDetail();
@@ -83,6 +88,7 @@ export default function ProjectDetailPage() {
       t.kredit,
       t.runningBalance,
     ]);
+    rows.unshift(["", "", "Saldo Awal Tahun", data.openingBalance, 0, data.openingBalance]);
 
     const csvContent =
       "data:text/csv;charset=utf-8,\uFEFF" +
@@ -91,7 +97,7 @@ export default function ProjectDetailPage() {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Buku_Proyek_${data.project.code}_${new Date().toISOString().split("T")[0]}.csv`);
+    link.setAttribute("download", `Buku_Proyek_${data.project.code}_${year}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -122,6 +128,12 @@ export default function ProjectDetailPage() {
   }
 
   const { project, hppBreakdown, mandorAdvances } = data;
+  const availableYears = Array.from(
+    new Set([
+      ...Array.from({ length: 11 }, (_, index) => new Date().getFullYear() - 5 + index),
+      ...(project.projectYear ? [project.projectYear] : []),
+    ])
+  ).sort((a, b) => a - b);
 
   return (
     <div className="space-y-6 pb-16 animate-in fade-in duration-300">
@@ -144,18 +156,34 @@ export default function ProjectDetailPage() {
               </Badge>
             </div>
             <p className="text-xs text-zinc-500 mt-1">
-              Kode: <span className="font-mono font-semibold text-zinc-700">{project.code}</span> • Klien: <strong className="text-zinc-800">{project.clientName}</strong>
+              Kode: <span className="font-mono font-semibold text-zinc-700">{project.code}</span> • Klien: <strong className="text-zinc-800">{project.clientName}</strong> • Tahun proyek: <strong className="text-zinc-800">{project.projectYear ?? "-"}</strong>
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={handleExportCSV}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3.5 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition-colors shadow-sm self-start sm:self-auto"
-          >
-            <Download className="h-3.5 w-3.5 text-zinc-500" />
-            <span>Export Buku Proyek</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            <label className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3.5 py-2 text-xs font-semibold shadow-sm">
+              <Calendar className="h-3.5 w-3.5 text-zinc-400" />
+              <span>Tahun buku</span>
+              <select
+                aria-label="Pilih tahun buku proyek"
+                value={year}
+                onChange={(event) => setYear(Number(event.target.value))}
+                className="bg-transparent font-bold text-zinc-900 focus:outline-none"
+              >
+                {availableYears.map((optionYear) => (
+                  <option key={optionYear} value={optionYear}>{optionYear}</option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              onClick={handleExportCSV}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3.5 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition-colors shadow-sm"
+            >
+              <Download className="h-3.5 w-3.5 text-zinc-500" />
+              <span>Export Buku Proyek {year}</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -169,7 +197,7 @@ export default function ProjectDetailPage() {
                 Peringatan: Proyek Ini Sedang Mengalami Defisit / Merugi
               </h4>
               <p className="mt-1 text-rose-800 leading-relaxed">
-                Total pengeluaran biaya proyek ({formatCurrency(data.totalSpent)}) telah melampaui seluruh penerimaan termin ({formatCurrency(data.totalReceived)}) dengan selisih defisit <strong>{formatCurrency(Math.abs(data.netProfit))}</strong> (Margin: {data.profitMargin.toFixed(1)}%).
+                Total pengeluaran proyek tahun {year} ({formatCurrency(data.totalSpent)}) telah melampaui penerimaan termin tahun {year} ({formatCurrency(data.totalReceived)}) dengan selisih defisit <strong>{formatCurrency(Math.abs(data.netProfit))}</strong> (Margin: {data.profitMargin.toFixed(1)}%).
               </p>
             </div>
           </div>
@@ -181,7 +209,7 @@ export default function ProjectDetailPage() {
         <StatCard
           title="Total Diterima (Termin)"
           value={formatCurrency(data.totalReceived)}
-          subtitle="Total dana masuk dari klien"
+          subtitle={`Dana masuk tahun ${year}`}
           icon={TrendingUp}
           iconBgColor="bg-blue-500/10"
           iconColor="text-blue-700"
@@ -190,7 +218,7 @@ export default function ProjectDetailPage() {
         <StatCard
           title="Total Biaya (HPP Proyek)"
           value={formatCurrency(data.totalSpent)}
-          subtitle="Realisasi pengeluaran konstruksi"
+          subtitle={`Biaya proyek tahun ${year}`}
           icon={Building2}
           iconBgColor="bg-rose-500/10"
           iconColor="text-rose-700"
@@ -198,7 +226,7 @@ export default function ProjectDetailPage() {
         <StatCard
           title={data.isDeficit ? "Defisit Proyek" : "Sisa / Laba Proyek"}
           value={formatCurrency(Math.abs(data.netProfit))}
-          subtitle={`Margin Proyek: ${data.profitMargin.toFixed(1)}%`}
+          subtitle={`Margin tahun ${year}: ${data.profitMargin.toFixed(1)}%`}
           icon={CheckCircle}
           iconBgColor={data.isDeficit ? "bg-rose-500/10" : "bg-emerald-500/10"}
           iconColor={data.isDeficit ? "text-rose-700" : "text-emerald-700"}
@@ -218,7 +246,7 @@ export default function ProjectDetailPage() {
         {/* Ringkasan kategori pengeluaran proyek */}
         <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm lg:col-span-2">
           <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-950 mb-3 pb-2 border-b border-zinc-100 flex items-center justify-between">
-            <span>Ringkasan Biaya HPP Proyek</span>
+            <span>Ringkasan Biaya HPP Proyek {year}</span>
             <span className="font-mono text-xs font-bold text-rose-700">
               Total: {formatCurrency(data.totalSpent)}
             </span>
@@ -289,10 +317,12 @@ export default function ProjectDetailPage() {
 
       {/* ── Fast Transaction Entry Khusus Proyek ── */}
       <FastTransactionEntry
+        key={year}
         onSuccess={fetchProjectDetail}
         accounts={accounts}
         salesAssignments={salesAssignments}
         defaultProjectId={projectId}
+        defaultTransactionYear={year}
         allowProjectSelection={false}
       />
 
@@ -301,11 +331,12 @@ export default function ProjectDetailPage() {
         <div className="flex items-center justify-between pb-3 mb-3 border-b border-zinc-100">
           <h3 className="text-sm font-bold text-zinc-950 flex items-center gap-2">
             <FileText className="h-4 w-4 text-zinc-700" />
-            Buku Proyek (Buku Kas &amp; Saldo Berjalan)
+            Buku Proyek {year} (Buku Kas &amp; Saldo Berjalan)
           </h3>
-          <span className="text-xs text-zinc-400 font-medium">
-            {data.transactions.length} baris transaksi
-          </span>
+          <div className="text-right text-xs text-zinc-400 font-medium">
+            <p>{data.transactions.length} baris transaksi</p>
+            <p>Saldo awal tahun: {formatCurrency(data.openingBalance)}</p>
+          </div>
         </div>
 
         <table className="w-full text-left text-xs">
