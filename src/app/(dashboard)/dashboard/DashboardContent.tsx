@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Wallet,
+  AlertCircle,
   ArrowUpRight,
   ArrowDownRight,
   TrendingUp,
@@ -110,6 +111,7 @@ export default function DashboardContent() {
     "flow" | "income" | "expense" | "profit" | "turnover" | "margin"
   >("flow");
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [txFilter, setTxFilter] = useState<"all" | "expense">("all");
 
   const [metrics, setMetrics] = useState<DashboardMetrics>({
@@ -168,6 +170,7 @@ export default function DashboardContent() {
   const fetchDashboardData = useCallback(async () => {
     try {
       setIsLoading(true);
+      setLoadError(null);
 
       // Hitung rentang tanggal sesuai tab period
       const now = new Date();
@@ -212,6 +215,9 @@ export default function DashboardContent() {
       );
     } catch (e) {
       console.error("Gagal memuat analitik dashboard:", e);
+      setLoadError(
+        e instanceof Error ? e.message : "Gagal memuat data analitik dashboard."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -351,6 +357,15 @@ export default function DashboardContent() {
           </div>
         </SpotlightCard>
       </motion.div>
+
+      {loadError && (
+        <div role="alert" className="flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+          <span className="flex items-center gap-2"><AlertCircle className="h-4 w-4" />{loadError}</span>
+          <button type="button" onClick={() => void fetchDashboardData()} className="inline-flex items-center gap-1 font-semibold">
+            <RefreshCw className="h-3.5 w-3.5" />Coba lagi
+          </button>
+        </div>
+      )}
 
       {/* ── Executive Financial Vitality Strip ── */}
       <StaggerContainer

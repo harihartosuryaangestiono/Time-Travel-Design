@@ -81,7 +81,7 @@ export async function getDashboardMetrics(period?: {
         .lte("date", `${endDate}T23:59:59.999Z`),
       supabase
         .from("invoices")
-        .select("id, category")
+        .select("id")
         .eq("organization_id", orgId),
     ]);
   if (projectRevenuesError) throw new Error(`Gagal memuat pendapatan proyek dashboard: ${projectRevenuesError.message}`);
