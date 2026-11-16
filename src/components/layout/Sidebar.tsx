@@ -22,14 +22,27 @@ import {
   UserRound,
   Building,
   X,
+  HardHat,
+  Boxes,
+  Tags,
+  Hammer,
+  GitCompare,
+  Calculator,
+  ClipboardCheck,
+  Percent,
+  LineChart,
+  Activity,
+  Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isSidebarItemActive } from "@/lib/navigation";
 import { BrandIconSvg } from "@/components/ui/BrandLogo";
 
 interface NavItem {
   name: string;
   href: string;
   icon: React.ElementType;
+  exact?: boolean;
 }
 
 interface NavGroup {
@@ -50,6 +63,27 @@ const navigationGroups: NavGroup[] = [
       { name: "Project Portfolio", href: "/projects", icon: FolderKanban },
       { name: "Client Directory", href: "/projects/clients", icon: Users },
       { name: "Data Subkontraktor", href: "/subcontractors", icon: Building2 },
+    ],
+  },
+  {
+    label: "BORONGAN & COST CONTROL",
+    items: [
+      { name: "Overview Cost Control", href: "/cost-control", icon: Activity, exact: true },
+      { name: "Rekapitulasi Upah Tukang", href: "/cost-control/labor-recap", icon: HardHat },
+      { name: "Rekapitulasi Material", href: "/cost-control/material-recap", icon: Boxes },
+      { name: "Database Harga Material", href: "/cost-control/material-prices", icon: Tags },
+      { name: "Database Harga Upah", href: "/cost-control/labor-rates", icon: Hammer },
+      { name: "Analisis Selisih Proyek", href: "/cost-control/variance-analysis", icon: GitCompare },
+    ],
+  },
+  {
+    label: "RAB & PROJECT PLANNING",
+    items: [
+      { name: "RAB (Rencana Anggaran Biaya)", href: "/cost-control/rab", icon: Calculator },
+      { name: "RAP (Rencana Anggaran Pelaksanaan)", href: "/cost-control/rap", icon: ClipboardCheck },
+      { name: "Bobot Pekerjaan", href: "/cost-control/work-weights", icon: Percent },
+      { name: "Kurva S", href: "/cost-control/s-curve", icon: LineChart },
+      { name: "Monitoring Proyek", href: "/cost-control/monitoring", icon: Eye },
     ],
   },
   {
@@ -112,8 +146,10 @@ export default function Sidebar({
   const [open, setOpen] = useState<Record<string, boolean>>({
     Overview: true,
     "Projects & Clients": true,
-    "Financial Operations": true,
-    "Billing & Vendors": true,
+    "BORONGAN & COST CONTROL": true,
+    "RAB & PROJECT PLANNING": true,
+    "Financial Operations": false,
+    "Billing & Vendors": false,
     "Financial Reports": true,
     Administration: false,
   });
@@ -126,11 +162,6 @@ export default function Sidebar({
     } else {
       setInternalCollapsed((prev) => !prev);
     }
-  };
-
-  const isActive = (href: string) => {
-    if (href === "/dashboard") return pathname === "/dashboard";
-    return pathname.startsWith(href);
   };
 
   const isGroupOpen = (label: string) => open[label] !== false;
@@ -253,7 +284,7 @@ export default function Sidebar({
                 >
                   {group.items.map((item) => {
                     const Icon = item.icon;
-                    const active = isActive(item.href);
+                    const active = isSidebarItemActive(pathname, item.href, item.exact);
 
                     return (
                       <li key={item.name}>

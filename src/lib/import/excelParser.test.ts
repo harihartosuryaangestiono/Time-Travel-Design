@@ -117,7 +117,7 @@ describe('excelParser unit tests', () => {
   describe('5. parseCsv dengan transaksi_2026.csv asli', () => {
     const csvPath = path.resolve(__dirname, '../../../data/import/transaksi_2026.csv');
 
-    it('mem-parse data transaksi_2026.csv dengan akurasi angka sesuai spesifikasi', () => {
+    it('mem-parse transaksi_2026.csv sambil membedakan baris valid, perlu kategori, dan kategori tidak cocok', () => {
       expect(fs.existsSync(csvPath)).toBe(true);
       const csvContent = fs.readFileSync(csvPath, 'utf-8');
 
@@ -126,8 +126,9 @@ describe('excelParser unit tests', () => {
       // 1. Total baris dibaca dan status
       expect(result.totalRead).toBe(1450);
       expect(result.totalSkipped).toBe(17); // 17 baris SETORAN_PROYEK dilewati
-      expect(result.totalValid).toBe(1433);
-      expect(result.totalInvalid).toBe(0);
+      expect(result.totalValid).toBe(1368);
+      expect(result.totalInvalid).toBe(65);
+      expect(result.totalValid + result.totalInvalid + result.totalSkipped).toBe(result.totalRead);
 
       // 2. Total Debit Valid
       // Formula: 2.275.050.682 (Termin Klien) + 12.500.179,89 (Modal Awal) + 38.133,46 (Bunga Bank)
@@ -137,14 +138,15 @@ describe('excelParser unit tests', () => {
       // Nominal setoran yang dilewati tidak dihitung ke total debit
       expect(result.totalSkippedDebit).toBeCloseTo(646467514, 0);
 
-      // 3. Total Kredit Valid
-      expect(result.totalCredit).toBeCloseTo(1914441967.75, 2);
+      // 3. Total Kredit hanya memasukkan baris valid, bukan 65 baris yang perlu diperbaiki.
+      expect(result.totalCredit).toBeCloseTo(1847234459.75, 2);
 
-      // 4. Perlu Dikategorikan
+      // 4. Perlu dikategorikan mencakup baris yang ditandai, meskipun belum dapat diimpor.
       expect(result.totalNeedsCategory).toBe(38);
+      expect(result.needsCategoryAmount).toBeCloseTo(51887680, 2);
 
-      // Verifikasi 19 baris kategori proyek & kantor unmapped senilai 33.659.290
-      const needsRows = result.validRows.filter((r) => r.needsCategory);
+      // Verifikasi 19 baris sumber yang sebelumnya digunakan sebagai subtotal kategori manual.
+      const needsRows = result.rows.filter((r) => r.needsCategory);
       expect(needsRows.length).toBe(38);
 
       const target19Rows = [
@@ -172,6 +174,19 @@ describe('excelParser unit tests', () => {
       expect(target19Rows.length).toBe(19);
       const sum19 = target19Rows.reduce((sum, item) => sum + item.amount, 0);
       expect(sum19).toBe(33659290);
+      for (const expected of target19Rows) {
+        expect(needsRows.some((row) =>
+          row.sheetAsal === expected.sheet &&
+          row.barisExcel === expected.row &&
+          row.amount === expected.amount
+        )).toBe(true);
+      }
+
+      const categoryErrors = result.rows.filter(
+        (row) => !row.isValid && !row.needsCategory && !row.isSkipped
+      );
+      expect(categoryErrors).toHaveLength(27);
+      expect(categoryErrors.reduce((sum, row) => sum + row.kredit, 0)).toBeCloseTo(15319828, 2);
 
       // 5. Verifikasi Idempoten external_ref
       const firstRow = result.validRows[0];

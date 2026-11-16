@@ -427,6 +427,11 @@ function processGridRows(
     const amount = debit > 0 ? debit : kredit;
     const externalRef = `${sheetAsal}_${barisExcel}`;
 
+    if (needsCategory && !isSkipped) {
+      totalNeedsCategory++;
+      needsCategoryAmount += amount;
+    }
+
     if (isSkipped) {
       totalSkipped++;
       totalSkippedDebit += debit;
@@ -434,10 +439,6 @@ function processGridRows(
       totalValid++;
       totalDebit += debit;
       totalKredit += kredit;
-      if (needsCategory) {
-        totalNeedsCategory++;
-        needsCategoryAmount += amount;
-      }
     } else {
       totalInvalid++;
     }

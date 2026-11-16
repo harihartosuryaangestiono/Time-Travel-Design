@@ -23,6 +23,24 @@ model Organization {
   logo_url     String?
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
+
+  labor_rates             LaborRate[]
+  labor_rate_history      LaborRateHistory[]
+  project_labor_items     ProjectLaborItem[]
+  labor_claims            LaborClaim[]
+  master_materials        MasterMaterial[]
+  material_price_history  MaterialPriceHistory[]
+  project_materials       ProjectMaterial[]
+  material_stock_movements MaterialStockMovement[]
+  master_ahsp             MasterAhsp[]
+  rab_projects            RabProject[]
+  rab_items               RabItem[]
+  rap_projects            RapProject[]
+  project_schedules       ProjectSchedule[]
+  project_progress_records ProjectProgressRecord[]
+  project_takeoffs        ProjectTakeoff[]
+  subcontractors          Subcontractor[]
+
   @@map("organizations")
 }
 
@@ -54,6 +72,22 @@ model Profile {
   max_advance_amount Decimal? @db.Decimal(15, 2) @default(5000000)
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
+
+  created_labor_rate_history LaborRateHistory[] @relation("LaborRateHistoryCreatedBy")
+  created_labor_claims       LaborClaim[]       @relation("LaborClaimCreatedBy")
+  verified_labor_claims      LaborClaim[]       @relation("LaborClaimVerifiedBy")
+  approved_labor_claims      LaborClaim[]       @relation("LaborClaimApprovedBy")
+  rejected_labor_claims      LaborClaim[]       @relation("LaborClaimRejectedBy")
+  created_material_history   MaterialPriceHistory[] @relation("MaterialPriceHistoryCreatedBy")
+  created_stock_movements    MaterialStockMovement[] @relation("MaterialStockMovementCreatedBy")
+  verified_stock_movements   MaterialStockMovement[] @relation("MaterialStockMovementVerifiedBy")
+  created_rab_projects       RabProject[]       @relation("RabProjectCreatedBy")
+  approved_rab_projects      RabProject[]       @relation("RabProjectApprovedBy")
+  created_rap_projects       RapProject[]       @relation("RapProjectCreatedBy")
+  approved_rap_projects      RapProject[]       @relation("RapProjectApprovedBy")
+  verified_progress_records ProjectProgressRecord[] @relation("ProjectProgressVerifiedBy")
+  created_progress_records  ProjectProgressRecord[] @relation("ProjectProgressCreatedBy")
+
   @@map("profiles")
 }
 
@@ -142,6 +176,20 @@ model Project {
   description    String?
   created_at     DateTime @default(now())
   updated_at     DateTime @updatedAt
+
+  labor_rate_history       LaborRateHistory[]
+  project_labor_items      ProjectLaborItem[]
+  labor_claims             LaborClaim[]
+  material_price_history   MaterialPriceHistory[]
+  project_materials        ProjectMaterial[]
+  material_stock_movements MaterialStockMovement[] @relation("MaterialStockMovementProject")
+  incoming_stock_movements MaterialStockMovement[] @relation("MaterialStockMovementTargetProject")
+  rab_projects             RabProject[]
+  rap_projects             RapProject[]
+  project_schedules        ProjectSchedule[]
+  project_progress_records ProjectProgressRecord[]
+  project_takeoffs         ProjectTakeoff[]
+
   @@unique([organization_id, code])
   @@map("projects")
 }
@@ -231,7 +279,29 @@ model Vendor {
   bank_holder   String?
   created_at     DateTime @default(now())
   updated_at     DateTime @updatedAt
+
+  material_price_history  MaterialPriceHistory[]
+  material_stock_movements MaterialStockMovement[]
+
   @@map("vendors")
+}
+
+model Subcontractor {
+  id              String   @id @default(uuid())
+  organization_id String
+  name            String
+  email           String?
+  phone           String?
+  address         String?
+  created_at      DateTime @default(now())
+  updated_at      DateTime @default(now())
+
+  organization       Organization       @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  labor_rate_history LaborRateHistory[]
+  project_labor_items ProjectLaborItem[]
+
+  @@index([organization_id, name])
+  @@map("subcontractors")
 }
 
 // ============================================
@@ -288,6 +358,12 @@ model Expense {
   journal_entry_id String? @unique
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
+
+  cash_account              CashAccount?            @relation(fields: [cash_account_id], references: [id], onDelete: SetNull)
+  labor_claims              LaborClaim[]
+  material_price_history    MaterialPriceHistory[]
+  material_stock_movements  MaterialStockMovement[]
+
   @@unique([organization_id, number])
   @@map("expenses")
 }
@@ -324,6 +400,9 @@ model CashAccount {
   is_active      Boolean  @default(true)
   created_at     DateTime @default(now())
   updated_at     DateTime @updatedAt
+
+  expenses Expense[]
+
   @@map("cash_accounts")
 }
 
@@ -757,4 +836,571 @@ model CashPayment {
   created_by      String
   created_at      DateTime @default(now())
   @@map("cash_payments")
+}
+
+
+// ============================================
+// BORONGAN & COST CONTROL SYSTEM
+// ============================================
+
+enum PaymentSystemType {
+  BORONGAN
+  UPAH_KETENG
+  HARIAN
+}
+
+enum LaborClaimStatus {
+  DRAFT
+  SUBMITTED
+  VERIFIED
+  APPROVED
+  REJECTED
+  PAID
+}
+
+enum StockMovementType {
+  PURCHASE
+  RECEIPT
+  ISSUED_TO_FIELD
+  USED
+  RETURN
+  TRANSFER
+  DAMAGED_WASTE
+  ADJUSTMENT
+}
+
+enum RabStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REVISED
+  REJECTED
+}
+
+enum ProfitCalculationType {
+  MARKUP
+  GROSS_MARGIN
+}
+
+enum RapStatus {
+  DRAFT
+  APPROVED
+  ACTIVE
+  COMPLETED
+}
+
+model LaborRate {
+  id              String            @id @default(uuid())
+  organization_id String
+  job_code        String
+  job_name        String
+  category        String
+  description     String?
+  specifications  String?
+  unit            String
+  payment_system  PaymentSystemType @default(BORONGAN)
+  standard_rate   Decimal           @db.Decimal(15, 2)
+  min_rate        Decimal           @db.Decimal(15, 2)
+  max_rate        Decimal           @db.Decimal(15, 2)
+  source          String?
+  effective_date  DateTime          @default(now())
+  is_active       Boolean           @default(true)
+  created_at      DateTime          @default(now())
+  updated_at      DateTime          @updatedAt
+
+  organization       Organization       @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  rate_history       LaborRateHistory[]
+  project_labor_items ProjectLaborItem[]
+  ahsp_components   MasterAhspComponent[]
+
+  @@unique([organization_id, job_code])
+  @@index([organization_id, category])
+  @@map("labor_rates")
+}
+
+model LaborRateHistory {
+  id                String            @id @default(uuid())
+  organization_id   String
+  labor_rate_id     String
+  project_id        String?
+  subcontractor_id  String?
+  rate              Decimal           @db.Decimal(15, 2)
+  payment_system    PaymentSystemType?
+  calculation_basis String?
+  effective_date    DateTime          @default(now())
+  notes             String?
+  created_by        String?
+  created_at        DateTime          @default(now())
+
+  organization   Organization  @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  labor_rate     LaborRate     @relation(fields: [labor_rate_id], references: [id], onDelete: Cascade)
+  project        Project?      @relation(fields: [project_id], references: [id], onDelete: SetNull)
+  subcontractor  Subcontractor? @relation(fields: [subcontractor_id], references: [id], onDelete: SetNull)
+  creator        Profile?      @relation("LaborRateHistoryCreatedBy", fields: [created_by], references: [id], onDelete: SetNull)
+
+  @@index([organization_id, labor_rate_id])
+  @@index([organization_id, project_id])
+  @@map("labor_rate_history")
+}
+
+model ProjectLaborItem {
+  id              String            @id @default(uuid())
+  organization_id String
+  project_id      String
+  subcontractor_id String?
+  labor_rate_id   String?
+  mandor_name     String
+  job_name        String
+  category        String
+  specifications  String?
+  unit            String
+  payment_system  PaymentSystemType @default(BORONGAN)
+  contract_volume Decimal           @db.Decimal(15, 4)
+  unit_rate       Decimal           @db.Decimal(15, 2)
+  total_amount    Decimal           @db.Decimal(15, 2)
+  status          String            @default("ACTIVE")
+  notes           String?
+  created_at      DateTime          @default(now())
+  updated_at      DateTime          @updatedAt
+
+  organization  Organization   @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  project       Project        @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  subcontractor Subcontractor? @relation(fields: [subcontractor_id], references: [id], onDelete: SetNull)
+  labor_rate    LaborRate?     @relation(fields: [labor_rate_id], references: [id], onDelete: SetNull)
+  claims        LaborClaim[]
+
+  @@index([organization_id, project_id])
+  @@map("project_labor_items")
+}
+
+model LaborClaim {
+  id                      String           @id @default(uuid())
+  organization_id         String
+  project_id              String
+  labor_item_id           String
+  claim_number            String
+  claim_date              DateTime
+  mandor_name             String
+  work_description        String?
+  claimed_volume          Decimal          @db.Decimal(15, 4)
+  verified_volume         Decimal          @db.Decimal(15, 4)
+  approved_volume         Decimal          @db.Decimal(15, 4)
+  unit_rate               Decimal          @db.Decimal(15, 2)
+  claimed_amount          Decimal          @db.Decimal(15, 2)
+  approved_amount         Decimal          @db.Decimal(15, 2)
+  paid_amount             Decimal          @db.Decimal(15, 2) @default(0)
+  supervisor_notes        String?
+  supporting_document_url String?
+  status                  LaborClaimStatus @default(SUBMITTED)
+  verified_by             String?
+  verified_at             DateTime?
+  approved_by             String?
+  approved_at             DateTime?
+  rejected_by             String?
+  rejected_at             DateTime?
+  rejection_reason        String?
+  expense_id              String?
+  created_by              String
+  created_at              DateTime         @default(now())
+  updated_at              DateTime         @updatedAt
+
+  organization Organization    @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  project      Project         @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  labor_item   ProjectLaborItem @relation(fields: [labor_item_id], references: [id], onDelete: Cascade)
+  expense      Expense?        @relation(fields: [expense_id], references: [id], onDelete: SetNull)
+  verifier     Profile?        @relation("LaborClaimVerifiedBy", fields: [verified_by], references: [id], onDelete: SetNull)
+  approver     Profile?        @relation("LaborClaimApprovedBy", fields: [approved_by], references: [id], onDelete: SetNull)
+  rejecter     Profile?        @relation("LaborClaimRejectedBy", fields: [rejected_by], references: [id], onDelete: SetNull)
+  creator      Profile         @relation("LaborClaimCreatedBy", fields: [created_by], references: [id])
+
+  @@unique([organization_id, claim_number])
+  @@index([organization_id, project_id])
+  @@index([organization_id, labor_item_id])
+  @@map("labor_claims")
+}
+
+model MasterMaterial {
+  id                      String   @id @default(uuid())
+  organization_id         String
+  code                    String
+  name                    String
+  category                String
+  brand                   String?
+  specification           String?
+  purchase_unit           String
+  usage_unit              String
+  conversion_factor       Decimal  @db.Decimal(15, 4) @default(1)
+  standard_price          Decimal  @db.Decimal(15, 2) @default(0)
+  min_price               Decimal  @db.Decimal(15, 2) @default(0)
+  max_price               Decimal  @db.Decimal(15, 2) @default(0)
+  waste_tolerance_percent Decimal  @db.Decimal(5, 2) @default(5.00)
+  is_active               Boolean  @default(true)
+  notes                   String?
+  created_at              DateTime @default(now())
+  updated_at              DateTime @updatedAt
+
+  organization       Organization              @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  price_history      MaterialPriceHistory[]
+  project_materials  ProjectMaterial[]
+  stock_movements    MaterialStockMovement[]
+  ahsp_components    MasterAhspComponent[]
+
+  @@unique([organization_id, code])
+  @@index([organization_id, category])
+  @@map("master_materials")
+}
+
+model MaterialPriceHistory {
+  id              String   @id @default(uuid())
+  organization_id String
+  material_id     String
+  vendor_id       String?
+  vendor_name     String
+  project_id      String?
+  expense_id      String?
+  purchase_date   DateTime
+  document_number String?
+  quantity        Decimal  @db.Decimal(15, 4)
+  unit            String
+  unit_price      Decimal  @db.Decimal(15, 2)
+  tax_amount      Decimal  @db.Decimal(15, 2) @default(0)
+  total_price     Decimal  @db.Decimal(15, 2)
+  notes           String?
+  created_by      String?
+  created_at      DateTime @default(now())
+
+  organization Organization   @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  material     MasterMaterial @relation(fields: [material_id], references: [id], onDelete: Cascade)
+  vendor       Vendor?        @relation(fields: [vendor_id], references: [id], onDelete: SetNull)
+  project      Project?       @relation(fields: [project_id], references: [id], onDelete: SetNull)
+  expense      Expense?       @relation(fields: [expense_id], references: [id], onDelete: SetNull)
+  creator      Profile?       @relation("MaterialPriceHistoryCreatedBy", fields: [created_by], references: [id], onDelete: SetNull)
+
+  @@index([organization_id, material_id])
+  @@index([organization_id, vendor_id])
+  @@index([organization_id, project_id])
+  @@map("material_price_history")
+}
+
+model ProjectMaterial {
+  id                      String   @id @default(uuid())
+  organization_id         String
+  project_id              String
+  material_id             String
+  planned_quantity        Decimal  @db.Decimal(15, 4)
+  unit                    String
+  budget_unit_price       Decimal  @db.Decimal(15, 2)
+  total_budget            Decimal  @db.Decimal(15, 2)
+  waste_tolerance_percent Decimal  @db.Decimal(5, 2) @default(5.00)
+  notes                   String?
+  created_at              DateTime @default(now())
+  updated_at              DateTime @updatedAt
+
+  organization Organization   @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  project      Project        @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  material     MasterMaterial @relation(fields: [material_id], references: [id], onDelete: Cascade)
+
+  @@unique([project_id, material_id])
+  @@index([organization_id, project_id])
+  @@map("project_materials")
+}
+
+model MaterialStockMovement {
+  id                 String            @id @default(uuid())
+  organization_id    String
+  project_id         String
+  material_id        String
+  movement_type      StockMovementType
+  date               DateTime
+  quantity           Decimal           @db.Decimal(15, 4)
+  unit               String
+  unit_price         Decimal           @db.Decimal(15, 2) @default(0)
+  total_cost         Decimal           @db.Decimal(15, 2) @default(0)
+  vendor_id          String?
+  expense_id         String?
+  target_project_id  String?
+  reference_document String?
+  verified_by        String?
+  notes              String?
+  created_by         String
+  created_at         DateTime          @default(now())
+
+  organization   Organization   @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  project        Project        @relation("MaterialStockMovementProject", fields: [project_id], references: [id], onDelete: Cascade)
+  material       MasterMaterial @relation(fields: [material_id], references: [id], onDelete: Cascade)
+  vendor         Vendor?        @relation(fields: [vendor_id], references: [id], onDelete: SetNull)
+  expense        Expense?       @relation(fields: [expense_id], references: [id], onDelete: SetNull)
+  target_project Project?       @relation("MaterialStockMovementTargetProject", fields: [target_project_id], references: [id], onDelete: SetNull)
+  verifier       Profile?       @relation("MaterialStockMovementVerifiedBy", fields: [verified_by], references: [id], onDelete: SetNull)
+  creator        Profile        @relation("MaterialStockMovementCreatedBy", fields: [created_by], references: [id])
+
+  @@index([organization_id, project_id, material_id])
+  @@index([organization_id, date])
+  @@map("material_stock_movements")
+}
+
+model MasterAhsp {
+  id               String   @id @default(uuid())
+  organization_id  String
+  code             String
+  name             String
+  category         String
+  unit             String
+  overhead_percent Decimal  @db.Decimal(5, 2) @default(0)
+  notes            String?
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  organization Organization          @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  components   MasterAhspComponent[]
+
+  @@unique([organization_id, code])
+  @@index([organization_id, category])
+  @@map("master_ahsp")
+}
+
+model MasterAhspComponent {
+  id             String   @id @default(uuid())
+  ahsp_id        String
+  component_type String   // MATERIAL | LABOR | EQUIPMENT | SUB_WORK
+  material_id    String?
+  labor_rate_id  String?
+  name           String
+  coefficient    Decimal  @db.Decimal(15, 4)
+  unit           String
+  unit_price     Decimal  @db.Decimal(15, 2)
+  subtotal       Decimal  @db.Decimal(15, 2)
+
+  ahsp       MasterAhsp    @relation(fields: [ahsp_id], references: [id], onDelete: Cascade)
+  material   MasterMaterial? @relation(fields: [material_id], references: [id], onDelete: SetNull)
+  labor_rate LaborRate?    @relation(fields: [labor_rate_id], references: [id], onDelete: SetNull)
+
+  @@index([ahsp_id])
+  @@map("master_ahsp_components")
+}
+
+model RabProject {
+  id                     String                @id @default(uuid())
+  organization_id        String
+  project_id             String
+  rab_number             String
+  title                  String
+  client_name            String?
+  project_location       String?
+  date                   DateTime              @default(now())
+  version                Int                   @default(1)
+  status                 RabStatus             @default(DRAFT)
+  is_locked              Boolean               @default(false)
+  profit_type            ProfitCalculationType @default(MARKUP)
+  profit_percentage      Decimal               @db.Decimal(5, 2) @default(20.00)
+  overhead_percentage    Decimal               @db.Decimal(5, 2) @default(5.00)
+  contingency_percentage Decimal               @db.Decimal(5, 2) @default(0.00)
+  tax_percentage         Decimal               @db.Decimal(5, 2) @default(0.00)
+  total_material_hpp     Decimal               @db.Decimal(15, 2) @default(0)
+  total_labor_hpp        Decimal               @db.Decimal(15, 2) @default(0)
+  total_equipment_hpp    Decimal               @db.Decimal(15, 2) @default(0)
+  total_hpp              Decimal               @db.Decimal(15, 2) @default(0)
+  overhead_amount        Decimal               @db.Decimal(15, 2) @default(0)
+  contingency_amount     Decimal               @db.Decimal(15, 2) @default(0)
+  profit_amount          Decimal               @db.Decimal(15, 2) @default(0)
+  subtotal_before_tax    Decimal               @db.Decimal(15, 2) @default(0)
+  tax_amount             Decimal               @db.Decimal(15, 2) @default(0)
+  grand_total            Decimal               @db.Decimal(15, 2) @default(0)
+  notes                  String?
+  approved_by            String?
+  approved_at            DateTime?
+  created_by             String
+  created_at             DateTime              @default(now())
+  updated_at             DateTime              @updatedAt
+
+  organization Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  project      Project      @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  approver     Profile?     @relation("RabProjectApprovedBy", fields: [approved_by], references: [id], onDelete: SetNull)
+  creator      Profile      @relation("RabProjectCreatedBy", fields: [created_by], references: [id])
+  items        RabItem[]
+  rap_projects RapProject[]
+
+  @@unique([organization_id, project_id, version])
+  @@unique([organization_id, rab_number])
+  @@index([organization_id, project_id])
+  @@map("rab_projects")
+}
+
+model RabItem {
+  id                  String   @id @default(uuid())
+  organization_id     String
+  rab_id              String
+  division            String
+  sub_division        String?
+  item_code           String?
+  item_name           String
+  unit                String
+  volume              Decimal  @db.Decimal(15, 4) @default(1)
+  material_unit_cost  Decimal  @db.Decimal(15, 2) @default(0)
+  labor_unit_cost     Decimal  @db.Decimal(15, 2) @default(0)
+  equipment_unit_cost Decimal  @db.Decimal(15, 2) @default(0)
+  unit_hpp            Decimal  @db.Decimal(15, 2) @default(0)
+  total_hpp           Decimal  @db.Decimal(15, 2) @default(0)
+  unit_price          Decimal  @db.Decimal(15, 2) @default(0)
+  total_price         Decimal  @db.Decimal(15, 2) @default(0)
+  sort_order          Int      @default(0)
+
+  organization Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  rab          RabProject   @relation(fields: [rab_id], references: [id], onDelete: Cascade)
+  components   RabItemComponent[]
+  rap_items    RapItem[]
+
+  @@index([organization_id, rab_id])
+  @@map("rab_items")
+}
+
+model RabItemComponent {
+  id             String   @id @default(uuid())
+  rab_item_id    String
+  component_type String   // MATERIAL | LABOR | EQUIPMENT
+  name           String
+  coefficient    Decimal  @db.Decimal(15, 4)
+  unit           String
+  unit_price     Decimal  @db.Decimal(15, 2)
+  subtotal       Decimal  @db.Decimal(15, 2)
+
+  rab_item RabItem @relation(fields: [rab_item_id], references: [id], onDelete: Cascade)
+
+  @@index([rab_item_id])
+  @@map("rab_item_components")
+}
+
+model RapProject {
+  id                   String    @id @default(uuid())
+  organization_id      String
+  project_id           String
+  rab_id               String?
+  rap_number           String
+  title                String
+  version              Int       @default(1)
+  status               RapStatus @default(DRAFT)
+  total_planned_budget Decimal   @db.Decimal(15, 2) @default(0)
+  target_savings       Decimal   @db.Decimal(15, 2) @default(0)
+  notes                String?
+  created_by           String
+  approved_by          String?
+  approved_at          DateTime?
+  created_at           DateTime  @default(now())
+  updated_at           DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  project      Project      @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  rab          RabProject?  @relation(fields: [rab_id], references: [id], onDelete: SetNull)
+  creator      Profile      @relation("RapProjectCreatedBy", fields: [created_by], references: [id])
+  approver     Profile?     @relation("RapProjectApprovedBy", fields: [approved_by], references: [id], onDelete: SetNull)
+  items        RapItem[]
+
+  @@unique([organization_id, project_id, version])
+  @@unique([organization_id, rap_number])
+  @@index([organization_id, project_id])
+  @@map("rap_projects")
+}
+
+model RapItem {
+  id                    String   @id @default(uuid())
+  rap_id                String
+  rab_item_id           String?
+  division              String
+  sub_division          String?
+  item_name             String
+  unit                  String
+  volume                Decimal  @db.Decimal(15, 4) @default(1)
+  target_material_cost  Decimal  @db.Decimal(15, 2) @default(0)
+  target_labor_cost     Decimal  @db.Decimal(15, 2) @default(0)
+  target_equipment_cost Decimal  @db.Decimal(15, 2) @default(0)
+  target_unit_price     Decimal  @db.Decimal(15, 2) @default(0)
+  total_budget          Decimal  @db.Decimal(15, 2) @default(0)
+  procurement_schedule  String?
+  execution_schedule    String?
+  pic_name              String?
+  sort_order            Int      @default(0)
+
+  rap            RapProject  @relation(fields: [rap_id], references: [id], onDelete: Cascade)
+  rab_item       RabItem?    @relation(fields: [rab_item_id], references: [id], onDelete: SetNull)
+  project_schedules ProjectSchedule[]
+
+  @@index([rap_id])
+  @@map("rap_items")
+}
+
+model ProjectSchedule {
+  id                String   @id @default(uuid())
+  organization_id   String
+  project_id        String
+  rap_item_id       String?
+  task_name         String
+  division          String
+  budget_amount     Decimal  @db.Decimal(15, 2) @default(0)
+  weight_percentage Decimal  @db.Decimal(7, 4) @default(0) // Bobot % (Total seluruh item = 100%)
+  start_date        DateTime
+  end_date          DateTime
+  duration_days     Int      @default(1)
+  pic_name          String?
+  sort_order        Int      @default(0)
+
+  organization  Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  project       Project      @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  rap_item      RapItem?     @relation(fields: [rap_item_id], references: [id], onDelete: SetNull)
+  progress_records ProjectProgressRecord[]
+
+  @@index([organization_id, project_id])
+  @@map("project_schedules")
+}
+
+model ProjectProgressRecord {
+  id                      String   @id @default(uuid())
+  organization_id         String
+  project_id              String
+  schedule_id             String
+  record_date             DateTime
+  period_week             Int      @default(1)
+  planned_progress_percent Decimal  @db.Decimal(5, 2) @default(0)
+  actual_progress_percent  Decimal  @db.Decimal(5, 2) @default(0)
+  verified_by             String?
+  verified_at             DateTime?
+  notes                   String?
+  created_by              String
+  created_at              DateTime @default(now())
+
+  organization Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  project      Project      @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  schedule     ProjectSchedule @relation(fields: [schedule_id], references: [id], onDelete: Cascade)
+  verifier     Profile?     @relation("ProjectProgressVerifiedBy", fields: [verified_by], references: [id], onDelete: SetNull)
+  creator      Profile      @relation("ProjectProgressCreatedBy", fields: [created_by], references: [id])
+
+  @@unique([project_id, schedule_id, period_week])
+  @@index([organization_id, project_id, schedule_id])
+  @@index([project_id, period_week])
+  @@map("project_progress_records")
+}
+
+model ProjectTakeoff {
+  id                   String   @id @default(uuid())
+  organization_id      String
+  project_id           String
+  room_name            String
+  length_m             Decimal  @db.Decimal(10, 3) @default(0)
+  width_m              Decimal  @db.Decimal(10, 3) @default(0)
+  height_m             Decimal  @db.Decimal(10, 3) @default(0)
+  floor_area_m2        Decimal  @db.Decimal(12, 3) @default(0)
+  wall_perimeter_m     Decimal  @db.Decimal(12, 3) @default(0)
+  wall_area_m2         Decimal  @db.Decimal(12, 3) @default(0)
+  ceiling_area_m2      Decimal  @db.Decimal(12, 3) @default(0)
+  door_window_area_m2  Decimal  @db.Decimal(12, 3) @default(0)
+  net_wall_area_m2     Decimal  @db.Decimal(12, 3) @default(0)
+  lighting_points      Int      @default(0)
+  notes                String?
+  created_at           DateTime @default(now())
+  updated_at           DateTime @updatedAt
+
+  organization Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  project      Project      @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  @@index([organization_id, project_id])
+  @@map("project_takeoffs")
 }

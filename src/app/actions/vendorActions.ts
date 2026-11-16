@@ -15,6 +15,23 @@ export interface VendorInput {
   bank_holder?: string;
 }
 
+export async function getVendors() {
+  const user = await requireAuthUser();
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("vendors")
+    .select("*")
+    .eq("organization_id", user.organizationId)
+    .order("name", { ascending: true });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data || [];
+}
+
 export async function createVendorRecord(input: VendorInput) {
   const user = await requireAuthUser();
   const supabase = await createClient();
