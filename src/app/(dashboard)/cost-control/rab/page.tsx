@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Calculator,
   Plus,
@@ -36,6 +37,7 @@ function formatCurrency(amount: number) {
 }
 
 export default function RabProjectsListPage() {
+  const router = useRouter();
   const [rabList, setRabList] = useState<RabProjectItem[]>([]);
   const [projects, setProjects] = useState<Array<{ id: string; name: string; code: string; location?: string }>>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("ALL");
@@ -113,9 +115,8 @@ export default function RabProjectsListPage() {
       if (!createForm.title.trim()) throw new Error("Judul RAB wajib diisi.");
 
       const newRab = await createRabProject(createForm);
-      setSuccessMsg("Draft RAB baru berhasil dibuat.");
-      setShowCreateModal(false);
-      fetchData();
+      if (!newRab?.id) throw new Error("RAB berhasil diproses tetapi ID dokumen tidak ditemukan.");
+      router.push(`/cost-control/rab/${newRab.id}`);
     } catch (err: any) {
       setError(err?.message || "Gagal membuat RAB.");
     }
