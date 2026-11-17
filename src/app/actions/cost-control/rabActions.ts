@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { requireAuthUser } from "@/lib/auth/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -154,10 +155,7 @@ export async function getRabProjects(projectId?: string): Promise<RabProjectItem
 
   let query = supabase
     .from("rab_projects")
-    .select(`
-      *,
-      project:projects(id, name, code)
-    `)
+    .select("*")
     .eq("organization_id", user.organizationId)
     .order("created_at", { ascending: false });
 
@@ -168,8 +166,20 @@ export async function getRabProjects(projectId?: string): Promise<RabProjectItem
   const { data, error } = await query;
   if (error) throw new Error(`Gagal memuat daftar RAB: ${error.message}`);
 
+  const projectIds = Array.from(new Set((data || []).map((rab) => rab.project_id)));
+  const { data: projects, error: projectsError } = projectIds.length
+    ? await supabase
+      .from("projects")
+      .select("id, name, code")
+      .eq("organization_id", user.organizationId)
+      .in("id", projectIds)
+    : { data: [], error: null };
+  if (projectsError) throw new Error(`Gagal memuat proyek untuk RAB: ${projectsError.message}`);
+  const projectById = new Map((projects || []).map((project) => [project.id, project]));
+
   return (data || []).map((r: any) => ({
     ...r,
+    project: projectById.get(r.project_id),
     profit_percentage: Number(r.profit_percentage),
     overhead_percentage: Number(r.overhead_percentage),
     contingency_percentage: Number(r.contingency_percentage),
@@ -195,7 +205,6 @@ export async function getRabProjectDetail(rabId: string): Promise<RabProjectItem
     .from("rab_projects")
     .select(`
       *,
-      project:projects(id, name, code, location),
       items:rab_items(
         *,
         components:rab_item_components(*)
@@ -206,6 +215,15 @@ export async function getRabProjectDetail(rabId: string): Promise<RabProjectItem
     .single();
 
   if (error || !rab) throw new Error(`RAB tidak ditemukan: ${error?.message}`);
+
+  const { data: project, error: projectError } = await supabase
+    .from("projects")
+    .select("id, name, code, location")
+    .eq("id", rab.project_id)
+    .eq("organization_id", user.organizationId)
+    .maybeSingle();
+  if (projectError) throw new Error(`Gagal memuat proyek RAB: ${projectError.message}`);
+  if (!project) throw new Error("Proyek RAB tidak ditemukan di organisasi ini.");
 
   const formattedItems: RabWorkItem[] = (rab.items || [])
     .sort((a: any, b: any) => a.sort_order - b.sort_order)
@@ -229,6 +247,7 @@ export async function getRabProjectDetail(rabId: string): Promise<RabProjectItem
 
   return {
     ...rab,
+    project,
     profit_percentage: Number(rab.profit_percentage),
     overhead_percentage: Number(rab.overhead_percentage),
     contingency_percentage: Number(rab.contingency_percentage),
@@ -287,35 +306,55 @@ export async function createRabProject(input: {
   if (!project) throw new Error("Proyek tidak ditemukan di organisasi ini.");
 
   const now = new Date();
-  const year = now.getFullYear();
-  const rand = Math.floor(1000 + Math.random() * 9000);
-  const rabNumber = `RAB-${year}-${rand}`;
+  const rabNumber = `RAB-${now.getFullYear()}-${randomUUID().slice(0, 8).toUpperCase()}`;
+  let data: RabProjectItem | null = null;
+  let createError: Error | null = null;
 
-  const { data, error } = await supabase
-    .from("rab_projects")
-    .insert({
-      organization_id: user.organizationId,
-      project_id: input.project_id,
-      rab_number: rabNumber,
-      title: input.title.trim(),
-      client_name: input.client_name || null,
-      project_location: input.project_location || null,
-      date: input.date || now.toISOString(),
-      version: 1,
-      status: "DRAFT",
-      is_locked: false,
-      profit_type: profitType,
-      profit_percentage: profitPercentage,
-      overhead_percentage: overheadPercentage,
-      contingency_percentage: contingencyPercentage,
-      tax_percentage: taxPercentage,
-      notes: input.notes || null,
-      created_by: user.profileId || user.id,
-    })
-    .select()
-    .single();
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const { data: latest, error: versionError } = await supabase
+      .from("rab_projects")
+      .select("version")
+      .eq("organization_id", user.organizationId)
+      .eq("project_id", input.project_id)
+      .order("version", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (versionError) throw new Error(`Gagal menentukan versi RAB berikutnya: ${versionError.message}`);
 
-  if (error) throw new Error(`Gagal membuat RAB: ${error.message}`);
+    const { data: created, error } = await supabase
+      .from("rab_projects")
+      .insert({
+        organization_id: user.organizationId,
+        project_id: input.project_id,
+        rab_number: rabNumber,
+        title: input.title.trim(),
+        client_name: input.client_name || null,
+        project_location: input.project_location || null,
+        date: input.date || now.toISOString(),
+        version: (latest?.version ?? 0) + 1,
+        status: "DRAFT",
+        is_locked: false,
+        profit_type: profitType,
+        profit_percentage: profitPercentage,
+        overhead_percentage: overheadPercentage,
+        contingency_percentage: contingencyPercentage,
+        tax_percentage: taxPercentage,
+        notes: input.notes || null,
+        created_by: user.profileId || user.id,
+      })
+      .select()
+      .single();
+
+    if (!error) {
+      data = created;
+      break;
+    }
+    createError = new Error(error.message);
+    if (error.code !== "23505") break;
+  }
+
+  if (createError) throw new Error(`Gagal membuat RAB: ${createError.message}`);
+  if (!data) throw new Error("Gagal membuat RAB: server tidak mengembalikan dokumen.");
 
   await logAudit(user, {
     action: "CREATE_RAB_PROJECT",
