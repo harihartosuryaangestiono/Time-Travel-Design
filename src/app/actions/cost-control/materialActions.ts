@@ -125,11 +125,13 @@ export async function createMasterMaterial(input: {
   purchase_unit: string;
   usage_unit: string;
   conversion_factor?: number;
-  standard_price: number;
+  standard_price?: number;
   min_price?: number;
   max_price?: number;
   waste_tolerance_percent?: number;
   notes?: string;
+  initial_vendor_name?: string;
+  initial_price?: number;
 }) {
   const user = await requireAuthUser();
   assertRole(user.role, MATERIAL_MASTER_EDITOR_ROLES, "Anda tidak memiliki izin untuk mengubah master material.");
@@ -139,11 +141,13 @@ export async function createMasterMaterial(input: {
   if (!Number.isFinite(factor) || factor <= 0) {
     throw new Error("Faktor konversi harus berupa angka lebih besar dari 0.");
   }
-  if (!Number.isFinite(input.standard_price) || input.standard_price < 0) {
-    throw new Error("Harga standar harus berupa angka valid dan tidak negatif.");
-  }
-  const minP = input.min_price !== undefined ? input.min_price : input.standard_price * 0.9;
-  const maxP = input.max_price !== undefined ? input.max_price : input.standard_price * 1.15;
+  
+  const stdPrice = Number.isFinite(input.standard_price) && input.standard_price! >= 0
+    ? Number(input.standard_price)
+    : (input.initial_price && input.initial_price > 0 ? Number(input.initial_price) : 0);
+
+  const minP = input.min_price !== undefined ? input.min_price : (stdPrice > 0 ? stdPrice * 0.9 : 0);
+  const maxP = input.max_price !== undefined ? input.max_price : (stdPrice > 0 ? stdPrice * 1.15 : 0);
   const wasteTolerance = input.waste_tolerance_percent !== undefined ? input.waste_tolerance_percent : 5.0;
 
   const { data, error } = await supabase
@@ -158,7 +162,7 @@ export async function createMasterMaterial(input: {
       purchase_unit: input.purchase_unit.trim(),
       usage_unit: input.usage_unit.trim(),
       conversion_factor: factor,
-      standard_price: input.standard_price,
+      standard_price: stdPrice,
       min_price: minP,
       max_price: maxP,
       waste_tolerance_percent: wasteTolerance,
@@ -170,15 +174,102 @@ export async function createMasterMaterial(input: {
 
   if (error) throw new Error(`Gagal menambahkan master material: ${error.message}`);
 
+  // Catat harga toko pertama jika diisi (sesuai alur Dustin)
+  if (input.initial_vendor_name?.trim() && input.initial_price && input.initial_price > 0) {
+    await supabase.from("material_price_history").insert({
+      organization_id: user.organizationId,
+      material_id: data.id,
+      vendor_name: input.initial_vendor_name.trim(),
+      purchase_date: new Date().toISOString(),
+      quantity: 1,
+      unit: input.purchase_unit.trim(),
+      unit_price: input.initial_price,
+      tax_amount: 0,
+      total_price: input.initial_price,
+      notes: "Harga awal toko / survei pasar",
+      created_by: user.id,
+    });
+  }
+
   await logAudit(user, {
     action: "CREATE_MASTER_MATERIAL",
     entityType: "master_materials",
     entityId: data.id,
-    metadata: { code: input.code, name: input.name, standard_price: input.standard_price },
+    metadata: { code: input.code, name: input.name, standard_price: stdPrice },
   });
 
   revalidatePath("/cost-control/material-prices");
   revalidatePath("/cost-control/material-recap");
+  return data;
+}
+
+export async function recordStoreMaterialPrice(input: {
+  material_id: string;
+  vendor_name: string;
+  vendor_id?: string;
+  unit_price: number;
+  purchase_date?: string;
+  document_number?: string;
+  notes?: string;
+}) {
+  const user = await requireAuthUser();
+  assertRole(user.role, MATERIAL_MOVEMENT_ROLES, "Anda tidak memiliki izin untuk mencatat harga toko material.");
+  const supabase = await createClient();
+
+  if (!input.material_id) throw new Error("Material wajib dipilih.");
+  if (!input.vendor_name?.trim()) throw new Error("Nama toko / supplier material wajib diisi.");
+  if (!Number.isFinite(input.unit_price) || input.unit_price <= 0) {
+    throw new Error("Harga satuan harus berupa angka lebih besar dari 0.");
+  }
+
+  const { data: mat, error: matErr } = await supabase
+    .from("master_materials")
+    .select("id, name, purchase_unit")
+    .eq("id", input.material_id)
+    .eq("organization_id", user.organizationId)
+    .single();
+
+  if (matErr || !mat) throw new Error("Material tidak ditemukan.");
+
+  const pDate = input.purchase_date || new Date().toISOString();
+  const { data, error } = await supabase
+    .from("material_price_history")
+    .insert({
+      organization_id: user.organizationId,
+      material_id: input.material_id,
+      vendor_id: input.vendor_id || null,
+      vendor_name: input.vendor_name.trim(),
+      purchase_date: pDate,
+      document_number: input.document_number?.trim() || null,
+      quantity: 1,
+      unit: mat.purchase_unit,
+      unit_price: input.unit_price,
+      tax_amount: 0,
+      total_price: input.unit_price,
+      notes: input.notes?.trim() || "Catatan harga toko / survei pasar",
+      created_by: user.id,
+    })
+    .select(`
+      *,
+      material:master_materials(name, code, category, usage_unit),
+      project:projects(name, code)
+    `)
+    .single();
+
+  if (error) throw new Error(`Gagal menyimpan harga toko: ${error.message}`);
+
+  await logAudit(user, {
+    action: "RECORD_STORE_MATERIAL_PRICE",
+    entityType: "material_price_history",
+    entityId: data.id,
+    metadata: {
+      material_id: input.material_id,
+      vendor_name: input.vendor_name,
+      unit_price: input.unit_price,
+    },
+  });
+
+  revalidatePath("/cost-control/material-prices");
   return data;
 }
 
@@ -222,7 +313,7 @@ export async function updateMasterMaterial(id: string, input: Partial<Parameters
 
 export async function deleteMasterMaterial(id: string) {
   const user = await requireAuthUser();
-  assertRole(user.role, ["OWNER"], "Hanya Owner yang dapat menonaktifkan master material.");
+  assertRole(user.role, MATERIAL_MASTER_EDITOR_ROLES, "Anda tidak memiliki izin untuk menonaktifkan master material.");
   const supabase = await createClient();
 
   const { error } = await supabase

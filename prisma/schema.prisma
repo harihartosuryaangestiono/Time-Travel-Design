@@ -40,6 +40,8 @@ model Organization {
   project_progress_records ProjectProgressRecord[]
   project_takeoffs        ProjectTakeoff[]
   subcontractors          Subcontractor[]
+  mandor_labor_rates      MandorLaborRate[]
+  labor_retentions        ProjectLaborRetention[]
 
   @@map("organizations")
 }
@@ -189,6 +191,7 @@ model Project {
   project_schedules        ProjectSchedule[]
   project_progress_records ProjectProgressRecord[]
   project_takeoffs         ProjectTakeoff[]
+  labor_retentions         ProjectLaborRetention[]
 
   @@unique([organization_id, code])
   @@map("projects")
@@ -299,6 +302,7 @@ model Subcontractor {
   organization       Organization       @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   labor_rate_history LaborRateHistory[]
   project_labor_items ProjectLaborItem[]
+  mandor_labor_rates MandorLaborRate[]
 
   @@index([organization_id, name])
   @@map("subcontractors")
@@ -912,10 +916,31 @@ model LaborRate {
   rate_history       LaborRateHistory[]
   project_labor_items ProjectLaborItem[]
   ahsp_components   MasterAhspComponent[]
+  mandor_rates       MandorLaborRate[]
 
   @@unique([organization_id, job_code])
   @@index([organization_id, category])
   @@map("labor_rates")
+}
+
+model MandorLaborRate {
+  id               String         @id @default(uuid())
+  organization_id  String
+  labor_rate_id    String
+  subcontractor_id String?
+  mandor_name      String
+  rate             Decimal        @db.Decimal(15, 2)
+  notes            String?
+  created_at       DateTime       @default(now())
+  updated_at       DateTime       @updatedAt
+
+  organization     Organization   @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  labor_rate       LaborRate      @relation(fields: [labor_rate_id], references: [id], onDelete: Cascade)
+  subcontractor    Subcontractor? @relation(fields: [subcontractor_id], references: [id], onDelete: SetNull)
+
+  @@index([organization_id, labor_rate_id])
+  @@index([organization_id, mandor_name])
+  @@map("mandor_labor_rates")
 }
 
 model LaborRateHistory {
@@ -1017,6 +1042,28 @@ model LaborClaim {
   @@index([organization_id, project_id])
   @@index([organization_id, labor_item_id])
   @@map("labor_claims")
+}
+
+model ProjectLaborRetention {
+  id               String   @id @default(uuid())
+  organization_id  String
+  project_id       String
+  mandor_name      String
+  termin_number    Int
+  claim_date       DateTime
+  total_claim      Decimal  @db.Decimal(15, 2)
+  paid_amount      Decimal  @db.Decimal(15, 2)
+  retention_amount Decimal  @db.Decimal(15, 2)
+  status           String   @default("HELD")
+  notes            String?
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  organization     Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  project          Project      @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  @@index([organization_id, project_id])
+  @@map("project_labor_retentions")
 }
 
 model MasterMaterial {

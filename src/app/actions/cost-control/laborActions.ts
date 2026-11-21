@@ -13,6 +13,17 @@ function assertLaborEditor(role: string) {
   }
 }
 
+export interface MandorRateItem {
+  id: string;
+  labor_rate_id: string;
+  mandor_name: string;
+  rate: number;
+  notes?: string | null;
+  subcontractor_id?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface LaborRateItem {
   id: string;
   organization_id: string;
@@ -31,6 +42,7 @@ export interface LaborRateItem {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  mandor_rates: MandorRateItem[];
 }
 
 export interface LaborClaimItem {
@@ -91,13 +103,29 @@ export interface ProjectLaborContractItem {
   remaining_volume?: number;
   remaining_amount?: number;
   project?: { id: string; name: string; code: string };
+  progress_records?: Array<{ date: string; volume: number }>;
+}
+
+export interface ProjectRetentionItem {
+  id: string;
+  organization_id: string;
+  project_id: string;
+  mandor_name: string;
+  termin_number: number;
+  claim_date: string;
+  total_claim: number;
+  paid_amount: number;
+  retention_amount: number;
+  status: "HELD" | "PAID" | "LUNAS";
+  notes?: string | null;
+  created_at?: string;
 }
 
 // ----------------------------------------------------
 // 1. MASTER HARGA UPAH (LABOR RATES)
 // ----------------------------------------------------
 
-export async function getLaborRates(filters?: { category?: string; search?: string }) {
+export async function getLaborRates(filters?: { category?: string; search?: string }): Promise<LaborRateItem[]> {
   const user = await requireAuthUser();
   const supabase = await createClient();
 
@@ -105,6 +133,7 @@ export async function getLaborRates(filters?: { category?: string; search?: stri
     .from("labor_rates")
     .select("*")
     .eq("organization_id", user.organizationId)
+    .eq("is_active", true)
     .order("job_name", { ascending: true });
 
   if (filters?.category && filters.category !== "ALL") {
@@ -119,12 +148,61 @@ export async function getLaborRates(filters?: { category?: string; search?: stri
   const { data, error } = await query;
   if (error) throw new Error(`Gagal memuat database harga upah: ${error.message}`);
 
-  return (data || []).map((row) => ({
-    ...row,
-    standard_rate: Number(row.standard_rate),
-    min_rate: Number(row.min_rate),
-    max_rate: Number(row.max_rate),
-  }));
+  // Fetch mandor rates for these labor items
+  const rateIds = (data || []).map((r) => r.id);
+  const mandorMap = new Map<string, MandorRateItem[]>();
+
+  if (rateIds.length > 0) {
+    try {
+      const { data: mandorData, error: mandorError } = await supabase
+        .from("mandor_labor_rates")
+        .select("*")
+        .eq("organization_id", user.organizationId)
+        .in("labor_rate_id", rateIds)
+        .order("rate", { ascending: true });
+
+      if (!mandorError && mandorData) {
+        mandorData.forEach((m: any) => {
+          const list = mandorMap.get(m.labor_rate_id) || [];
+          list.push({
+            id: m.id,
+            labor_rate_id: m.labor_rate_id,
+            mandor_name: m.mandor_name,
+            rate: Number(m.rate),
+            notes: m.notes,
+            subcontractor_id: m.subcontractor_id,
+            created_at: m.created_at,
+            updated_at: m.updated_at,
+          });
+          mandorMap.set(m.labor_rate_id, list);
+        });
+      }
+    } catch (e) {
+      console.warn("Tabel mandor_labor_rates belum ada atau error:", e);
+    }
+  }
+
+  return (data || []).map((row) => {
+    const mRates = mandorMap.get(row.id) || [];
+    let minR = Number(row.min_rate);
+    let maxR = Number(row.max_rate);
+    let stdR = Number(row.standard_rate);
+
+    if (mRates.length > 0) {
+      const rates = mRates.map((m) => m.rate);
+      minR = Math.min(...rates);
+      maxR = Math.max(...rates);
+      stdR = Math.round(rates.reduce((a, b) => a + b, 0) / rates.length);
+    }
+
+    return {
+      ...row,
+      standard_rate: stdR,
+      min_rate: minR,
+      max_rate: maxR,
+      mandor_rates: mRates,
+    };
+  });
 }
 
 export async function createLaborRate(input: {
@@ -135,24 +213,34 @@ export async function createLaborRate(input: {
   specifications?: string;
   unit: string;
   payment_system?: "BORONGAN" | "UPAH_KETENG" | "HARIAN";
-  standard_rate: number;
-  min_rate?: number;
-  max_rate?: number;
   source?: string;
   effective_date?: string;
+  mandors: Array<{
+    mandor_name: string;
+    rate: number;
+    notes?: string;
+  }>;
 }) {
   const user = await requireAuthUser();
   assertLaborEditor(user.role);
   const supabase = await createClient();
 
-  const minR = input.min_rate !== undefined ? input.min_rate : input.standard_rate * 0.9;
-  const maxR = input.max_rate !== undefined ? input.max_rate : input.standard_rate * 1.15;
-  if (
-    ![input.standard_rate, minR, maxR].every((rate) => Number.isFinite(rate) && rate >= 0) ||
-    minR > input.standard_rate || maxR < input.standard_rate
-  ) {
-    throw new Error("Tarif upah dan rentang minimum/maksimum tidak valid.");
+  if (!input.mandors || input.mandors.length === 0) {
+    throw new Error("Wajib memasukkan minimal 1 data mandor beserta tarif upahnya.");
   }
+
+  const validMandors = input.mandors.filter(
+    (m) => m.mandor_name && m.mandor_name.trim() && Number.isFinite(m.rate) && m.rate > 0
+  );
+
+  if (validMandors.length === 0) {
+    throw new Error("Tarif upah mandor harus berupa angka positif dengan nama mandor yang jelas.");
+  }
+
+  const rates = validMandors.map((m) => m.rate);
+  const minRate = Math.min(...rates);
+  const maxRate = Math.max(...rates);
+  const standardRate = Math.round(rates.reduce((acc, curr) => acc + curr, 0) / rates.length);
 
   const { data, error } = await supabase
     .from("labor_rates")
@@ -165,10 +253,10 @@ export async function createLaborRate(input: {
       specifications: input.specifications || null,
       unit: input.unit.trim(),
       payment_system: input.payment_system || "BORONGAN",
-      standard_rate: input.standard_rate,
-      min_rate: minR,
-      max_rate: maxR,
-      source: input.source || "Standar Perusahaan",
+      standard_rate: standardRate,
+      min_rate: minRate,
+      max_rate: maxRate,
+      source: input.source || `Rata-rata ${validMandors.length} Mandor`,
       effective_date: input.effective_date || new Date().toISOString(),
       is_active: true,
     })
@@ -177,62 +265,114 @@ export async function createLaborRate(input: {
 
   if (error) throw new Error(`Gagal menambahkan item upah: ${error.message}`);
 
+  // Insert into mandor_labor_rates
+  try {
+    const mandorRows = validMandors.map((m) => ({
+      organization_id: user.organizationId,
+      labor_rate_id: data.id,
+      mandor_name: m.mandor_name.trim(),
+      rate: m.rate,
+      notes: m.notes?.trim() || null,
+    }));
+
+    await supabase.from("mandor_labor_rates").insert(mandorRows);
+  } catch (err) {
+    console.warn("Tabel mandor_labor_rates belum ada di DB:", err);
+  }
+
   await logAudit(user, {
     action: "CREATE_LABOR_RATE",
     entityType: "labor_rates",
     entityId: data.id,
-    metadata: { job_code: input.job_code, job_name: input.job_name, standard_rate: input.standard_rate },
+    metadata: {
+      job_code: input.job_code,
+      job_name: input.job_name,
+      mandors_count: validMandors.length,
+      min_rate: minRate,
+      max_rate: maxRate,
+      standard_rate: standardRate,
+    },
   });
 
   revalidatePath("/cost-control/labor-rates");
   return data;
 }
 
-export async function updateLaborRate(id: string, input: Partial<Parameters<typeof createLaborRate>[0]>) {
+export async function updateLaborRate(
+  id: string,
+  input: {
+    job_code?: string;
+    job_name?: string;
+    category?: string;
+    description?: string;
+    specifications?: string;
+    unit?: string;
+    payment_system?: "BORONGAN" | "UPAH_KETENG" | "HARIAN";
+    source?: string;
+    effective_date?: string;
+    mandors?: Array<{
+      id?: string;
+      mandor_name: string;
+      rate: number;
+      notes?: string;
+    }>;
+  }
+) {
   const user = await requireAuthUser();
   assertLaborEditor(user.role);
   const supabase = await createClient();
 
-  // Record rate history if rate changed
-  const { data: existing, error: existingError } = await supabase
-    .from("labor_rates")
-    .select("*")
-    .eq("id", id)
-    .eq("organization_id", user.organizationId)
-    .maybeSingle();
+  const updateFields: Record<string, any> = {
+    updated_at: new Date().toISOString(),
+  };
 
-  if (existingError) throw new Error(`Gagal memuat tarif upah: ${existingError.message}`);
-  if (!existing) throw new Error("Tarif upah tidak ditemukan.");
-  const nextRate = input.standard_rate ?? Number(existing.standard_rate);
-  const nextMin = input.min_rate ?? Number(existing.min_rate);
-  const nextMax = input.max_rate ?? Number(existing.max_rate);
-  if (
-    ![nextRate, nextMin, nextMax].every((rate) => Number.isFinite(rate) && rate >= 0) ||
-    nextMin > nextRate || nextMax < nextRate
-  ) {
-    throw new Error("Tarif upah dan rentang minimum/maksimum tidak valid.");
-  }
+  if (input.job_code) updateFields.job_code = input.job_code.trim().toUpperCase();
+  if (input.job_name) updateFields.job_name = input.job_name.trim();
+  if (input.category) updateFields.category = input.category.trim();
+  if (input.description !== undefined) updateFields.description = input.description || null;
+  if (input.specifications !== undefined) updateFields.specifications = input.specifications || null;
+  if (input.unit) updateFields.unit = input.unit.trim();
+  if (input.payment_system) updateFields.payment_system = input.payment_system;
+  if (input.source) updateFields.source = input.source;
+  if (input.effective_date) updateFields.effective_date = input.effective_date;
 
-  if (input.standard_rate !== undefined && Number(existing.standard_rate) !== input.standard_rate) {
-    const { error: historyError } = await supabase.from("labor_rate_history").insert({
-      organization_id: user.organizationId,
-      labor_rate_id: id,
-      rate: Number(existing.standard_rate),
-      payment_system: existing.payment_system,
-      calculation_basis: "Perubahan Tarif Standar",
-      effective_date: existing.updated_at || existing.created_at,
-      notes: `Perubahan dari ${Number(existing.standard_rate)} ke ${input.standard_rate}`,
-      created_by: user.profileId || user.id,
-    });
-    if (historyError) throw new Error(`Gagal menyimpan riwayat tarif upah: ${historyError.message}`);
+  if (input.mandors && input.mandors.length > 0) {
+    const validMandors = input.mandors.filter(
+      (m) => m.mandor_name && m.mandor_name.trim() && Number.isFinite(m.rate) && m.rate > 0
+    );
+
+    if (validMandors.length > 0) {
+      const rates = validMandors.map((m) => m.rate);
+      updateFields.min_rate = Math.min(...rates);
+      updateFields.max_rate = Math.max(...rates);
+      updateFields.standard_rate = Math.round(rates.reduce((a, b) => a + b, 0) / rates.length);
+      updateFields.source = `Rata-rata ${validMandors.length} Mandor`;
+
+      try {
+        await supabase
+          .from("mandor_labor_rates")
+          .delete()
+          .eq("labor_rate_id", id)
+          .eq("organization_id", user.organizationId);
+
+        const mandorRows = validMandors.map((m) => ({
+          organization_id: user.organizationId,
+          labor_rate_id: id,
+          mandor_name: m.mandor_name.trim(),
+          rate: m.rate,
+          notes: m.notes?.trim() || null,
+        }));
+
+        await supabase.from("mandor_labor_rates").insert(mandorRows);
+      } catch (err) {
+        console.warn("Gagal update mandor_labor_rates:", err);
+      }
+    }
   }
 
   const { data, error } = await supabase
     .from("labor_rates")
-    .update({
-      ...input,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updateFields)
     .eq("id", id)
     .eq("organization_id", user.organizationId)
     .select()
@@ -244,11 +384,125 @@ export async function updateLaborRate(id: string, input: Partial<Parameters<type
     action: "UPDATE_LABOR_RATE",
     entityType: "labor_rates",
     entityId: id,
-    metadata: input,
+    metadata: updateFields,
   });
 
   revalidatePath("/cost-control/labor-rates");
   return data;
+}
+
+export async function addMandorToLaborRate(input: {
+  labor_rate_id: string;
+  mandor_name: string;
+  rate: number;
+  notes?: string;
+}) {
+  const user = await requireAuthUser();
+  assertLaborEditor(user.role);
+  const supabase = await createClient();
+
+  if (!input.mandor_name?.trim() || !Number.isFinite(input.rate) || input.rate <= 0) {
+    throw new Error("Nama mandor dan tarif upah harus valid.");
+  }
+
+  const { data: newMandor, error: insertError } = await supabase
+    .from("mandor_labor_rates")
+    .insert({
+      organization_id: user.organizationId,
+      labor_rate_id: input.labor_rate_id,
+      mandor_name: input.mandor_name.trim(),
+      rate: input.rate,
+      notes: input.notes?.trim() || null,
+    })
+    .select()
+    .single();
+
+  if (insertError) throw new Error(`Gagal menambah tarif mandor: ${insertError.message}`);
+
+  // Recalculate parent labor_rate min, max, standard
+  const { data: allMandors } = await supabase
+    .from("mandor_labor_rates")
+    .select("rate")
+    .eq("labor_rate_id", input.labor_rate_id)
+    .eq("organization_id", user.organizationId);
+
+  if (allMandors && allMandors.length > 0) {
+    const rates = allMandors.map((m: any) => Number(m.rate));
+    const minRate = Math.min(...rates);
+    const maxRate = Math.max(...rates);
+    const avgRate = Math.round(rates.reduce((a, b) => a + b, 0) / rates.length);
+
+    await supabase
+      .from("labor_rates")
+      .update({
+        min_rate: minRate,
+        max_rate: maxRate,
+        standard_rate: avgRate,
+        source: `Rata-rata ${rates.length} Mandor`,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", input.labor_rate_id)
+      .eq("organization_id", user.organizationId);
+  }
+
+  await logAudit(user, {
+    action: "ADD_MANDOR_RATE",
+    entityType: "mandor_labor_rates",
+    entityId: newMandor.id,
+    metadata: { labor_rate_id: input.labor_rate_id, mandor_name: input.mandor_name, rate: input.rate },
+  });
+
+  revalidatePath("/cost-control/labor-rates");
+  return newMandor;
+}
+
+export async function deleteMandorFromLaborRate(mandorRateId: string, laborRateId: string) {
+  const user = await requireAuthUser();
+  assertLaborEditor(user.role);
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("mandor_labor_rates")
+    .delete()
+    .eq("id", mandorRateId)
+    .eq("organization_id", user.organizationId);
+
+  if (error) throw new Error(`Gagal menghapus tarif mandor: ${error.message}`);
+
+  // Recalculate remaining
+  const { data: remaining } = await supabase
+    .from("mandor_labor_rates")
+    .select("rate")
+    .eq("labor_rate_id", laborRateId)
+    .eq("organization_id", user.organizationId);
+
+  if (remaining && remaining.length > 0) {
+    const rates = remaining.map((m: any) => Number(m.rate));
+    const minRate = Math.min(...rates);
+    const maxRate = Math.max(...rates);
+    const avgRate = Math.round(rates.reduce((a, b) => a + b, 0) / rates.length);
+
+    await supabase
+      .from("labor_rates")
+      .update({
+        min_rate: minRate,
+        max_rate: maxRate,
+        standard_rate: avgRate,
+        source: `Rata-rata ${rates.length} Mandor`,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", laborRateId)
+      .eq("organization_id", user.organizationId);
+  }
+
+  await logAudit(user, {
+    action: "DELETE_MANDOR_RATE",
+    entityType: "mandor_labor_rates",
+    entityId: mandorRateId,
+  });
+
+  revalidatePath("/cost-control/labor-rates");
+  return { success: true };
 }
 
 export async function deleteLaborRate(id: string) {
@@ -313,9 +567,10 @@ export async function getProjectLaborRecap(projectId?: string) {
   // Load claims aggregated per labor_item_id
   const { data: claims } = await supabase
     .from("labor_claims")
-    .select("labor_item_id, claimed_volume, verified_volume, approved_volume, unit_rate, paid_amount, status")
+    .select("labor_item_id, claim_date, claimed_volume, verified_volume, approved_volume, unit_rate, paid_amount, status")
     .eq("organization_id", user.organizationId)
-    .in("labor_item_id", itemIds);
+    .in("labor_item_id", itemIds)
+    .order("claim_date", { ascending: true });
 
   const claimsByItem = new Map<string, typeof claims>();
   (claims || []).forEach((c) => {
@@ -345,6 +600,23 @@ export async function getProjectLaborRecap(projectId?: string) {
     const remainingVolume = Math.max(0, contractVolume - approvedVolume);
     const remainingAmount = Math.max(0, totalContractAmount - paidAmount);
 
+    let progressRecords: Array<{ date: string; volume: number }> = [];
+    if (item.notes) {
+      try {
+        const parsed = JSON.parse(item.notes);
+        if (Array.isArray(parsed)) progressRecords = parsed;
+      } catch (e) {}
+    }
+    if (progressRecords.length === 0 && relatedClaims.length > 0) {
+      progressRecords = relatedClaims
+        .filter((c: any) => Number(c.claimed_volume) > 0)
+        .map((c: any) => ({
+          date: c.claim_date ? c.claim_date.slice(0, 10) : "",
+          volume: Number(c.claimed_volume),
+        }))
+        .filter((p: any) => p.date);
+    }
+
     return {
       ...item,
       contract_volume: contractVolume,
@@ -357,6 +629,7 @@ export async function getProjectLaborRecap(projectId?: string) {
       paid_amount: paidAmount,
       remaining_volume: remainingVolume,
       remaining_amount: remainingAmount,
+      progress_records: progressRecords,
       project: projectMap.get(item.project_id) || { id: item.project_id, name: "Proyek", code: "-" },
     };
   });
@@ -766,4 +1039,272 @@ export async function payLaborClaim(input: {
   revalidatePath("/cost-control/labor-recap");
   revalidatePath("/cash-book");
   return updatedClaim;
+}
+
+// ----------------------------------------------------
+// 4. RETENSI UPAH PROYEK (LABOR RETENTIONS)
+// ----------------------------------------------------
+
+export async function getProjectLaborRetentions(projectId: string): Promise<ProjectRetentionItem[]> {
+  const user = await requireAuthUser();
+  const supabase = await createClient();
+
+  if (!projectId || projectId === "ALL") return [];
+
+  const { data, error } = await supabase
+    .from("project_labor_retentions")
+    .select("*")
+    .eq("organization_id", user.organizationId)
+    .eq("project_id", projectId)
+    .order("termin_number", { ascending: true });
+
+  if (error) {
+    console.warn("Gagal memuat data retensi upah:", error.message);
+    return [];
+  }
+
+  return (data || []).map((row) => ({
+    id: row.id,
+    organization_id: row.organization_id,
+    project_id: row.project_id,
+    mandor_name: row.mandor_name,
+    termin_number: Number(row.termin_number),
+    claim_date: row.claim_date ? row.claim_date.slice(0, 10) : "",
+    total_claim: Number(row.total_claim),
+    paid_amount: Number(row.paid_amount),
+    retention_amount: Number(row.retention_amount),
+    status: row.status as "HELD" | "PAID" | "LUNAS",
+    notes: row.notes,
+    created_at: row.created_at,
+  }));
+}
+
+export async function createProjectLaborRetention(input: {
+  project_id: string;
+  mandor_name: string;
+  termin_number: number;
+  claim_date: string;
+  total_claim: number;
+  paid_amount?: number;
+  retention_amount?: number;
+  status?: "HELD" | "PAID" | "LUNAS";
+  notes?: string;
+}) {
+  const user = await requireAuthUser();
+  assertLaborEditor(user.role);
+  const supabase = await createClient();
+
+  const totalClaim = Number(input.total_claim);
+  const isLunas = input.status === "LUNAS";
+  const paidAmount = input.paid_amount !== undefined
+    ? Number(input.paid_amount)
+    : (isLunas ? totalClaim : Math.round(totalClaim * 0.9));
+  const retentionAmount = input.retention_amount !== undefined
+    ? Number(input.retention_amount)
+    : (isLunas ? 0 : totalClaim - paidAmount);
+
+  const { data, error } = await supabase
+    .from("project_labor_retentions")
+    .insert({
+      organization_id: user.organizationId,
+      project_id: input.project_id,
+      mandor_name: input.mandor_name.trim(),
+      termin_number: input.termin_number,
+      claim_date: input.claim_date || new Date().toISOString(),
+      total_claim: totalClaim,
+      paid_amount: paidAmount,
+      retention_amount: retentionAmount,
+      status: input.status || (isLunas ? "LUNAS" : "HELD"),
+      notes: input.notes || null,
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(`Gagal menyimpan data retensi: ${error.message}`);
+
+  await logAudit(user, {
+    action: "CREATE_LABOR_RETENTION",
+    entityType: "project_labor_retentions",
+    entityId: data.id,
+    metadata: input,
+  });
+
+  revalidatePath("/cost-control/labor-recap");
+  return data;
+}
+
+export async function updateProjectLaborRetention(
+  id: string,
+  input: {
+    status?: "HELD" | "PAID" | "LUNAS";
+    paid_amount?: number;
+    retention_amount?: number;
+    notes?: string;
+  }
+) {
+  const user = await requireAuthUser();
+  assertLaborEditor(user.role);
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("project_labor_retentions")
+    .update({
+      ...input,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("organization_id", user.organizationId)
+    .select()
+    .single();
+
+  if (error) throw new Error(`Gagal memperbarui status retensi: ${error.message}`);
+
+  await logAudit(user, {
+    action: "UPDATE_LABOR_RETENTION",
+    entityType: "project_labor_retentions",
+    entityId: id,
+    metadata: input,
+  });
+
+  revalidatePath("/cost-control/labor-recap");
+  return data;
+}
+
+export async function deleteProjectLaborRetention(id: string) {
+  const user = await requireAuthUser();
+  assertLaborEditor(user.role);
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("project_labor_retentions")
+    .delete()
+    .eq("id", id)
+    .eq("organization_id", user.organizationId);
+
+  if (error) throw new Error(`Gagal menghapus retensi: ${error.message}`);
+
+  revalidatePath("/cost-control/labor-recap");
+  return { success: true };
+}
+
+export async function importProjectLaborRecapBatch(input: {
+  project_name: string;
+  project_code?: string;
+  mandor_name: string;
+  items: Array<{
+    job_name: string;
+    unit: string;
+    unit_rate: number;
+    total_volume: number;
+    progress_records?: Array<{ date: string; volume: number }>;
+  }>;
+  retentions: Array<{
+    termin_number: number;
+    date: string;
+    total_claim: number;
+    paid_amount: number;
+    retention_amount: number;
+    status: string;
+  }>;
+}) {
+  const user = await requireAuthUser();
+  assertLaborEditor(user.role);
+  const supabase = await createClient();
+
+  // 1. Find or create project
+  let projectId: string;
+  const { data: existingProject } = await supabase
+    .from("projects")
+    .select("id, name")
+    .eq("organization_id", user.organizationId)
+    .ilike("name", `%${input.project_name.trim()}%`)
+    .maybeSingle();
+
+  if (existingProject) {
+    projectId = existingProject.id;
+  } else {
+    const code = input.project_code || `PRJ-${Math.floor(100 + Math.random() * 900)}`;
+    const { data: newProj, error: newProjError } = await supabase
+      .from("projects")
+      .insert({
+        organization_id: user.organizationId,
+        code,
+        name: input.project_name.trim(),
+        project_year: new Date().getFullYear(),
+        type: "CONSTRUCTION",
+        status: "ACTIVE",
+      })
+      .select()
+      .single();
+
+    if (newProjError) throw new Error(`Gagal membuat proyek baru: ${newProjError.message}`);
+    projectId = newProj.id;
+  }
+
+  // 2. Insert items
+  for (const item of input.items) {
+    const totalAmount = item.total_volume * item.unit_rate;
+    const { data: insertedItem, error: itemError } = await supabase
+      .from("project_labor_items")
+      .insert({
+        organization_id: user.organizationId,
+        project_id: projectId,
+        mandor_name: input.mandor_name.trim(),
+        job_name: item.job_name.trim(),
+        category: "Pekerjaan Renovasi",
+        unit: item.unit.trim(),
+        unit_rate: item.unit_rate,
+        contract_volume: item.total_volume,
+        total_amount: totalAmount,
+        status: "ACTIVE",
+        notes: JSON.stringify(item.progress_records || []),
+      })
+      .select()
+      .single();
+
+    if (!itemError && insertedItem && item.progress_records) {
+      for (let i = 0; i < item.progress_records.length; i++) {
+        const prog = item.progress_records[i];
+        if (prog.volume > 0) {
+          const claimAmount = Math.round(prog.volume * item.unit_rate);
+          await supabase.from("labor_claims").insert({
+            organization_id: user.organizationId,
+            project_id: projectId,
+            labor_item_id: insertedItem.id,
+            claim_number: `CLM-${Date.now().toString().slice(-6)}-${i + 1}`,
+            claim_date: prog.date ? new Date(prog.date).toISOString() : new Date().toISOString(),
+            mandor_name: input.mandor_name.trim(),
+            work_description: `Progres ${item.job_name}`,
+            claimed_volume: prog.volume,
+            verified_volume: prog.volume,
+            approved_volume: prog.volume,
+            unit_rate: item.unit_rate,
+            claimed_amount: claimAmount,
+            approved_amount: claimAmount,
+            paid_amount: claimAmount,
+            status: "PAID",
+            created_by: user.profileId || user.id,
+          });
+        }
+      }
+    }
+  }
+
+  // 3. Insert retentions
+  for (const ret of input.retentions) {
+    await supabase.from("project_labor_retentions").insert({
+      organization_id: user.organizationId,
+      project_id: projectId,
+      mandor_name: input.mandor_name.trim(),
+      termin_number: ret.termin_number,
+      claim_date: ret.date ? new Date(ret.date).toISOString() : new Date().toISOString(),
+      total_claim: ret.total_claim,
+      paid_amount: ret.paid_amount,
+      retention_amount: ret.retention_amount,
+      status: ret.status || "HELD",
+    });
+  }
+
+  revalidatePath("/cost-control/labor-recap");
+  return { success: true, projectId };
 }

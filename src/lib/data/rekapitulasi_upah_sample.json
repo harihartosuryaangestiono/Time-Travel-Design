@@ -1,0 +1,4229 @@
+[
+  {
+    "key": "Charity House",
+    "name": "Charity House - Bintaro",
+    "code": "PRJ-CHB",
+    "mandor_name": "Rian Purnama",
+    "category": "PEKERJAAN RENOVASI",
+    "items": [
+      {
+        "item_number": "1",
+        "job_name": "Pembongkaran Rangka Atap dan Atap",
+        "unit": "m2",
+        "unit_rate": 65000,
+        "total_volume": 58.08,
+        "total_amount": 3775200,
+        "progress_records": [
+          {
+            "date": "2026-10-09",
+            "volume": 58.08
+          }
+        ]
+      },
+      {
+        "item_number": "2",
+        "job_name": "Pembobokan Ring Balok & Kolom Praktis & Sloof",
+        "unit": "m'",
+        "unit_rate": 20000,
+        "total_volume": 56.6,
+        "total_amount": 1132000,
+        "progress_records": [
+          {
+            "date": "2026-10-09",
+            "volume": 56.6
+          }
+        ]
+      },
+      {
+        "item_number": "3",
+        "job_name": "Pembobokan Dinding Untuk Kolom",
+        "unit": "m'",
+        "unit_rate": 45000,
+        "total_volume": 32.5,
+        "total_amount": 1462500,
+        "progress_records": [
+          {
+            "date": "2026-10-09",
+            "volume": 8.7
+          },
+          {
+            "date": "2026-10-23",
+            "volume": 23.8
+          }
+        ]
+      },
+      {
+        "item_number": "4",
+        "job_name": "Pembobokan Dinding",
+        "unit": "m2",
+        "unit_rate": 65000,
+        "total_volume": 30.439999999999998,
+        "total_amount": 1978599.9999999998,
+        "progress_records": [
+          {
+            "date": "2026-10-09",
+            "volume": 29.04
+          },
+          {
+            "date": "2026-11-06",
+            "volume": 1.4
+          }
+        ]
+      },
+      {
+        "item_number": "5",
+        "job_name": "Penggalian Tanah",
+        "unit": "m3",
+        "unit_rate": 110000,
+        "total_volume": 3.08,
+        "total_amount": 338800,
+        "progress_records": [
+          {
+            "date": "2026-10-09",
+            "volume": 3.08
+          }
+        ]
+      },
+      {
+        "item_number": "6",
+        "job_name": "Pemasangan Batu Kali",
+        "unit": "m'",
+        "unit_rate": 65000,
+        "total_volume": 31.8,
+        "total_amount": 2067000,
+        "progress_records": [
+          {
+            "date": "2026-10-23",
+            "volume": 31.8
+          }
+        ]
+      },
+      {
+        "item_number": "7",
+        "job_name": "Galian Tanah Untuk Batu Kali",
+        "unit": "m'",
+        "unit_rate": 27000,
+        "total_volume": 23.8,
+        "total_amount": 642600,
+        "progress_records": [
+          {
+            "date": "2026-10-23",
+            "volume": 23.8
+          }
+        ]
+      },
+      {
+        "item_number": "8",
+        "job_name": "Pengecoran Sloof",
+        "unit": "m'",
+        "unit_rate": 55000,
+        "total_volume": 31.8,
+        "total_amount": 1749000,
+        "progress_records": [
+          {
+            "date": "2026-10-23",
+            "volume": 31.8
+          }
+        ]
+      },
+      {
+        "item_number": "9",
+        "job_name": "Bekisting",
+        "unit": "m2",
+        "unit_rate": 40000,
+        "total_volume": 74.41,
+        "total_amount": 2976400,
+        "progress_records": [
+          {
+            "date": "2026-10-23",
+            "volume": 36.9
+          },
+          {
+            "date": "2026-10-30",
+            "volume": 8.8
+          },
+          {
+            "date": "2026-11-06",
+            "volume": 18.71
+          },
+          {
+            "date": "2026-11-13",
+            "volume": 10
+          }
+        ]
+      },
+      {
+        "item_number": "10",
+        "job_name": "Pembuatan Cakar Ayam (Pengecoran + Galian)",
+        "unit": "ttk",
+        "unit_rate": 180000,
+        "total_volume": 8,
+        "total_amount": 1440000,
+        "progress_records": [
+          {
+            "date": "2026-10-23",
+            "volume": 8
+          }
+        ]
+      },
+      {
+        "item_number": "11",
+        "job_name": "Pengecoran Kolom dan Balok Utama",
+        "unit": "m'",
+        "unit_rate": 75000,
+        "total_volume": 35.5,
+        "total_amount": 2662500,
+        "progress_records": [
+          {
+            "date": "2026-10-23",
+            "volume": 30
+          },
+          {
+            "date": "2026-10-30",
+            "volume": 5.5
+          }
+        ]
+      },
+      {
+        "item_number": "12",
+        "job_name": "Pengecoran Kolom Praktis dan Ring Balok",
+        "unit": "m'",
+        "unit_rate": 23000,
+        "total_volume": 115.38,
+        "total_amount": 2653740,
+        "progress_records": [
+          {
+            "date": "2026-10-23",
+            "volume": 6
+          },
+          {
+            "date": "2026-10-30",
+            "volume": 22
+          },
+          {
+            "date": "2026-11-06",
+            "volume": 62.38
+          },
+          {
+            "date": "2026-11-13",
+            "volume": 25
+          }
+        ]
+      },
+      {
+        "item_number": "13",
+        "job_name": "Pasang Dinding Bata Ringan",
+        "unit": "m2",
+        "unit_rate": 55000,
+        "total_volume": 135.5,
+        "total_amount": 7452500,
+        "progress_records": [
+          {
+            "date": "2026-10-23",
+            "volume": 32.51
+          },
+          {
+            "date": "2026-10-30",
+            "volume": 64.08
+          },
+          {
+            "date": "2026-11-06",
+            "volume": 30.62
+          },
+          {
+            "date": "2026-11-13",
+            "volume": 8.29
+          }
+        ]
+      },
+      {
+        "item_number": "14",
+        "job_name": "Plester Dinding",
+        "unit": "m2",
+        "unit_rate": 35000,
+        "total_volume": 144.88,
+        "total_amount": 5070800,
+        "progress_records": [
+          {
+            "date": "2026-11-06",
+            "volume": 102.78
+          },
+          {
+            "date": "2026-11-13",
+            "volume": 42.1
+          }
+        ]
+      },
+      {
+        "item_number": "15",
+        "job_name": "Acian Dinding",
+        "unit": "m2",
+        "unit_rate": 28000,
+        "total_volume": 54.46,
+        "total_amount": 1524880,
+        "progress_records": [
+          {
+            "date": "2026-11-06",
+            "volume": 40.38
+          },
+          {
+            "date": "2026-11-13",
+            "volume": 14.08
+          }
+        ]
+      },
+      {
+        "item_number": "16",
+        "job_name": "Skonengan",
+        "unit": "m'",
+        "unit_rate": 30000,
+        "total_volume": 4.6,
+        "total_amount": 138000,
+        "progress_records": [
+          {
+            "date": "2026-11-13",
+            "volume": 4.6
+          }
+        ]
+      },
+      {
+        "item_number": "17",
+        "job_name": "Pengecoran Dak Lantai",
+        "unit": "m2",
+        "unit_rate": 420000,
+        "total_volume": 50.15,
+        "total_amount": 21063000,
+        "progress_records": [
+          {
+            "date": "2026-10-23",
+            "volume": 41.65
+          },
+          {
+            "date": "2026-11-13",
+            "volume": 8.5
+          }
+        ]
+      },
+      {
+        "item_number": "18",
+        "job_name": "Pemasangan Baja WF 15",
+        "unit": "m'",
+        "unit_rate": 250000,
+        "total_volume": 8,
+        "total_amount": 2000000,
+        "progress_records": [
+          {
+            "date": "2026-10-23",
+            "volume": 8
+          }
+        ]
+      },
+      {
+        "item_number": "19",
+        "job_name": "Pembesian Sloof",
+        "unit": "m'",
+        "unit_rate": 15000,
+        "total_volume": 20,
+        "total_amount": 300000,
+        "progress_records": [
+          {
+            "date": "2026-10-23",
+            "volume": 20
+          }
+        ]
+      },
+      {
+        "item_number": "20",
+        "job_name": "Lansir Material",
+        "unit": "dumptruck",
+        "unit_rate": 400000,
+        "total_volume": 4,
+        "total_amount": 1600000,
+        "progress_records": [
+          {
+            "date": "2026-10-23",
+            "volume": 3
+          },
+          {
+            "date": "2026-10-30",
+            "volume": 1
+          }
+        ]
+      },
+      {
+        "item_number": "21",
+        "job_name": "Pasang Pipa 3 Inch dan 4 Inch",
+        "unit": "m'",
+        "unit_rate": 30000,
+        "total_volume": 16,
+        "total_amount": 480000,
+        "progress_records": [
+          {
+            "date": "2026-10-23",
+            "volume": 16
+          }
+        ]
+      },
+      {
+        "item_number": "22",
+        "job_name": "Galian Untuk Pasang Pipa 3 Inch dan 4 Inch",
+        "unit": "m'",
+        "unit_rate": 30000,
+        "total_volume": 8,
+        "total_amount": 240000,
+        "progress_records": [
+          {
+            "date": "2026-10-23",
+            "volume": 8
+          }
+        ]
+      },
+      {
+        "item_number": "26",
+        "job_name": "Pasang Besi Openingan",
+        "unit": "unit",
+        "unit_rate": 25000,
+        "total_volume": 6,
+        "total_amount": 150000,
+        "progress_records": [
+          {
+            "date": "2026-11-06",
+            "volume": 6
+          }
+        ]
+      },
+      {
+        "item_number": "27",
+        "job_name": "Openingan",
+        "unit": "m'",
+        "unit_rate": 45000,
+        "total_volume": 9.9,
+        "total_amount": 445500,
+        "progress_records": [
+          {
+            "date": "2026-11-06",
+            "volume": 9.9
+          }
+        ]
+      },
+      {
+        "item_number": "28",
+        "job_name": "Pembongkaran Atap",
+        "unit": "m2",
+        "unit_rate": 45000,
+        "total_volume": 12.06,
+        "total_amount": 542700,
+        "progress_records": [
+          {
+            "date": "2026-11-06",
+            "volume": 12.06
+          }
+        ]
+      },
+      {
+        "item_number": "29",
+        "job_name": "Pemasangan Rangka Atap",
+        "unit": "m2",
+        "unit_rate": 60000,
+        "total_volume": 64.36,
+        "total_amount": 3861600,
+        "progress_records": [
+          {
+            "date": "2026-11-06",
+            "volume": 12.06
+          },
+          {
+            "date": "2026-11-13",
+            "volume": 52.3
+          }
+        ]
+      },
+      {
+        "item_number": "30",
+        "job_name": "Pemasangan Atap",
+        "unit": "m2",
+        "unit_rate": 45000,
+        "total_volume": 12.06,
+        "total_amount": 542700,
+        "progress_records": [
+          {
+            "date": "2026-11-06",
+            "volume": 12.06
+          }
+        ]
+      },
+      {
+        "item_number": "31",
+        "job_name": "Urugan Tanah",
+        "unit": "m3",
+        "unit_rate": 150000,
+        "total_volume": 3.17,
+        "total_amount": 475500,
+        "progress_records": [
+          {
+            "date": "2026-11-13",
+            "volume": 3.17
+          }
+        ]
+      },
+      {
+        "item_number": "32",
+        "job_name": "Pemasangan Keramik 60x60",
+        "unit": "m2",
+        "unit_rate": 75000,
+        "total_volume": 10.58,
+        "total_amount": 793500,
+        "progress_records": [
+          {
+            "date": "2026-11-13",
+            "volume": 10.58
+          }
+        ]
+      },
+      {
+        "item_number": "33",
+        "job_name": "Pemasangan Jendela",
+        "unit": "unit",
+        "unit_rate": 150000,
+        "total_volume": 2,
+        "total_amount": 300000,
+        "progress_records": [
+          {
+            "date": "2026-11-13",
+            "volume": 2
+          }
+        ]
+      }
+    ],
+    "retentions": [
+      {
+        "termin_number": 1,
+        "date": "2026-10-09",
+        "total_claim": 7523000,
+        "paid_amount": 7523000,
+        "retention_amount": 0,
+        "status": "LUNAS"
+      },
+      {
+        "termin_number": 2,
+        "date": "2026-10-23",
+        "total_claim": 25153000,
+        "paid_amount": 22637700,
+        "retention_amount": 2515300,
+        "status": "HELD"
+      },
+      {
+        "termin_number": 3,
+        "date": "2026-10-30",
+        "total_claim": 14357000,
+        "paid_amount": 12921300,
+        "retention_amount": 1435700,
+        "status": "HELD"
+      },
+      {
+        "termin_number": 4,
+        "date": "2026-11-06",
+        "total_claim": 11051000,
+        "paid_amount": 9945900,
+        "retention_amount": 1105100,
+        "status": "HELD"
+      },
+      {
+        "termin_number": 5,
+        "date": "2026-11-13",
+        "total_claim": 9925000,
+        "paid_amount": 8932500,
+        "retention_amount": 992500,
+        "status": "HELD"
+      }
+    ]
+  },
+  {
+    "key": "3HI Office",
+    "name": "3HI Office - Kemayoran",
+    "code": "PRJ-3HI",
+    "mandor_name": "Rosidin",
+    "category": "PEKERJAAN RENOVASI",
+    "items": [
+      {
+        "item_number": "1",
+        "job_name": "Pembongkaran Partisi Gypsum",
+        "unit": "m2",
+        "unit_rate": 30000,
+        "total_volume": 112.74,
+        "total_amount": 3382200,
+        "progress_records": [
+          {
+            "date": "2026-10-02",
+            "volume": 25.74
+          },
+          {
+            "date": "2026-11-13",
+            "volume": 87
+          }
+        ]
+      },
+      {
+        "item_number": "2",
+        "job_name": "Pembongkaran Plafon",
+        "unit": "m2",
+        "unit_rate": 30000,
+        "total_volume": 57.99,
+        "total_amount": 1739700,
+        "progress_records": [
+          {
+            "date": "2026-10-09",
+            "volume": 57.99
+          }
+        ]
+      },
+      {
+        "item_number": "2",
+        "job_name": "Pemasangan Partisi Gypsum 2 Sisi",
+        "unit": "m2",
+        "unit_rate": 90000,
+        "total_volume": 114.10000000000001,
+        "total_amount": 10269000,
+        "progress_records": [
+          {
+            "date": "2026-10-02",
+            "volume": 99.84
+          },
+          {
+            "date": "2026-10-16",
+            "volume": 14.26
+          }
+        ]
+      },
+      {
+        "item_number": "3",
+        "job_name": "Perbaikan Plafon",
+        "unit": "m2",
+        "unit_rate": 40000,
+        "total_volume": 202.11,
+        "total_amount": 8084400.000000001,
+        "progress_records": [
+          {
+            "date": "2026-10-09",
+            "volume": 49.11
+          },
+          {
+            "date": "2026-10-16",
+            "volume": 153
+          }
+        ]
+      },
+      {
+        "item_number": "4",
+        "job_name": "Pemasangan Pipa Pembuangan AC",
+        "unit": "m'",
+        "unit_rate": 25000,
+        "total_volume": 23,
+        "total_amount": 575000,
+        "progress_records": [
+          {
+            "date": "2026-10-09",
+            "volume": 13
+          },
+          {
+            "date": "2026-11-13",
+            "volume": 10
+          }
+        ]
+      },
+      {
+        "item_number": "6",
+        "job_name": "Pemasangan Pipa Air Bersih",
+        "unit": "m'",
+        "unit_rate": 25000,
+        "total_volume": 12,
+        "total_amount": 300000,
+        "progress_records": [
+          {
+            "date": "2026-10-16",
+            "volume": 12
+          }
+        ]
+      },
+      {
+        "item_number": "7",
+        "job_name": "Pemasangan Pipa Drainase",
+        "unit": "m'",
+        "unit_rate": 25000,
+        "total_volume": 7,
+        "total_amount": 175000,
+        "progress_records": [
+          {
+            "date": "2026-10-16",
+            "volume": 7
+          }
+        ]
+      },
+      {
+        "item_number": "9",
+        "job_name": "Pembobokan Pipa Drainase",
+        "unit": "m'",
+        "unit_rate": 30000,
+        "total_volume": 7,
+        "total_amount": 210000,
+        "progress_records": [
+          {
+            "date": "2026-10-16",
+            "volume": 7
+          }
+        ]
+      },
+      {
+        "item_number": "11",
+        "job_name": "Pemasangan Corner Bead",
+        "unit": "m'",
+        "unit_rate": 20000,
+        "total_volume": 31,
+        "total_amount": 620000,
+        "progress_records": [
+          {
+            "date": "2026-10-16",
+            "volume": 31
+          }
+        ]
+      },
+      {
+        "item_number": "14",
+        "job_name": "Pemasangan Dinding Bata",
+        "unit": "m2",
+        "unit_rate": 55000,
+        "total_volume": 5,
+        "total_amount": 275000,
+        "progress_records": [
+          {
+            "date": "2026-10-16",
+            "volume": 5
+          }
+        ]
+      },
+      {
+        "item_number": "15",
+        "job_name": "Plester Dinding Bata",
+        "unit": "m2",
+        "unit_rate": 35000,
+        "total_volume": 5,
+        "total_amount": 175000,
+        "progress_records": [
+          {
+            "date": "2026-10-16",
+            "volume": 5
+          }
+        ]
+      },
+      {
+        "item_number": "16",
+        "job_name": "Pengupasan Cat",
+        "unit": "m2",
+        "unit_rate": 20000,
+        "total_volume": 151.1,
+        "total_amount": 3022000,
+        "progress_records": [
+          {
+            "date": "2026-10-23",
+            "volume": 151.1
+          }
+        ]
+      },
+      {
+        "item_number": "17",
+        "job_name": "Pengecatan Plafon",
+        "unit": "m2",
+        "unit_rate": 25000,
+        "total_volume": 202.8,
+        "total_amount": 5070000,
+        "progress_records": [
+          {
+            "date": "2026-10-23",
+            "volume": 202.8
+          }
+        ]
+      },
+      {
+        "item_number": "18",
+        "job_name": "Pembobokan Keramik",
+        "unit": "m2",
+        "unit_rate": 45000,
+        "total_volume": 34.2,
+        "total_amount": 1539000.0000000002,
+        "progress_records": [
+          {
+            "date": "2026-10-23",
+            "volume": 34.2
+          }
+        ]
+      },
+      {
+        "item_number": "19",
+        "job_name": "Instalasi Stop Kontak AC",
+        "unit": "ttk",
+        "unit_rate": 108000,
+        "total_volume": 7,
+        "total_amount": 756000,
+        "progress_records": [
+          {
+            "date": "2026-10-23",
+            "volume": 7
+          }
+        ]
+      },
+      {
+        "item_number": "20",
+        "job_name": "Instalasi Stop Kontak",
+        "unit": "ttk",
+        "unit_rate": 85500,
+        "total_volume": 20,
+        "total_amount": 1710000,
+        "progress_records": [
+          {
+            "date": "2026-10-23",
+            "volume": 14
+          },
+          {
+            "date": "2026-11-13",
+            "volume": 6
+          }
+        ]
+      },
+      {
+        "item_number": "21",
+        "job_name": "Instalasi Lampu",
+        "unit": "ttk",
+        "unit_rate": 85500,
+        "total_volume": 25,
+        "total_amount": 2137500,
+        "progress_records": [
+          {
+            "date": "2026-10-23",
+            "volume": 25
+          }
+        ]
+      },
+      {
+        "item_number": "23",
+        "job_name": "Pengecatan Dinding",
+        "unit": "m2",
+        "unit_rate": 25000,
+        "total_volume": 382.4,
+        "total_amount": 9560000,
+        "progress_records": [
+          {
+            "date": "2026-10-30",
+            "volume": 366.4
+          },
+          {
+            "date": "2026-11-13",
+            "volume": 16
+          }
+        ]
+      },
+      {
+        "item_number": "24",
+        "job_name": "Pemasangan Lampu",
+        "unit": "ttk",
+        "unit_rate": 22500,
+        "total_volume": 25,
+        "total_amount": 562500,
+        "progress_records": [
+          {
+            "date": "2026-10-30",
+            "volume": 25
+          }
+        ]
+      },
+      {
+        "item_number": "25",
+        "job_name": "Bongkar dan Pasang MCB",
+        "unit": "pcs",
+        "unit_rate": 60000,
+        "total_volume": 18,
+        "total_amount": 1080000,
+        "progress_records": [
+          {
+            "date": "2026-10-30",
+            "volume": 18
+          }
+        ]
+      },
+      {
+        "item_number": "26",
+        "job_name": "Bongkar dan Pasang Panel Listrik / Meteran",
+        "unit": "ttk",
+        "unit_rate": 250000,
+        "total_volume": 1,
+        "total_amount": 250000,
+        "progress_records": [
+          {
+            "date": "2026-10-30",
+            "volume": 1
+          }
+        ]
+      },
+      {
+        "item_number": "27",
+        "job_name": "Lansir Material",
+        "unit": "hari",
+        "unit_rate": 400000,
+        "total_volume": 2,
+        "total_amount": 800000,
+        "progress_records": [
+          {
+            "date": "2026-11-13",
+            "volume": 2
+          }
+        ]
+      }
+    ],
+    "retentions": [
+      {
+        "termin_number": 1,
+        "date": "2026-10-02",
+        "total_claim": 9750000,
+        "paid_amount": 8775000,
+        "retention_amount": 975000,
+        "status": "HELD"
+      },
+      {
+        "termin_number": 2,
+        "date": "2026-10-09",
+        "total_claim": 4029100,
+        "paid_amount": 3626190,
+        "retention_amount": 402910,
+        "status": "HELD"
+      },
+      {
+        "termin_number": 3,
+        "date": "2026-10-16",
+        "total_claim": 9158400,
+        "paid_amount": 8242560,
+        "retention_amount": 915840,
+        "status": "HELD"
+      },
+      {
+        "termin_number": 4,
+        "date": "2026-10-23",
+        "total_claim": 13709000,
+        "paid_amount": 12338100,
+        "retention_amount": 1370900,
+        "status": "HELD"
+      },
+      {
+        "termin_number": 5,
+        "date": "2026-10-30",
+        "total_claim": 10475300,
+        "paid_amount": 9427770,
+        "retention_amount": 1047530,
+        "status": "HELD"
+      },
+      {
+        "termin_number": 6,
+        "date": "2026-11-13",
+        "total_claim": 4570000,
+        "paid_amount": 4570000,
+        "retention_amount": 0,
+        "status": "LUNAS"
+      }
+    ]
+  },
+  {
+    "key": "PH House",
+    "name": "PH House - Bogor",
+    "code": "PRJ-PHH",
+    "mandor_name": "Rian Purnama",
+    "category": "PEKERJAAN RENOVASI",
+    "items": [
+      {
+        "item_number": "1",
+        "job_name": "Pembongkaran Plafon",
+        "unit": "m2",
+        "unit_rate": 25000,
+        "total_volume": 57.73,
+        "total_amount": 1443250,
+        "progress_records": [
+          {
+            "date": "2026-07-24",
+            "volume": 57.73
+          }
+        ]
+      },
+      {
+        "item_number": "2",
+        "job_name": "Pembobokan Dinding",
+        "unit": "m2",
+        "unit_rate": 65000,
+        "total_volume": 63.57,
+        "total_amount": 4132050,
+        "progress_records": [
+          {
+            "date": "2026-07-31",
+            "volume": 27.51
+          },
+          {
+            "date": "2026-08-07",
+            "volume": 15.64
+          },
+          {
+            "date": "2026-09-04",
+            "volume": 8.94
+          },
+          {
+            "date": "2026-10-02",
+            "volume": 6.12
+          },
+          {
+            "date": "2026-10-16",
+            "volume": 1.76
+          },
+          {
+            "date": "2026-10-23",
+            "volume": 3.6
+          }
+        ]
+      },
+      {
+        "item_number": "3",
+        "job_name": "Pembobokan Tangga Eksisting",
+        "unit": "m2",
+        "unit_rate": 65000,
+        "total_volume": 6.55,
+        "total_amount": 425750,
+        "progress_records": [
+          {
+            "date": "2026-10-02",
+            "volume": 6.55
+          }
+        ]
+      },
+      {
+        "item_number": "4",
+        "job_name": "Pembongkaran Railing Tangga",
+        "unit": "m'",
+        "unit_rate": 27000,
+        "total_volume": 5.2,
+        "total_amount": 140400,
+        "progress_records": [
+          {
+            "date": "2026-10-02",
+            "volume": 5.2
+          }
+        ]
+      },
+      {
+        "item_number": "5",
+        "job_name": "Pembobokan Profil Dinding Fasad",
+        "unit": "m2",
+        "unit_rate": 30000,
+        "total_volume": 10.14,
+        "total_amount": 304200,
+        "progress_records": [
+          {
+            "date": "2026-10-02",
+            "volume": 10.14
+          }
+        ]
+      },
+      {
+        "item_number": "6",
+        "job_name": "Pembobokan Kolom",
+        "unit": "m'",
+        "unit_rate": 45000,
+        "total_volume": 2.5,
+        "total_amount": 112500,
+        "progress_records": [
+          {
+            "date": "2026-09-04",
+            "volume": 2.5
+          }
+        ]
+      },
+      {
+        "item_number": "7",
+        "job_name": "Pembobokan Kolom Praktis dan Ring Balok",
+        "unit": "m'",
+        "unit_rate": 20000,
+        "total_volume": 33.3,
+        "total_amount": 666000,
+        "progress_records": [
+          {
+            "date": "2026-09-18",
+            "volume": 28.3
+          },
+          {
+            "date": "2026-10-09",
+            "volume": 2.5
+          },
+          {
+            "date": "2026-10-16",
+            "volume": 2.5
+          }
+        ]
+      },
+      {
+        "item_number": "8",
+        "job_name": "Gali Sloof",
+        "unit": "m'",
+        "unit_rate": 27000,
+        "total_volume": 13,
+        "total_amount": 351000,
+        "progress_records": [
+          {
+            "date": "2026-07-24",
+            "volume": 11.1
+          },
+          {
+            "date": "2026-09-04",
+            "volume": 1.9
+          }
+        ]
+      },
+      {
+        "item_number": "9",
+        "job_name": "Bobok + Gali Jalur Pemipaan",
+        "unit": "m'",
+        "unit_rate": 65000,
+        "total_volume": 19.5,
+        "total_amount": 1267500,
+        "progress_records": [
+          {
+            "date": "2026-08-28",
+            "volume": 19.5
+          }
+        ]
+      },
+      {
+        "item_number": "10",
+        "job_name": "Pembongkaran Pintu",
+        "unit": "pcs",
+        "unit_rate": 45000,
+        "total_volume": 4,
+        "total_amount": 180000,
+        "progress_records": [
+          {
+            "date": "2026-07-31",
+            "volume": 3
+          },
+          {
+            "date": "2026-10-23",
+            "volume": 1
+          }
+        ]
+      },
+      {
+        "item_number": "10",
+        "job_name": "Pembongkaran Jendela",
+        "unit": "pcs",
+        "unit_rate": 40000,
+        "total_volume": 5,
+        "total_amount": 200000,
+        "progress_records": [
+          {
+            "date": "2026-07-31",
+            "volume": 4
+          },
+          {
+            "date": "2026-10-23",
+            "volume": 1
+          }
+        ]
+      },
+      {
+        "item_number": "11",
+        "job_name": "Pembongkaran Wastafel",
+        "unit": "pcs",
+        "unit_rate": 45000,
+        "total_volume": 1,
+        "total_amount": 45000,
+        "progress_records": [
+          {
+            "date": "2026-07-31",
+            "volume": 1
+          }
+        ]
+      },
+      {
+        "item_number": "12",
+        "job_name": "Pembongkaran Kloset",
+        "unit": "pcs",
+        "unit_rate": 125000,
+        "total_volume": 1,
+        "total_amount": 125000,
+        "progress_records": [
+          {
+            "date": "2026-09-04",
+            "volume": 1
+          }
+        ]
+      },
+      {
+        "item_number": "13",
+        "job_name": "Pembongkaran Atap Kanopi Teras Belakang",
+        "unit": "m2",
+        "unit_rate": 42000,
+        "total_volume": 4.2,
+        "total_amount": 176400,
+        "progress_records": [
+          {
+            "date": "2026-07-24",
+            "volume": 4.2
+          }
+        ]
+      },
+      {
+        "item_number": "14",
+        "job_name": "Pembongkaran Wuwung",
+        "unit": "m'",
+        "unit_rate": 35000,
+        "total_volume": 7.8,
+        "total_amount": 273000,
+        "progress_records": [
+          {
+            "date": "2026-08-07",
+            "volume": 7.8
+          }
+        ]
+      },
+      {
+        "item_number": "15",
+        "job_name": "Pembongkaran Atap",
+        "unit": "m2",
+        "unit_rate": 45000,
+        "total_volume": 73.65,
+        "total_amount": 3314250.0000000005,
+        "progress_records": [
+          {
+            "date": "2026-08-07",
+            "volume": 49.14
+          },
+          {
+            "date": "2026-09-11",
+            "volume": 24.51
+          }
+        ]
+      },
+      {
+        "item_number": "16",
+        "job_name": "Pembongkaran Rangka Atap",
+        "unit": "m2",
+        "unit_rate": 35000,
+        "total_volume": 74.43,
+        "total_amount": 2605050.0000000005,
+        "progress_records": [
+          {
+            "date": "2026-09-11",
+            "volume": 74.43
+          }
+        ]
+      },
+      {
+        "item_number": "17",
+        "job_name": "Pembongkaran Reng",
+        "unit": "m2",
+        "unit_rate": 15000,
+        "total_volume": 53.04,
+        "total_amount": 795600,
+        "progress_records": [
+          {
+            "date": "2026-09-04",
+            "volume": 53.04
+          }
+        ]
+      },
+      {
+        "item_number": "18",
+        "job_name": "Pembobokan Keramik",
+        "unit": "m2",
+        "unit_rate": 40000,
+        "total_volume": 17.11,
+        "total_amount": 684400,
+        "progress_records": [
+          {
+            "date": "2026-07-31",
+            "volume": 1.89
+          },
+          {
+            "date": "2026-10-30",
+            "volume": 5.1
+          },
+          {
+            "date": "2026-11-13",
+            "volume": 10.12
+          }
+        ]
+      },
+      {
+        "item_number": "19",
+        "job_name": "Perapihan Dinding Bobokan Listrik",
+        "unit": "m'",
+        "unit_rate": 15000,
+        "total_volume": 39.6,
+        "total_amount": 594000,
+        "progress_records": [
+          {
+            "date": "2026-09-25",
+            "volume": 35.2
+          },
+          {
+            "date": "2026-10-23",
+            "volume": 4.4
+          }
+        ]
+      },
+      {
+        "item_number": "20",
+        "job_name": "Penggalian Tanah",
+        "unit": "m3",
+        "unit_rate": 100000,
+        "total_volume": 10.11,
+        "total_amount": 1011000,
+        "progress_records": [
+          {
+            "date": "2026-10-02",
+            "volume": 10.11
+          }
+        ]
+      },
+      {
+        "item_number": "20",
+        "job_name": "Perapihan Akibat Bobok Kolom Eksisting",
+        "unit": "m'",
+        "unit_rate": 45000,
+        "total_volume": 19.2,
+        "total_amount": 864000,
+        "progress_records": [
+          {
+            "date": "2026-08-21",
+            "volume": 19.2
+          }
+        ]
+      },
+      {
+        "item_number": "21",
+        "job_name": "Pembongkaran AC",
+        "unit": "pcs",
+        "unit_rate": 200000,
+        "total_volume": 1,
+        "total_amount": 200000,
+        "progress_records": [
+          {
+            "date": "2026-08-21",
+            "volume": 1
+          }
+        ]
+      },
+      {
+        "item_number": "22",
+        "job_name": "Pembongkaran Water Heater",
+        "unit": "pcs",
+        "unit_rate": 150000,
+        "total_volume": 1,
+        "total_amount": 150000,
+        "progress_records": [
+          {
+            "date": "2026-08-21",
+            "volume": 1
+          }
+        ]
+      },
+      {
+        "item_number": "23",
+        "job_name": "Bongkar Lisplank",
+        "unit": "m'",
+        "unit_rate": 11000,
+        "total_volume": 7.8,
+        "total_amount": 85800,
+        "progress_records": [
+          {
+            "date": "2026-07-31",
+            "volume": 7.8
+          }
+        ]
+      },
+      {
+        "item_number": "24",
+        "job_name": "Pengecoran Sloof",
+        "unit": "m'",
+        "unit_rate": 55000,
+        "total_volume": 11.5,
+        "total_amount": 632500,
+        "progress_records": [
+          {
+            "date": "2026-07-24",
+            "volume": 9.6
+          },
+          {
+            "date": "2026-09-04",
+            "volume": 1.9
+          }
+        ]
+      },
+      {
+        "item_number": "25",
+        "job_name": "Pembuatan Cakar Ayam + Pengecoran",
+        "unit": "pcs",
+        "unit_rate": 180000,
+        "total_volume": 3,
+        "total_amount": 540000,
+        "progress_records": [
+          {
+            "date": "2026-07-24",
+            "volume": 3
+          }
+        ]
+      },
+      {
+        "item_number": "26",
+        "job_name": "Pasang Dinding Bata Ringan",
+        "unit": "m2",
+        "unit_rate": 55000,
+        "total_volume": 92.03999999999999,
+        "total_amount": 5062200,
+        "progress_records": [
+          {
+            "date": "2026-07-31",
+            "volume": 19.68
+          },
+          {
+            "date": "2026-08-07",
+            "volume": 12.8
+          },
+          {
+            "date": "2026-08-28",
+            "volume": 39.74
+          },
+          {
+            "date": "2026-10-02",
+            "volume": 12.36
+          },
+          {
+            "date": "2026-10-23",
+            "volume": 5.66
+          },
+          {
+            "date": "2026-11-06",
+            "volume": 1.8
+          }
+        ]
+      },
+      {
+        "item_number": "27",
+        "job_name": "Plester Dinding",
+        "unit": "m2",
+        "unit_rate": 35000,
+        "total_volume": 184.08,
+        "total_amount": 6442800,
+        "progress_records": [
+          {
+            "date": "2026-08-07",
+            "volume": 47.17
+          },
+          {
+            "date": "2026-08-28",
+            "volume": 46.12
+          },
+          {
+            "date": "2026-09-04",
+            "volume": 19.16
+          },
+          {
+            "date": "2026-09-11",
+            "volume": 26.96
+          },
+          {
+            "date": "2026-10-09",
+            "volume": 7.83
+          },
+          {
+            "date": "2026-10-16",
+            "volume": 12.04
+          },
+          {
+            "date": "2026-10-23",
+            "volume": 21.4
+          },
+          {
+            "date": "2026-11-06",
+            "volume": 3.4
+          }
+        ]
+      },
+      {
+        "item_number": "28",
+        "job_name": "Acian Dinding dan Lantai",
+        "unit": "m2",
+        "unit_rate": 28000,
+        "total_volume": 173.31,
+        "total_amount": 4852680,
+        "progress_records": [
+          {
+            "date": "2026-08-21",
+            "volume": 21.38
+          },
+          {
+            "date": "2026-09-04",
+            "volume": 73.98
+          },
+          {
+            "date": "2026-09-11",
+            "volume": 26.96
+          },
+          {
+            "date": "2026-09-18",
+            "volume": 35.55
+          },
+          {
+            "date": "2026-10-16",
+            "volume": 12.04
+          },
+          {
+            "date": "2026-11-06",
+            "volume": 3.4
+          }
+        ]
+      },
+      {
+        "item_number": "29",
+        "job_name": "Plester Dinding Luar / Sopi Atap",
+        "unit": "m2",
+        "unit_rate": 40000,
+        "total_volume": 9,
+        "total_amount": 360000,
+        "progress_records": [
+          {
+            "date": "2026-09-18",
+            "volume": 9
+          }
+        ]
+      },
+      {
+        "item_number": "30",
+        "job_name": "Acian Dinding Luar / Sopi Atap",
+        "unit": "m2",
+        "unit_rate": 30000,
+        "total_volume": 9,
+        "total_amount": 270000,
+        "progress_records": [
+          {
+            "date": "2026-09-18",
+            "volume": 9
+          }
+        ]
+      },
+      {
+        "item_number": "31",
+        "job_name": "Sudutan Acian",
+        "unit": "m'",
+        "unit_rate": 23000,
+        "total_volume": 19.3,
+        "total_amount": 443900,
+        "progress_records": [
+          {
+            "date": "2026-08-21",
+            "volume": 3.2
+          },
+          {
+            "date": "2026-09-04",
+            "volume": 5.4
+          },
+          {
+            "date": "2026-09-18",
+            "volume": 10.7
+          }
+        ]
+      },
+      {
+        "item_number": "32",
+        "job_name": "Perapihan Balok Akibat Pembobokan Dinding",
+        "unit": "m'",
+        "unit_rate": 60000,
+        "total_volume": 9.1,
+        "total_amount": 546000,
+        "progress_records": [
+          {
+            "date": "2026-09-04",
+            "volume": 9.1
+          }
+        ]
+      },
+      {
+        "item_number": "33",
+        "job_name": "Perapihan Kolom Akibat Pembobokan Dinding",
+        "unit": "m'",
+        "unit_rate": 45000,
+        "total_volume": 7.5,
+        "total_amount": 337500,
+        "progress_records": [
+          {
+            "date": "2026-09-04",
+            "volume": 7.5
+          }
+        ]
+      },
+      {
+        "item_number": "34",
+        "job_name": "Pembuatan Kolom Praktis dan Ring Balok",
+        "unit": "m'",
+        "unit_rate": 32000,
+        "total_volume": 65.7,
+        "total_amount": 2102400,
+        "progress_records": [
+          {
+            "date": "2026-07-31",
+            "volume": 5.5
+          },
+          {
+            "date": "2026-08-07",
+            "volume": 28.6
+          },
+          {
+            "date": "2026-08-28",
+            "volume": 26.1
+          },
+          {
+            "date": "2026-10-02",
+            "volume": 5.5
+          }
+        ]
+      },
+      {
+        "item_number": "35",
+        "job_name": "Pengecoran Kolom Utama dan Balok Utama",
+        "unit": "m'",
+        "unit_rate": 75000,
+        "total_volume": 18.2,
+        "total_amount": 1365000,
+        "progress_records": [
+          {
+            "date": "2026-07-31",
+            "volume": 9.8
+          },
+          {
+            "date": "2026-08-07",
+            "volume": 6
+          },
+          {
+            "date": "2026-08-28",
+            "volume": 2.4
+          }
+        ]
+      },
+      {
+        "item_number": "36",
+        "job_name": "Pembuatan Pembesian Kolom Utama dan Balok Utama",
+        "unit": "m'",
+        "unit_rate": 55000,
+        "total_volume": 31.8,
+        "total_amount": 1749000,
+        "progress_records": [
+          {
+            "date": "2026-07-31",
+            "volume": 9.8
+          },
+          {
+            "date": "2026-08-07",
+            "volume": 6
+          },
+          {
+            "date": "2026-08-14",
+            "volume": 16
+          }
+        ]
+      },
+      {
+        "item_number": "37",
+        "job_name": "Pembuatan Pembesian Balok Anak",
+        "unit": "m'",
+        "unit_rate": 40000,
+        "total_volume": 34,
+        "total_amount": 1360000,
+        "progress_records": [
+          {
+            "date": "2026-08-14",
+            "volume": 34
+          }
+        ]
+      },
+      {
+        "item_number": "38",
+        "job_name": "Pembuatan Bekisting dengan Bondex dan Wiremesh",
+        "unit": "m2",
+        "unit_rate": 250000,
+        "total_volume": 37.8,
+        "total_amount": 9450000,
+        "progress_records": [
+          {
+            "date": "2026-08-14",
+            "volume": 37.8
+          }
+        ]
+      },
+      {
+        "item_number": "39",
+        "job_name": "Pluran Lantai",
+        "unit": "m2",
+        "unit_rate": 30000,
+        "total_volume": 84.44,
+        "total_amount": 2533200,
+        "progress_records": [
+          {
+            "date": "2026-09-11",
+            "volume": 15.83
+          },
+          {
+            "date": "2026-09-18",
+            "volume": 40.2
+          },
+          {
+            "date": "2026-10-02",
+            "volume": 9.85
+          },
+          {
+            "date": "2026-10-23",
+            "volume": 3.56
+          },
+          {
+            "date": "2026-11-13",
+            "volume": 15
+          }
+        ]
+      },
+      {
+        "item_number": "40",
+        "job_name": "Pengecoran Pelat Lantai (Ready Mix)",
+        "unit": "m2",
+        "unit_rate": 150000,
+        "total_volume": 37.8,
+        "total_amount": 5670000,
+        "progress_records": [
+          {
+            "date": "2026-08-21",
+            "volume": 37.8
+          }
+        ]
+      },
+      {
+        "item_number": "41",
+        "job_name": "Pembuatan Bekisting Triplek",
+        "unit": "m2",
+        "unit_rate": 40000,
+        "total_volume": 20.5,
+        "total_amount": 820000,
+        "progress_records": [
+          {
+            "date": "2026-07-31",
+            "volume": 3.75
+          },
+          {
+            "date": "2026-08-07",
+            "volume": 3.7
+          },
+          {
+            "date": "2026-08-28",
+            "volume": 11.4
+          },
+          {
+            "date": "2026-10-02",
+            "volume": 1.65
+          }
+        ]
+      },
+      {
+        "item_number": "42",
+        "job_name": "Pembuatan Bekisting dan Pembesian Tangga",
+        "unit": "m'",
+        "unit_rate": 2500000,
+        "total_volume": 4.4,
+        "total_amount": 11000000,
+        "progress_records": [
+          {
+            "date": "2026-09-18",
+            "volume": 4.4
+          }
+        ]
+      },
+      {
+        "item_number": "43",
+        "job_name": "Pasang Besi Openingan",
+        "unit": "pcs",
+        "unit_rate": 25000,
+        "total_volume": 2,
+        "total_amount": 50000,
+        "progress_records": [
+          {
+            "date": "2026-07-31",
+            "volume": 2
+          }
+        ]
+      },
+      {
+        "item_number": "44",
+        "job_name": "Openingan",
+        "unit": "m'",
+        "unit_rate": 45000,
+        "total_volume": 55.72,
+        "total_amount": 2507400,
+        "progress_records": [
+          {
+            "date": "2026-08-21",
+            "volume": 10.08
+          },
+          {
+            "date": "2026-09-11",
+            "volume": 8.4
+          },
+          {
+            "date": "2026-09-18",
+            "volume": 5.2
+          },
+          {
+            "date": "2026-09-25",
+            "volume": 7.04
+          },
+          {
+            "date": "2026-10-23",
+            "volume": 25
+          }
+        ]
+      },
+      {
+        "item_number": "45",
+        "job_name": "Sekonengan",
+        "unit": "m'",
+        "unit_rate": 30000,
+        "total_volume": 1.9,
+        "total_amount": 57000,
+        "progress_records": [
+          {
+            "date": "2026-09-25",
+            "volume": 1.9
+          }
+        ]
+      },
+      {
+        "item_number": "46",
+        "job_name": "Pengecoran Dak",
+        "unit": "m2",
+        "unit_rate": 420000,
+        "total_volume": 12.72,
+        "total_amount": 5342400,
+        "progress_records": [
+          {
+            "date": "2026-08-07",
+            "volume": 5
+          },
+          {
+            "date": "2026-09-25",
+            "volume": 3.31
+          },
+          {
+            "date": "2026-10-16",
+            "volume": 4.41
+          }
+        ]
+      },
+      {
+        "item_number": "47",
+        "job_name": "Pengecoran Dak Talang",
+        "unit": "m'",
+        "unit_rate": 250000,
+        "total_volume": 1.9,
+        "total_amount": 475000,
+        "progress_records": [
+          {
+            "date": "2026-09-04",
+            "volume": 1.9
+          }
+        ]
+      },
+      {
+        "item_number": "48",
+        "job_name": "Bobok Dinding Untuk Pipa 3 Inch",
+        "unit": "m'",
+        "unit_rate": 35000,
+        "total_volume": 5.9,
+        "total_amount": 206500,
+        "progress_records": [
+          {
+            "date": "2026-09-04",
+            "volume": 5.9
+          }
+        ]
+      },
+      {
+        "item_number": "49",
+        "job_name": "Bobok Dinding Untuk Pipa 1/2 Inch",
+        "unit": "m'",
+        "unit_rate": 15000,
+        "total_volume": 7.7,
+        "total_amount": 115500,
+        "progress_records": [
+          {
+            "date": "2026-09-04",
+            "volume": 7.7
+          }
+        ]
+      },
+      {
+        "item_number": "50",
+        "job_name": "Pasang Pipa 4 Inch",
+        "unit": "m'",
+        "unit_rate": 30000,
+        "total_volume": 27,
+        "total_amount": 810000,
+        "progress_records": [
+          {
+            "date": "2026-08-28",
+            "volume": 8
+          },
+          {
+            "date": "2026-09-04",
+            "volume": 14
+          },
+          {
+            "date": "2026-10-02",
+            "volume": 5
+          }
+        ]
+      },
+      {
+        "item_number": "51",
+        "job_name": "Pasang Pipa 3 Inch",
+        "unit": "m'",
+        "unit_rate": 30000,
+        "total_volume": 13.5,
+        "total_amount": 405000,
+        "progress_records": [
+          {
+            "date": "2026-09-04",
+            "volume": 13.5
+          }
+        ]
+      },
+      {
+        "item_number": "52",
+        "job_name": "Pasang Pipa 3/4 Inch",
+        "unit": "m'",
+        "unit_rate": 20000,
+        "total_volume": 0,
+        "total_amount": 0,
+        "progress_records": []
+      },
+      {
+        "item_number": "53",
+        "job_name": "Pasang Pipa 1/2 Inch",
+        "unit": "m'",
+        "unit_rate": 20000,
+        "total_volume": 26.3,
+        "total_amount": 526000,
+        "progress_records": [
+          {
+            "date": "2026-09-04",
+            "volume": 18.3
+          },
+          {
+            "date": "2026-10-30",
+            "volume": 8
+          }
+        ]
+      },
+      {
+        "item_number": "54",
+        "job_name": "Pasang Pipa Air Panas",
+        "unit": "m'",
+        "unit_rate": 25000,
+        "total_volume": 13,
+        "total_amount": 325000,
+        "progress_records": [
+          {
+            "date": "2026-09-04",
+            "volume": 10
+          },
+          {
+            "date": "2026-10-30",
+            "volume": 3
+          }
+        ]
+      },
+      {
+        "item_number": "55",
+        "job_name": "Galian Untuk Pasang Pipa 3 Inch",
+        "unit": "m'",
+        "unit_rate": 30000,
+        "total_volume": 12.3,
+        "total_amount": 369000,
+        "progress_records": [
+          {
+            "date": "2026-09-04",
+            "volume": 7.3
+          },
+          {
+            "date": "2026-10-02",
+            "volume": 5
+          }
+        ]
+      },
+      {
+        "item_number": "56",
+        "job_name": "Pemasangan Atap",
+        "unit": "m2",
+        "unit_rate": 45000,
+        "total_volume": 91.35,
+        "total_amount": 4110749.9999999995,
+        "progress_records": [
+          {
+            "date": "2026-09-11",
+            "volume": 38.55
+          },
+          {
+            "date": "2026-09-18",
+            "volume": 52.8
+          }
+        ]
+      },
+      {
+        "item_number": "57",
+        "job_name": "Pemasangan Wuwung",
+        "unit": "m'",
+        "unit_rate": 60000,
+        "total_volume": 8,
+        "total_amount": 480000,
+        "progress_records": [
+          {
+            "date": "2026-09-18",
+            "volume": 8
+          }
+        ]
+      },
+      {
+        "item_number": "58",
+        "job_name": "Ban-Banan Genteng",
+        "unit": "m'",
+        "unit_rate": 60000,
+        "total_volume": 17.7,
+        "total_amount": 1062000,
+        "progress_records": [
+          {
+            "date": "2026-09-18",
+            "volume": 17.7
+          }
+        ]
+      },
+      {
+        "item_number": "59",
+        "job_name": "Sika Dak dan Talang",
+        "unit": "m2",
+        "unit_rate": 35000,
+        "total_volume": 8.88,
+        "total_amount": 310800,
+        "progress_records": [
+          {
+            "date": "2026-09-11",
+            "volume": 5.57
+          },
+          {
+            "date": "2026-09-25",
+            "volume": 3.31
+          }
+        ]
+      },
+      {
+        "item_number": "60",
+        "job_name": "Perapihan Dak dan Talang",
+        "unit": "m'",
+        "unit_rate": 250000,
+        "total_volume": 1.9,
+        "total_amount": 475000,
+        "progress_records": [
+          {
+            "date": "2026-09-11",
+            "volume": 1.9
+          }
+        ]
+      },
+      {
+        "item_number": "61",
+        "job_name": "Aquaproofing Sopi dan Ban-Banan",
+        "unit": "m2",
+        "unit_rate": 30000,
+        "total_volume": 14.14,
+        "total_amount": 424200,
+        "progress_records": [
+          {
+            "date": "2026-09-25",
+            "volume": 14.14
+          }
+        ]
+      },
+      {
+        "item_number": "62",
+        "job_name": "Pengecatan Dasar (Sealer)",
+        "unit": "m2",
+        "unit_rate": 10000,
+        "total_volume": 122.3,
+        "total_amount": 1223000,
+        "progress_records": [
+          {
+            "date": "2026-09-25",
+            "volume": 122.3
+          }
+        ]
+      },
+      {
+        "item_number": "63",
+        "job_name": "Pemasangan Rangka Plafon",
+        "unit": "m2",
+        "unit_rate": 35000,
+        "total_volume": 121.57000000000001,
+        "total_amount": 4254950,
+        "progress_records": [
+          {
+            "date": "2026-09-25",
+            "volume": 68.75
+          },
+          {
+            "date": "2026-10-02",
+            "volume": 22.66
+          },
+          {
+            "date": "2026-10-16",
+            "volume": 26.18
+          },
+          {
+            "date": "2026-11-06",
+            "volume": 3.98
+          }
+        ]
+      },
+      {
+        "item_number": "64",
+        "job_name": "Pemasangan Plafon Gypsum",
+        "unit": "m2",
+        "unit_rate": 40000,
+        "total_volume": 102.95,
+        "total_amount": 4118000,
+        "progress_records": [
+          {
+            "date": "2026-10-02",
+            "volume": 91.41
+          },
+          {
+            "date": "2026-10-16",
+            "volume": 7.56
+          },
+          {
+            "date": "2026-11-06",
+            "volume": 3.98
+          }
+        ]
+      },
+      {
+        "item_number": "65",
+        "job_name": "Drop Ceiling",
+        "unit": "m'",
+        "unit_rate": 25000,
+        "total_volume": 14.6,
+        "total_amount": 365000,
+        "progress_records": [
+          {
+            "date": "2026-10-02",
+            "volume": 14.6
+          }
+        ]
+      },
+      {
+        "item_number": "66",
+        "job_name": "Pemasangan Lisplank",
+        "unit": "m'",
+        "unit_rate": 45000,
+        "total_volume": 8,
+        "total_amount": 360000,
+        "progress_records": [
+          {
+            "date": "2026-10-02",
+            "volume": 8
+          }
+        ]
+      },
+      {
+        "item_number": "67",
+        "job_name": "Pengecatan Lisplank",
+        "unit": "m'",
+        "unit_rate": 25000,
+        "total_volume": 8,
+        "total_amount": 200000,
+        "progress_records": [
+          {
+            "date": "2026-10-16",
+            "volume": 8
+          }
+        ]
+      },
+      {
+        "item_number": "67",
+        "job_name": "Pemasangan Shadowline Plafon",
+        "unit": "m'",
+        "unit_rate": 20000,
+        "total_volume": 54.6,
+        "total_amount": 1092000,
+        "progress_records": [
+          {
+            "date": "2026-10-02",
+            "volume": 54.6
+          }
+        ]
+      },
+      {
+        "item_number": "68",
+        "job_name": "Terap Tangga Teras Baru",
+        "unit": "m2",
+        "unit_rate": 350000,
+        "total_volume": 5.39,
+        "total_amount": 1886500,
+        "progress_records": [
+          {
+            "date": "2026-10-02",
+            "volume": 5.39
+          }
+        ]
+      },
+      {
+        "item_number": "69",
+        "job_name": "Perapihan Tangga Mezzanine (50%)",
+        "unit": "m'",
+        "unit_rate": 325000,
+        "total_volume": 8.8,
+        "total_amount": 2860000,
+        "progress_records": [
+          {
+            "date": "2026-10-09",
+            "volume": 4.4
+          },
+          {
+            "date": "2026-10-16",
+            "volume": 4.4
+          }
+        ]
+      },
+      {
+        "item_number": "70",
+        "job_name": "Bobok Tali Air",
+        "unit": "m'",
+        "unit_rate": 15000,
+        "total_volume": 46.05,
+        "total_amount": 690750,
+        "progress_records": [
+          {
+            "date": "2026-10-09",
+            "volume": 46.05
+          }
+        ]
+      },
+      {
+        "item_number": "71",
+        "job_name": "Pengecatan Plafon",
+        "unit": "m2",
+        "unit_rate": 30000,
+        "total_volume": 97.84,
+        "total_amount": 2935200,
+        "progress_records": [
+          {
+            "date": "2026-10-09",
+            "volume": 94.7
+          },
+          {
+            "date": "2026-10-16",
+            "volume": 3.14
+          }
+        ]
+      },
+      {
+        "item_number": "72",
+        "job_name": "Pemasangan Lis Alumunium Tali Air",
+        "unit": "m'",
+        "unit_rate": 20000,
+        "total_volume": 48,
+        "total_amount": 960000,
+        "progress_records": [
+          {
+            "date": "2026-10-23",
+            "volume": 48
+          }
+        ]
+      },
+      {
+        "item_number": "73",
+        "job_name": "Pemasangan Keramik",
+        "unit": "m2",
+        "unit_rate": 75000,
+        "total_volume": 76.36,
+        "total_amount": 5727000,
+        "progress_records": [
+          {
+            "date": "2026-10-23",
+            "volume": 28.8
+          },
+          {
+            "date": "2026-10-30",
+            "volume": 47.56
+          }
+        ]
+      },
+      {
+        "item_number": "74",
+        "job_name": "Pembobokan Plint",
+        "unit": "m'",
+        "unit_rate": 15000,
+        "total_volume": 30.75,
+        "total_amount": 461250,
+        "progress_records": [
+          {
+            "date": "2026-10-30",
+            "volume": 30.75
+          }
+        ]
+      },
+      {
+        "item_number": "75",
+        "job_name": "Pemasangan Plint",
+        "unit": "m'",
+        "unit_rate": 25000,
+        "total_volume": 45.65,
+        "total_amount": 1141250,
+        "progress_records": [
+          {
+            "date": "2026-10-30",
+            "volume": 30.75
+          },
+          {
+            "date": "2026-11-06",
+            "volume": 14.9
+          }
+        ]
+      },
+      {
+        "item_number": "76",
+        "job_name": "Tali Air Plint",
+        "unit": "m'",
+        "unit_rate": 22000,
+        "total_volume": 65.55,
+        "total_amount": 0,
+        "progress_records": [
+          {
+            "date": "2026-11-06",
+            "volume": 50.65
+          },
+          {
+            "date": "2026-11-13",
+            "volume": 14.9
+          }
+        ]
+      },
+      {
+        "item_number": "77",
+        "job_name": "Pengecatan Dinding (Finish)",
+        "unit": "m2",
+        "unit_rate": 20000,
+        "total_volume": 246.58,
+        "total_amount": 4931600,
+        "progress_records": [
+          {
+            "date": "2026-11-06",
+            "volume": 32.1
+          },
+          {
+            "date": "2026-11-13",
+            "volume": 214.48000000000002
+          }
+        ]
+      },
+      {
+        "item_number": "78",
+        "job_name": "Pasang SPC",
+        "unit": "m2",
+        "unit_rate": 40000,
+        "total_volume": 37.56,
+        "total_amount": 1502400,
+        "progress_records": [
+          {
+            "date": "2026-11-13",
+            "volume": 37.56
+          }
+        ]
+      },
+      {
+        "item_number": "79",
+        "job_name": "Pasang Plint SPC",
+        "unit": "m'",
+        "unit_rate": 20000,
+        "total_volume": 17,
+        "total_amount": 340000,
+        "progress_records": [
+          {
+            "date": "2026-11-13",
+            "volume": 17
+          }
+        ]
+      }
+    ],
+    "retentions": [
+      {
+        "termin_number": 1,
+        "date": "2026-09-11",
+        "total_claim": 10679000,
+        "paid_amount": 9611100,
+        "retention_amount": 1067900,
+        "status": "HELD"
+      },
+      {
+        "termin_number": 2,
+        "date": "2026-09-18",
+        "total_claim": 11809000,
+        "paid_amount": 10628100,
+        "retention_amount": 1180900,
+        "status": "HELD"
+      },
+      {
+        "termin_number": 3,
+        "date": "2026-09-25",
+        "total_claim": 13709000,
+        "paid_amount": 12338100,
+        "retention_amount": 1370900,
+        "status": "HELD"
+      },
+      {
+        "termin_number": 4,
+        "date": "2026-10-02",
+        "total_claim": 11945500,
+        "paid_amount": 10750950,
+        "retention_amount": 1194550,
+        "status": "HELD"
+      },
+      {
+        "termin_number": 5,
+        "date": "2026-10-09",
+        "total_claim": 5283000,
+        "paid_amount": 4754700,
+        "retention_amount": 528300,
+        "status": "HELD"
+      },
+      {
+        "termin_number": 6,
+        "date": "2026-10-16",
+        "total_claim": 5714000,
+        "paid_amount": 5142600,
+        "retention_amount": 571400,
+        "status": "HELD"
+      },
+      {
+        "termin_number": 7,
+        "date": "2026-10-23",
+        "total_claim": 5797100,
+        "paid_amount": 5217390,
+        "retention_amount": 579710,
+        "status": "HELD"
+      },
+      {
+        "termin_number": 8,
+        "date": "2026-10-30",
+        "total_claim": 5217000,
+        "paid_amount": 4695300,
+        "retention_amount": 521700,
+        "status": "HELD"
+      },
+      {
+        "termin_number": 9,
+        "date": "2026-11-06",
+        "total_claim": 2739000,
+        "paid_amount": 2465100,
+        "retention_amount": 273900,
+        "status": "HELD"
+      },
+      {
+        "termin_number": 10,
+        "date": "2026-11-13",
+        "total_claim": 7341000,
+        "paid_amount": 6606900,
+        "retention_amount": 734100,
+        "status": "HELD"
+      }
+    ]
+  },
+  {
+    "key": "RM Kost",
+    "name": "RM Kost - Rawamangun",
+    "code": "PRJ-RMK",
+    "mandor_name": "Rian Purnama",
+    "category": "PEKERJAAN RENOVASI",
+    "items": [
+      {
+        "item_number": "1",
+        "job_name": "Pembongkaran Plafon",
+        "unit": "m2",
+        "unit_rate": 25000,
+        "total_volume": 70.72,
+        "total_amount": 1768000,
+        "progress_records": [
+          {
+            "date": "2026-05-15",
+            "volume": 64
+          },
+          {
+            "date": "2026-05-22",
+            "volume": 6.72
+          }
+        ]
+      },
+      {
+        "item_number": "2",
+        "job_name": "Pembongkaran Pintu",
+        "unit": "pcs",
+        "unit_rate": 45000,
+        "total_volume": 7,
+        "total_amount": 315000,
+        "progress_records": [
+          {
+            "date": "2026-05-15",
+            "volume": 2
+          },
+          {
+            "date": "2026-05-22",
+            "volume": 2
+          },
+          {
+            "date": "2026-06-19",
+            "volume": 1
+          },
+          {
+            "date": "2026-08-07",
+            "volume": 2
+          }
+        ]
+      },
+      {
+        "item_number": "3",
+        "job_name": "Pembobokan Bouvenly",
+        "unit": "pcs",
+        "unit_rate": 55000,
+        "total_volume": 6,
+        "total_amount": 330000,
+        "progress_records": [
+          {
+            "date": "2026-08-28",
+            "volume": 6
+          }
+        ]
+      },
+      {
+        "item_number": "4",
+        "job_name": "Pembongkaran Kusen Pintu",
+        "unit": "pcs",
+        "unit_rate": 45000,
+        "total_volume": 2,
+        "total_amount": 90000,
+        "progress_records": [
+          {
+            "date": "2026-06-05",
+            "volume": 2
+          }
+        ]
+      },
+      {
+        "item_number": "5",
+        "job_name": "Pembongkaran Lisplank",
+        "unit": "m'",
+        "unit_rate": 11000,
+        "total_volume": 5.6,
+        "total_amount": 61599.99999999999,
+        "progress_records": [
+          {
+            "date": "2026-06-05",
+            "volume": 5.6
+          }
+        ]
+      },
+      {
+        "item_number": "6",
+        "job_name": "Pembongkaran Railing Tangga",
+        "unit": "m'",
+        "unit_rate": 27000,
+        "total_volume": 9.5,
+        "total_amount": 256500,
+        "progress_records": [
+          {
+            "date": "2026-06-05",
+            "volume": 5.7
+          },
+          {
+            "date": "2026-06-12",
+            "volume": 3.8
+          }
+        ]
+      },
+      {
+        "item_number": "7",
+        "job_name": "Pembongkaran Jendela",
+        "unit": "pcs",
+        "unit_rate": 30000,
+        "total_volume": 5,
+        "total_amount": 150000,
+        "progress_records": [
+          {
+            "date": "2026-05-22",
+            "volume": 2
+          },
+          {
+            "date": "2026-06-19",
+            "volume": 1
+          },
+          {
+            "date": "2026-08-07",
+            "volume": 2
+          }
+        ]
+      },
+      {
+        "item_number": "8",
+        "job_name": "Pembongkaran Wastafel",
+        "unit": "pcs",
+        "unit_rate": 45000,
+        "total_volume": 1,
+        "total_amount": 45000,
+        "progress_records": [
+          {
+            "date": "2026-06-12",
+            "volume": 1
+          }
+        ]
+      },
+      {
+        "item_number": "9",
+        "job_name": "Pembobokan Pipa Kloset dan Floor Drain",
+        "unit": "pcs",
+        "unit_rate": 35000,
+        "total_volume": 15,
+        "total_amount": 525000,
+        "progress_records": [
+          {
+            "date": "2026-06-26",
+            "volume": 9
+          },
+          {
+            "date": "2026-07-17",
+            "volume": 5
+          },
+          {
+            "date": "2026-09-25",
+            "volume": 1
+          }
+        ]
+      },
+      {
+        "item_number": "10",
+        "job_name": "Pembobokan Keramik Lantai",
+        "unit": "m2",
+        "unit_rate": 40000,
+        "total_volume": 43.120000000000005,
+        "total_amount": 1724800.0000000002,
+        "progress_records": [
+          {
+            "date": "2026-06-26",
+            "volume": 8.83
+          },
+          {
+            "date": "2026-07-03",
+            "volume": 17.05
+          },
+          {
+            "date": "2026-07-17",
+            "volume": 7.24
+          },
+          {
+            "date": "2026-09-18",
+            "volume": 10
+          }
+        ]
+      },
+      {
+        "item_number": "11",
+        "job_name": "Pembobokan Keramik Dinding",
+        "unit": "m2",
+        "unit_rate": 45000,
+        "total_volume": 11.89,
+        "total_amount": 535050,
+        "progress_records": [
+          {
+            "date": "2026-08-07",
+            "volume": 11.89
+          }
+        ]
+      },
+      {
+        "item_number": "12",
+        "job_name": "Pembobokan Plint",
+        "unit": "m'",
+        "unit_rate": 15000,
+        "total_volume": 63.45,
+        "total_amount": 951750,
+        "progress_records": [
+          {
+            "date": "2026-09-25",
+            "volume": 27.47
+          },
+          {
+            "date": "2026-10-02",
+            "volume": 19.4
+          },
+          {
+            "date": "2026-10-16",
+            "volume": 7.66
+          },
+          {
+            "date": "2026-10-30",
+            "volume": 8.92
+          }
+        ]
+      },
+      {
+        "item_number": "13",
+        "job_name": "Pembongkaran Kloset",
+        "unit": "pcs",
+        "unit_rate": 125000,
+        "total_volume": 1,
+        "total_amount": 125000,
+        "progress_records": [
+          {
+            "date": "2026-08-07",
+            "volume": 1
+          }
+        ]
+      },
+      {
+        "item_number": "14",
+        "job_name": "Pembobokan dan Galian Saluran Air",
+        "unit": "m'",
+        "unit_rate": 65000,
+        "total_volume": 34.4,
+        "total_amount": 2236000,
+        "progress_records": [
+          {
+            "date": "2026-07-03",
+            "volume": 34.4
+          }
+        ]
+      },
+      {
+        "item_number": "15",
+        "job_name": "Pembobokan Dinding",
+        "unit": "m2",
+        "unit_rate": 65000,
+        "total_volume": 95.49000000000002,
+        "total_amount": 6206850.000000002,
+        "progress_records": [
+          {
+            "date": "2026-05-15",
+            "volume": 20.58
+          },
+          {
+            "date": "2026-05-22",
+            "volume": 27.51
+          },
+          {
+            "date": "2026-06-05",
+            "volume": 18.09
+          },
+          {
+            "date": "2026-06-12",
+            "volume": 15.62
+          },
+          {
+            "date": "2026-07-10",
+            "volume": 3.37
+          },
+          {
+            "date": "2026-07-17",
+            "volume": 1.56
+          },
+          {
+            "date": "2026-08-07",
+            "volume": 8.76
+          }
+        ]
+      },
+      {
+        "item_number": "16",
+        "job_name": "Pembobokan Kolom",
+        "unit": "m'",
+        "unit_rate": 65000,
+        "total_volume": 2.4,
+        "total_amount": 156000,
+        "progress_records": [
+          {
+            "date": "2026-08-28",
+            "volume": 2.4
+          }
+        ]
+      },
+      {
+        "item_number": "17",
+        "job_name": "Potong Pembesian Pelat Lantai",
+        "unit": "m2",
+        "unit_rate": 30000,
+        "total_volume": 5.28,
+        "total_amount": 158400,
+        "progress_records": [
+          {
+            "date": "2026-08-28",
+            "volume": 5.28
+          }
+        ]
+      },
+      {
+        "item_number": "18",
+        "job_name": "Pembobokan Lantai (Akibat Pasangan Bata Eksisting)",
+        "unit": "m'",
+        "unit_rate": 12000,
+        "total_volume": 78.75,
+        "total_amount": 945000,
+        "progress_records": [
+          {
+            "date": "2026-05-15",
+            "volume": 23.75
+          },
+          {
+            "date": "2026-05-22",
+            "volume": 25.7
+          },
+          {
+            "date": "2026-06-05",
+            "volume": 7.9
+          },
+          {
+            "date": "2026-06-12",
+            "volume": 19.6
+          },
+          {
+            "date": "2026-06-19",
+            "volume": 1.8
+          }
+        ]
+      },
+      {
+        "item_number": "19",
+        "job_name": "Pembobokan Lantai Dak Beton",
+        "unit": "m2",
+        "unit_rate": 48000,
+        "total_volume": 1.2,
+        "total_amount": 57600,
+        "progress_records": [
+          {
+            "date": "2026-06-19",
+            "volume": 1.2
+          }
+        ]
+      },
+      {
+        "item_number": "20",
+        "job_name": "Pembongkaran Atap",
+        "unit": "m2",
+        "unit_rate": 45000,
+        "total_volume": 44.48,
+        "total_amount": 2001599.9999999998,
+        "progress_records": [
+          {
+            "date": "2026-07-17",
+            "volume": 44.48
+          }
+        ]
+      },
+      {
+        "item_number": "21",
+        "job_name": "Pembongkaran Atap + Rangka",
+        "unit": "m2",
+        "unit_rate": 65000,
+        "total_volume": 11.22,
+        "total_amount": 729300,
+        "progress_records": [
+          {
+            "date": "2026-06-19",
+            "volume": 11.22
+          }
+        ]
+      },
+      {
+        "item_number": "22",
+        "job_name": "Pasang Dinding Bata Ringan",
+        "unit": "m2",
+        "unit_rate": 55000,
+        "total_volume": 207.42,
+        "total_amount": 11408100,
+        "progress_records": [
+          {
+            "date": "2026-05-15",
+            "volume": 39.37
+          },
+          {
+            "date": "2026-05-22",
+            "volume": 65.27
+          },
+          {
+            "date": "2026-06-05",
+            "volume": 30.82
+          },
+          {
+            "date": "2026-06-12",
+            "volume": 42.12
+          },
+          {
+            "date": "2026-06-19",
+            "volume": 23.71
+          },
+          {
+            "date": "2026-07-03",
+            "volume": 2.38
+          },
+          {
+            "date": "2026-08-07",
+            "volume": 3.75
+          }
+        ]
+      },
+      {
+        "item_number": "23",
+        "job_name": "Plester Dinding",
+        "unit": "m2",
+        "unit_rate": 35000,
+        "total_volume": 377.82000000000005,
+        "total_amount": 13223700.000000002,
+        "progress_records": [
+          {
+            "date": "2026-06-12",
+            "volume": 74.3
+          },
+          {
+            "date": "2026-06-19",
+            "volume": 59.16
+          },
+          {
+            "date": "2026-06-26",
+            "volume": 83.84
+          },
+          {
+            "date": "2026-07-03",
+            "volume": 25.16
+          },
+          {
+            "date": "2026-07-10",
+            "volume": 21.48
+          },
+          {
+            "date": "2026-07-17",
+            "volume": 17.58
+          },
+          {
+            "date": "2026-07-31",
+            "volume": 4.5
+          },
+          {
+            "date": "2026-08-07",
+            "volume": 19.75
+          },
+          {
+            "date": "2026-08-28",
+            "volume": 4.36
+          },
+          {
+            "date": "2026-09-04",
+            "volume": 20.5
+          },
+          {
+            "date": "2026-09-11",
+            "volume": 8.67
+          },
+          {
+            "date": "2026-10-09",
+            "volume": 10
+          },
+          {
+            "date": "2026-10-16",
+            "volume": 6.72
+          },
+          {
+            "date": "2026-10-30",
+            "volume": 20.44
+          },
+          {
+            "date": "2026-11-13",
+            "volume": 1.36
+          }
+        ]
+      },
+      {
+        "item_number": "24",
+        "job_name": "Plester Kamprot Dinding",
+        "unit": "m2",
+        "unit_rate": 22000,
+        "total_volume": 50.94,
+        "total_amount": 1120680,
+        "progress_records": [
+          {
+            "date": "2026-08-14",
+            "volume": 29.09
+          },
+          {
+            "date": "2026-08-21",
+            "volume": 10.69
+          },
+          {
+            "date": "2026-08-28",
+            "volume": 11.16
+          }
+        ]
+      },
+      {
+        "item_number": "25",
+        "job_name": "Acian Dinding",
+        "unit": "m2",
+        "unit_rate": 28000,
+        "total_volume": 360.46000000000004,
+        "total_amount": 10092880.000000002,
+        "progress_records": [
+          {
+            "date": "2026-07-03",
+            "volume": 100.19
+          },
+          {
+            "date": "2026-07-10",
+            "volume": 146.18
+          },
+          {
+            "date": "2026-07-17",
+            "volume": 30.18
+          },
+          {
+            "date": "2026-07-31",
+            "volume": 4.7
+          },
+          {
+            "date": "2026-08-14",
+            "volume": 3.64
+          },
+          {
+            "date": "2026-08-28",
+            "volume": 4.36
+          },
+          {
+            "date": "2026-09-04",
+            "volume": 17.2
+          },
+          {
+            "date": "2026-09-11",
+            "volume": 15.49
+          },
+          {
+            "date": "2026-10-09",
+            "volume": 10
+          },
+          {
+            "date": "2026-10-16",
+            "volume": 6.72
+          },
+          {
+            "date": "2026-10-30",
+            "volume": 20.44
+          },
+          {
+            "date": "2026-11-13",
+            "volume": 1.36
+          }
+        ]
+      },
+      {
+        "item_number": "26",
+        "job_name": "Sudutan Acian",
+        "unit": "m'",
+        "unit_rate": 23000,
+        "total_volume": 69.5,
+        "total_amount": 1598500,
+        "progress_records": [
+          {
+            "date": "2026-07-10",
+            "volume": 31.65
+          },
+          {
+            "date": "2026-07-17",
+            "volume": 4.85
+          },
+          {
+            "date": "2026-07-24",
+            "volume": 17.5
+          },
+          {
+            "date": "2026-08-28",
+            "volume": 4.8
+          },
+          {
+            "date": "2026-10-30",
+            "volume": 10.7
+          }
+        ]
+      },
+      {
+        "item_number": "27",
+        "job_name": "Perapihan Bobok Pipa",
+        "unit": "m'",
+        "unit_rate": 15000,
+        "total_volume": 13.600000000000001,
+        "total_amount": 204000.00000000003,
+        "progress_records": [
+          {
+            "date": "2026-09-25",
+            "volume": 9.9
+          },
+          {
+            "date": "2026-10-09",
+            "volume": 3.7
+          }
+        ]
+      },
+      {
+        "item_number": "28",
+        "job_name": "Pembuatan Kolom Praktis dan Ring Balok",
+        "unit": "m'",
+        "unit_rate": 32000,
+        "total_volume": 111.4,
+        "total_amount": 3564800,
+        "progress_records": [
+          {
+            "date": "2026-05-15",
+            "volume": 18.7
+          },
+          {
+            "date": "2026-05-22",
+            "volume": 29
+          },
+          {
+            "date": "2026-06-05",
+            "volume": 8.6
+          },
+          {
+            "date": "2026-06-12",
+            "volume": 29.5
+          },
+          {
+            "date": "2026-06-19",
+            "volume": 19.5
+          },
+          {
+            "date": "2026-06-26",
+            "volume": 3.8
+          },
+          {
+            "date": "2026-07-31",
+            "volume": 2.3
+          }
+        ]
+      },
+      {
+        "item_number": "29",
+        "job_name": "Pembuatan Kolom Pengganti",
+        "unit": "m'",
+        "unit_rate": 65000,
+        "total_volume": 2.6,
+        "total_amount": 169000,
+        "progress_records": [
+          {
+            "date": "2026-05-15",
+            "volume": 2.6
+          }
+        ]
+      },
+      {
+        "item_number": "30",
+        "job_name": "Pasang Besi Openingan",
+        "unit": "pcs",
+        "unit_rate": 25000,
+        "total_volume": 21,
+        "total_amount": 525000,
+        "progress_records": [
+          {
+            "date": "2026-05-15",
+            "volume": 2
+          },
+          {
+            "date": "2026-05-22",
+            "volume": 6
+          },
+          {
+            "date": "2026-06-05",
+            "volume": 3
+          },
+          {
+            "date": "2026-06-12",
+            "volume": 9
+          },
+          {
+            "date": "2026-06-19",
+            "volume": 1
+          }
+        ]
+      },
+      {
+        "item_number": "31",
+        "job_name": "Openingan",
+        "unit": "m'",
+        "unit_rate": 45000,
+        "total_volume": 136.94,
+        "total_amount": 6162300,
+        "progress_records": [
+          {
+            "date": "2026-07-10",
+            "volume": 24.8
+          },
+          {
+            "date": "2026-07-17",
+            "volume": 9.6
+          },
+          {
+            "date": "2026-07-24",
+            "volume": 18.4
+          },
+          {
+            "date": "2026-07-31",
+            "volume": 43.4
+          },
+          {
+            "date": "2026-08-07",
+            "volume": 4.68
+          },
+          {
+            "date": "2026-08-28",
+            "volume": 13.6
+          },
+          {
+            "date": "2026-09-04",
+            "volume": 8
+          },
+          {
+            "date": "2026-09-11",
+            "volume": 14.46
+          }
+        ]
+      },
+      {
+        "item_number": "32",
+        "job_name": "Tali Air Pintu + Jendela",
+        "unit": "m'",
+        "unit_rate": 22000,
+        "total_volume": 18.74,
+        "total_amount": 412279.99999999994,
+        "progress_records": [
+          {
+            "date": "2026-08-28",
+            "volume": 18.74
+          }
+        ]
+      },
+      {
+        "item_number": "33",
+        "job_name": "Sekoneng",
+        "unit": "m'",
+        "unit_rate": 30000,
+        "total_volume": 17.34,
+        "total_amount": 520200,
+        "progress_records": [
+          {
+            "date": "2026-08-28",
+            "volume": 7.14
+          },
+          {
+            "date": "2026-09-04",
+            "volume": 2.3
+          },
+          {
+            "date": "2026-09-18",
+            "volume": 7.9
+          }
+        ]
+      },
+      {
+        "item_number": "34",
+        "job_name": "Pengecoran Pelat Lantai",
+        "unit": "m2",
+        "unit_rate": 420000,
+        "total_volume": 10.8,
+        "total_amount": 4536000,
+        "progress_records": [
+          {
+            "date": "2026-06-05",
+            "volume": 6.05
+          },
+          {
+            "date": "2026-06-19",
+            "volume": 3.6
+          },
+          {
+            "date": "2026-06-26",
+            "volume": 1.15
+          }
+        ]
+      },
+      {
+        "item_number": "35",
+        "job_name": "Perapihan Pelat Lantai Eksisting",
+        "unit": "m2",
+        "unit_rate": 35000,
+        "total_volume": 19.36,
+        "total_amount": 677600,
+        "progress_records": [
+          {
+            "date": "2026-08-28",
+            "volume": 19.36
+          }
+        ]
+      },
+      {
+        "item_number": "36",
+        "job_name": "Pasang Bata Ringan Terap Tangga",
+        "unit": "m'",
+        "unit_rate": 45000,
+        "total_volume": 13.94,
+        "total_amount": 627300,
+        "progress_records": [
+          {
+            "date": "2026-06-26",
+            "volume": 5.4
+          },
+          {
+            "date": "2026-07-03",
+            "volume": 8.54
+          }
+        ]
+      },
+      {
+        "item_number": "37",
+        "job_name": "Pasang Rangka Atap",
+        "unit": "m2",
+        "unit_rate": 60000,
+        "total_volume": 10.04,
+        "total_amount": 602400,
+        "progress_records": [
+          {
+            "date": "2026-08-28",
+            "volume": 10.04
+          }
+        ]
+      },
+      {
+        "item_number": "38",
+        "job_name": "Pasang Atap Alderon",
+        "unit": "m2",
+        "unit_rate": 95000,
+        "total_volume": 55.449999999999996,
+        "total_amount": 5267750,
+        "progress_records": [
+          {
+            "date": "2026-07-17",
+            "volume": 44.48
+          },
+          {
+            "date": "2026-09-04",
+            "volume": 4.37
+          }
+        ]
+      },
+      {
+        "item_number": "26",
+        "job_name": "Pasang Atap",
+        "unit": "m2",
+        "unit_rate": 0,
+        "total_volume": 0,
+        "total_amount": 0,
+        "progress_records": [
+          {
+            "date": "2026-09-11",
+            "volume": 6.6
+          }
+        ]
+      },
+      {
+        "item_number": "39",
+        "job_name": "Ban-Banan Atap",
+        "unit": "m2",
+        "unit_rate": 85000,
+        "total_volume": 25.12,
+        "total_amount": 2135200,
+        "progress_records": [
+          {
+            "date": "2026-07-24",
+            "volume": 25.12
+          }
+        ]
+      },
+      {
+        "item_number": "40",
+        "job_name": "Pembobokan Dinding Untuk Pipa",
+        "unit": "m'",
+        "unit_rate": 15000,
+        "total_volume": 17.1,
+        "total_amount": 256500.00000000003,
+        "progress_records": [
+          {
+            "date": "2026-09-18",
+            "volume": 9.9
+          },
+          {
+            "date": "2026-10-09",
+            "volume": 4.5
+          },
+          {
+            "date": "2026-11-13",
+            "volume": 2.7
+          }
+        ]
+      },
+      {
+        "item_number": "41",
+        "job_name": "Pasang Pipa 3 Inch",
+        "unit": "m'",
+        "unit_rate": 30000,
+        "total_volume": 78.45,
+        "total_amount": 2353500,
+        "progress_records": [
+          {
+            "date": "2026-06-26",
+            "volume": 45
+          },
+          {
+            "date": "2026-07-03",
+            "volume": 20.7
+          },
+          {
+            "date": "2026-08-28",
+            "volume": 10.55
+          },
+          {
+            "date": "2026-09-25",
+            "volume": 2.2
+          }
+        ]
+      },
+      {
+        "item_number": "42",
+        "job_name": "Pasang Pipa 4 Inch",
+        "unit": "m'",
+        "unit_rate": 30000,
+        "total_volume": 71.63000000000001,
+        "total_amount": 2148900.0000000005,
+        "progress_records": [
+          {
+            "date": "2026-07-03",
+            "volume": 48.95
+          },
+          {
+            "date": "2026-07-10",
+            "volume": 21.48
+          },
+          {
+            "date": "2026-09-25",
+            "volume": 1.2
+          }
+        ]
+      },
+      {
+        "item_number": "43",
+        "job_name": "Pasang Pipa 1 Inch",
+        "unit": "m'",
+        "unit_rate": 20000,
+        "total_volume": 12.5,
+        "total_amount": 250000,
+        "progress_records": [
+          {
+            "date": "2026-08-21",
+            "volume": 12.5
+          }
+        ]
+      },
+      {
+        "item_number": "44",
+        "job_name": "Pasang Pipa 3/4 Inch",
+        "unit": "m'",
+        "unit_rate": 20000,
+        "total_volume": 58.800000000000004,
+        "total_amount": 1176000,
+        "progress_records": [
+          {
+            "date": "2026-07-10",
+            "volume": 19.1
+          },
+          {
+            "date": "2026-07-24",
+            "volume": 37
+          },
+          {
+            "date": "2026-11-13",
+            "volume": 2.7
+          }
+        ]
+      },
+      {
+        "item_number": "45",
+        "job_name": "Pasang Pipa 1/2 Inch",
+        "unit": "m'",
+        "unit_rate": 20000,
+        "total_volume": 56.300000000000004,
+        "total_amount": 1126000,
+        "progress_records": [
+          {
+            "date": "2026-08-14",
+            "volume": 9.2
+          },
+          {
+            "date": "2026-08-28",
+            "volume": 26.5
+          },
+          {
+            "date": "2026-09-18",
+            "volume": 14.9
+          },
+          {
+            "date": "2026-10-09",
+            "volume": 5.7
+          }
+        ]
+      },
+      {
+        "item_number": "46",
+        "job_name": "Aquaproofing",
+        "unit": "m2",
+        "unit_rate": 30000,
+        "total_volume": 54.91,
+        "total_amount": 1647300,
+        "progress_records": [
+          {
+            "date": "2026-07-31",
+            "volume": 54.91
+          },
+          {
+            "date": "2026-10-16",
+            "volume": 24.72
+          }
+        ]
+      },
+      {
+        "item_number": "47",
+        "job_name": "Sika Dak",
+        "unit": "m2",
+        "unit_rate": 35000,
+        "total_volume": 47.67,
+        "total_amount": 1668450,
+        "progress_records": [
+          {
+            "date": "2026-07-31",
+            "volume": 5.6
+          },
+          {
+            "date": "2026-08-14",
+            "volume": 16.41
+          },
+          {
+            "date": "2026-08-21",
+            "volume": 11.32
+          },
+          {
+            "date": "2026-10-16",
+            "volume": 14.34
+          }
+        ]
+      },
+      {
+        "item_number": "48",
+        "job_name": "Pengecatan Plafon",
+        "unit": "m2",
+        "unit_rate": 30000,
+        "total_volume": 81.37,
+        "total_amount": 2441100,
+        "progress_records": [
+          {
+            "date": "2026-08-28",
+            "volume": 40.52
+          },
+          {
+            "date": "2026-09-18",
+            "volume": 40.85
+          }
+        ]
+      },
+      {
+        "item_number": "49",
+        "job_name": "Pengecatan Dasar (Sealer)",
+        "unit": "m2",
+        "unit_rate": 10000,
+        "total_volume": 359.71000000000004,
+        "total_amount": 3597100.0000000005,
+        "progress_records": [
+          {
+            "date": "2026-07-31",
+            "volume": 276.55
+          },
+          {
+            "date": "2026-09-11",
+            "volume": 45.39
+          },
+          {
+            "date": "2026-10-23",
+            "volume": 6.72
+          },
+          {
+            "date": "2026-10-30",
+            "volume": 29.69
+          },
+          {
+            "date": "2026-11-13",
+            "volume": 1.36
+          }
+        ]
+      },
+      {
+        "item_number": "50",
+        "job_name": "Pengecatan Dinding (Finish)",
+        "unit": "m2",
+        "unit_rate": 20000,
+        "total_volume": 536.1,
+        "total_amount": 10722000,
+        "progress_records": [
+          {
+            "date": "2026-10-16",
+            "volume": 26.88
+          },
+          {
+            "date": "2026-10-23",
+            "volume": 128.11
+          },
+          {
+            "date": "2026-10-30",
+            "volume": 181.43
+          },
+          {
+            "date": "2026-11-06",
+            "volume": 152.63
+          },
+          {
+            "date": "2026-11-13",
+            "volume": 47.05
+          }
+        ]
+      },
+      {
+        "item_number": "50",
+        "job_name": "Pemasangan Rangka Plafon",
+        "unit": "m2",
+        "unit_rate": 35000,
+        "total_volume": 112.04,
+        "total_amount": 3921400,
+        "progress_records": [
+          {
+            "date": "2026-08-07",
+            "volume": 40.52
+          },
+          {
+            "date": "2026-08-14",
+            "volume": 47.72
+          },
+          {
+            "date": "2026-08-28",
+            "volume": 15.6
+          },
+          {
+            "date": "2026-09-18",
+            "volume": 8.2
+          }
+        ]
+      },
+      {
+        "item_number": "51",
+        "job_name": "Pemasangan Plafon Gypsum",
+        "unit": "m2",
+        "unit_rate": 40000,
+        "total_volume": 139.23000000000002,
+        "total_amount": 5569200.000000001,
+        "progress_records": [
+          {
+            "date": "2026-08-21",
+            "volume": 47.44
+          },
+          {
+            "date": "2026-08-28",
+            "volume": 63.12
+          },
+          {
+            "date": "2026-09-18",
+            "volume": 8.2
+          },
+          {
+            "date": "2026-09-25",
+            "volume": 20.47
+          }
+        ]
+      },
+      {
+        "item_number": "52",
+        "job_name": "Pemasangan Plafon Gypsum Area Tangga + Kamar Mandi",
+        "unit": "m2",
+        "unit_rate": 75000,
+        "total_volume": 14.1,
+        "total_amount": 1057500,
+        "progress_records": [
+          {
+            "date": "2026-09-11",
+            "volume": 14.1
+          }
+        ]
+      },
+      {
+        "item_number": "53",
+        "job_name": "Pengecatan Plafon",
+        "unit": "m2",
+        "unit_rate": 30000,
+        "total_volume": 40.97,
+        "total_amount": 1229100,
+        "progress_records": [
+          {
+            "date": "2026-09-11",
+            "volume": 20.5
+          },
+          {
+            "date": "2026-09-25",
+            "volume": 20.47
+          }
+        ]
+      },
+      {
+        "item_number": "54",
+        "job_name": "Pemasangan Shadow Line Plafon",
+        "unit": "m'",
+        "unit_rate": 20000,
+        "total_volume": 217.25,
+        "total_amount": 4345000,
+        "progress_records": [
+          {
+            "date": "2026-08-21",
+            "volume": 83.15
+          },
+          {
+            "date": "2026-09-11",
+            "volume": 59.3
+          },
+          {
+            "date": "2026-09-18",
+            "volume": 47.8
+          },
+          {
+            "date": "2026-09-25",
+            "volume": 27
+          }
+        ]
+      },
+      {
+        "item_number": "55",
+        "job_name": "Pemasangan Plint Keramik",
+        "unit": "m'",
+        "unit_rate": 25000,
+        "total_volume": 188.81,
+        "total_amount": 4720250,
+        "progress_records": [
+          {
+            "date": "2026-09-25",
+            "volume": 81.36
+          },
+          {
+            "date": "2026-10-02",
+            "volume": 26.32
+          },
+          {
+            "date": "2026-10-09",
+            "volume": 9.5
+          },
+          {
+            "date": "2026-10-16",
+            "volume": 46.43
+          },
+          {
+            "date": "2026-10-30",
+            "volume": 25.2
+          }
+        ]
+      },
+      {
+        "item_number": "56",
+        "job_name": "Tali Air Plint Keramik",
+        "unit": "m'",
+        "unit_rate": 22000,
+        "total_volume": 188.81,
+        "total_amount": 4153820,
+        "progress_records": [
+          {
+            "date": "2026-10-02",
+            "volume": 91.33
+          },
+          {
+            "date": "2026-10-09",
+            "volume": 25.85
+          },
+          {
+            "date": "2026-10-16",
+            "volume": 46.43
+          },
+          {
+            "date": "2026-11-06",
+            "volume": 25.2
+          }
+        ]
+      },
+      {
+        "item_number": "57",
+        "job_name": "Pemasangan Keramik 60 x 60 cm",
+        "unit": "m2",
+        "unit_rate": 75000,
+        "total_volume": 223.38,
+        "total_amount": 16753500,
+        "progress_records": [
+          {
+            "date": "2026-08-14",
+            "volume": 39.6
+          },
+          {
+            "date": "2026-08-21",
+            "volume": 14.04
+          },
+          {
+            "date": "2026-08-28",
+            "volume": 17.44
+          },
+          {
+            "date": "2026-09-11",
+            "volume": 48.04
+          },
+          {
+            "date": "2026-09-18",
+            "volume": 55.18
+          },
+          {
+            "date": "2026-10-02",
+            "volume": 17.5
+          },
+          {
+            "date": "2026-10-09",
+            "volume": 3.82
+          },
+          {
+            "date": "2026-10-16",
+            "volume": 12.15
+          },
+          {
+            "date": "2026-10-23",
+            "volume": 2.23
+          },
+          {
+            "date": "2026-10-30",
+            "volume": 10.25
+          },
+          {
+            "date": "2026-11-13",
+            "volume": 3.13
+          }
+        ]
+      },
+      {
+        "item_number": "58",
+        "job_name": "Pembuatan Dak Talang",
+        "unit": "m'",
+        "unit_rate": 250000,
+        "total_volume": 1.9,
+        "total_amount": 475000,
+        "progress_records": [
+          {
+            "date": "2026-08-28",
+            "volume": 1.9
+          }
+        ]
+      },
+      {
+        "item_number": "59",
+        "job_name": "Pemasangan Kusen Pintu",
+        "unit": "unit",
+        "unit_rate": 250000,
+        "total_volume": 1,
+        "total_amount": 250000,
+        "progress_records": [
+          {
+            "date": "2026-08-14",
+            "volume": 1
+          }
+        ]
+      },
+      {
+        "item_number": "60",
+        "job_name": "Pemasangan Jendela",
+        "unit": "unit",
+        "unit_rate": 150000,
+        "total_volume": 16,
+        "total_amount": 2400000,
+        "progress_records": [
+          {
+            "date": "2026-08-14",
+            "volume": 2
+          },
+          {
+            "date": "2026-08-28",
+            "volume": 14
+          }
+        ]
+      },
+      {
+        "item_number": "61",
+        "job_name": "Keron Kusen Pintu Utama",
+        "unit": "unit",
+        "unit_rate": 100000,
+        "total_volume": 1,
+        "total_amount": 100000,
+        "progress_records": [
+          {
+            "date": "2026-10-09",
+            "volume": 1
+          }
+        ]
+      },
+      {
+        "item_number": "62",
+        "job_name": "Kerok Kusen & Jendela",
+        "unit": "unit",
+        "unit_rate": 150000,
+        "total_volume": 4,
+        "total_amount": 600000,
+        "progress_records": [
+          {
+            "date": "2026-10-09",
+            "volume": 4
+          }
+        ]
+      },
+      {
+        "item_number": "63",
+        "job_name": "Kerok Pintu Melamik",
+        "unit": "unit",
+        "unit_rate": 200000,
+        "total_volume": 3,
+        "total_amount": 600000,
+        "progress_records": [
+          {
+            "date": "2026-10-02",
+            "volume": 3
+          }
+        ]
+      },
+      {
+        "item_number": "64",
+        "job_name": "Plitur Pintu Tanpa Kusen",
+        "unit": "unit",
+        "unit_rate": 450000,
+        "total_volume": 9,
+        "total_amount": 4050000,
+        "progress_records": [
+          {
+            "date": "2026-10-02",
+            "volume": 9
+          }
+        ]
+      },
+      {
+        "item_number": "65",
+        "job_name": "Plitur Pintu Dengan Kusen",
+        "unit": "unit",
+        "unit_rate": 550000,
+        "total_volume": 1,
+        "total_amount": 550000,
+        "progress_records": [
+          {
+            "date": "2026-10-09",
+            "volume": 1
+          }
+        ]
+      },
+      {
+        "item_number": "66",
+        "job_name": "Plitur Jendela dan Kusen",
+        "unit": "unit",
+        "unit_rate": 300000,
+        "total_volume": 4,
+        "total_amount": 1200000,
+        "progress_records": [
+          {
+            "date": "2026-10-09",
+            "volume": 4
+          }
+        ]
+      },
+      {
+        "item_number": "67",
+        "job_name": "Pemasangan Kloset",
+        "unit": "unit",
+        "unit_rate": 250000,
+        "total_volume": 9,
+        "total_amount": 2250000,
+        "progress_records": [
+          {
+            "date": "2026-10-09",
+            "volume": 1
+          },
+          {
+            "date": "2026-11-06",
+            "volume": 8
+          }
+        ]
+      },
+      {
+        "item_number": "68",
+        "job_name": "Pengecatan Railing Tangga",
+        "unit": "m'",
+        "unit_rate": 45000,
+        "total_volume": 5.8,
+        "total_amount": 261000,
+        "progress_records": [
+          {
+            "date": "2026-10-16",
+            "volume": 5.8
+          }
+        ]
+      },
+      {
+        "item_number": "69",
+        "job_name": "Pemasangan Keramik Terap Tangga",
+        "unit": "terap",
+        "unit_rate": 135000,
+        "total_volume": 19,
+        "total_amount": 2565000,
+        "progress_records": [
+          {
+            "date": "2026-10-16",
+            "volume": 4
+          },
+          {
+            "date": "2026-10-23",
+            "volume": 15
+          }
+        ]
+      },
+      {
+        "item_number": "70",
+        "job_name": "Galian Tanah Untuk Septic Tank",
+        "unit": "m3",
+        "unit_rate": 110000,
+        "total_volume": 3.37,
+        "total_amount": 370700,
+        "progress_records": [
+          {
+            "date": "2026-10-23",
+            "volume": 3.37
+          }
+        ]
+      },
+      {
+        "item_number": "71",
+        "job_name": "Instalasi Septic Tank",
+        "unit": "unit",
+        "unit_rate": 1000000,
+        "total_volume": 1,
+        "total_amount": 1000000,
+        "progress_records": [
+          {
+            "date": "2026-10-23",
+            "volume": 1
+          }
+        ]
+      },
+      {
+        "item_number": "72",
+        "job_name": "Perapihan Terap Tangga",
+        "unit": "m'",
+        "unit_rate": 15000,
+        "total_volume": 11.1,
+        "total_amount": 166500,
+        "progress_records": [
+          {
+            "date": "2026-10-23",
+            "volume": 11.1
+          }
+        ]
+      },
+      {
+        "item_number": "73",
+        "job_name": "Pengecoran Meja Dapur",
+        "unit": "m'",
+        "unit_rate": 450000,
+        "total_volume": 2.5,
+        "total_amount": 1125000,
+        "progress_records": [
+          {
+            "date": "2026-11-06",
+            "volume": 2.5
+          }
+        ]
+      },
+      {
+        "item_number": "74",
+        "job_name": "Pluran Lantai + Aci",
+        "unit": "m2",
+        "unit_rate": 58000,
+        "total_volume": 1.9899999999999998,
+        "total_amount": 115419.99999999999,
+        "progress_records": [
+          {
+            "date": "2026-11-13",
+            "volume": 1.9899999999999998
+          }
+        ]
+      },
+      {
+        "item_number": "75",
+        "job_name": "Pemasangan Sink/Wastafel",
+        "unit": "unit",
+        "unit_rate": 250000,
+        "total_volume": 1,
+        "total_amount": 250000,
+        "progress_records": [
+          {
+            "date": "2026-11-13",
+            "volume": 1
+          }
+        ]
+      },
+      {
+        "item_number": "76",
+        "job_name": "Pemasangan Shower",
+        "unit": "unit",
+        "unit_rate": 110000,
+        "total_volume": 9,
+        "total_amount": 990000,
+        "progress_records": [
+          {
+            "date": "2026-11-13",
+            "volume": 9
+          }
+        ]
+      },
+      {
+        "item_number": "77",
+        "job_name": "Janggutan",
+        "unit": "ls",
+        "unit_rate": 150000,
+        "total_volume": 1,
+        "total_amount": 150000,
+        "progress_records": [
+          {
+            "date": "2026-11-13",
+            "volume": 1
+          }
+        ]
+      },
+      {
+        "item_number": "76",
+        "job_name": "Penutup Talang Vertikal Dinding",
+        "unit": "m'",
+        "unit_rate": 85000,
+        "total_volume": 15,
+        "total_amount": 1275000,
+        "progress_records": [
+          {
+            "date": "2026-11-13",
+            "volume": 15
+          }
+        ]
+      }
+    ],
+    "retentions": [
+      {
+        "termin_number": 1,
+        "date": "2026-09-11",
+        "total_claim": 9345000,
+        "paid_amount": 8410500,
+        "retention_amount": 934500,
+        "status": "HELD"
+      },
+      {
+        "termin_number": 2,
+        "date": "2026-09-18",
+        "total_claim": 8400000,
+        "paid_amount": 7560000,
+        "retention_amount": 840000,
+        "status": "HELD"
+      },
+      {
+        "termin_number": 3,
+        "date": "2026-09-25",
+        "total_claim": 4767000,
+        "paid_amount": 4290300,
+        "retention_amount": 476700,
+        "status": "HELD"
+      },
+      {
+        "termin_number": 4,
+        "date": "2026-10-02",
+        "total_claim": 6893000,
+        "paid_amount": 6203700,
+        "retention_amount": 689300,
+        "status": "HELD"
+      },
+      {
+        "termin_number": 5,
+        "date": "2026-10-09",
+        "total_claim": 3782000,
+        "paid_amount": 3403800,
+        "retention_amount": 378200,
+        "status": "HELD"
+      },
+      {
+        "termin_number": 6,
+        "date": "2026-10-16",
+        "total_claim": 8184000,
+        "paid_amount": 7365600,
+        "retention_amount": 818400,
+        "status": "HELD"
+      },
+      {
+        "termin_number": 7,
+        "date": "2026-10-23",
+        "total_claim": 6355000,
+        "paid_amount": 5719500,
+        "retention_amount": 635500,
+        "status": "HELD"
+      },
+      {
+        "termin_number": 8,
+        "date": "2026-10-30",
+        "total_claim": 6977000,
+        "paid_amount": 6279300,
+        "retention_amount": 697700,
+        "status": "HELD"
+      },
+      {
+        "termin_number": 9,
+        "date": "2026-11-06",
+        "total_claim": 6906000,
+        "paid_amount": 6215400,
+        "retention_amount": 690600,
+        "status": "HELD"
+      },
+      {
+        "termin_number": 10,
+        "date": "2026-11-13",
+        "total_claim": 5054000,
+        "paid_amount": 4548600,
+        "retention_amount": 505400,
+        "status": "HELD"
+      }
+    ]
+  }
+]
