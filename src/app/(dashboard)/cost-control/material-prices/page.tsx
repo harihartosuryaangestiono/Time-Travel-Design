@@ -31,6 +31,7 @@ import {
   createMasterMaterial,
   updateMasterMaterial,
   deleteMasterMaterial,
+  deleteMaterialPriceHistory,
   recordMaterialPurchase,
   recordStoreMaterialPrice,
   MasterMaterialItem,
@@ -190,6 +191,7 @@ export default function MaterialPricesPage() {
         lastPrice: number;
         lastVendor: string;
         stores: Array<{
+          id: string;
           vendor: string;
           price: number;
           date: string;
@@ -213,6 +215,7 @@ export default function MaterialPricesPage() {
       }
 
       map[h.material_id].stores.push({
+        id: h.id,
         vendor: h.vendor_name,
         price: h.unit_price,
         date: h.purchase_date,
@@ -311,28 +314,52 @@ export default function MaterialPricesPage() {
 
   const handleDeleteMaterial = async (id: string, name: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    if (!confirm(`Hapus/nonaktifkan material "${name}" dari katalog master?`)) return;
+    if (!confirm(`Hapus material "${name}" dari database?`)) return;
     try {
+      // Optimistic update: langsung hilangkan dari tampilan agar instan
+      setMaterials((prev) => prev.filter((m) => m.id !== id));
+      if (selectedMaterialId === id) setSelectedMaterialId("ALL");
+
       await deleteMasterMaterial(id);
       setSuccessMsg(`Material "${name}" berhasil dihapus.`);
-      if (selectedMaterialId === id) setSelectedMaterialId("ALL");
       fetchData();
     } catch (err: any) {
       setError(err?.message || "Gagal menghapus material.");
+      fetchData();
+    }
+  };
+
+  const handleDeleteHistory = async (historyId: string, vendorName: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (!confirm(`Hapus catatan harga toko "${vendorName}"?`)) return;
+    try {
+      setHistory((prev) => prev.filter((h) => h.id !== historyId));
+      await deleteMaterialPriceHistory(historyId);
+      setSuccessMsg(`Catatan harga dari "${vendorName}" berhasil dihapus.`);
+      fetchData();
+    } catch (err: any) {
+      setError(err?.message || "Gagal menghapus catatan harga.");
+      fetchData();
     }
   };
 
   const handleCreateOrUpdateMaterial = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      if (!newMaterialForm.code.trim()) throw new Error("Kode material wajib diisi.");
       if (!newMaterialForm.name.trim()) throw new Error("Nama material wajib diisi.");
+      const finalCode = newMaterialForm.code.trim() || `MAT-${Date.now().toString().slice(-6)}`;
+      const payload = {
+        ...newMaterialForm,
+        code: finalCode,
+        usage_unit: newMaterialForm.usage_unit?.trim() || newMaterialForm.purchase_unit.trim(),
+        conversion_factor: newMaterialForm.conversion_factor || 1,
+      };
 
       if (editingMaterial) {
-        await updateMasterMaterial(editingMaterial.id, newMaterialForm);
+        await updateMasterMaterial(editingMaterial.id, payload);
         setSuccessMsg(`Material "${newMaterialForm.name}" berhasil diperbarui.`);
       } else {
-        await createMasterMaterial(newMaterialForm);
+        await createMasterMaterial(payload);
         setSuccessMsg(
           newMaterialForm.initial_vendor_name
             ? `Material baru & harga awal "${newMaterialForm.initial_vendor_name}" berhasil disimpan.`
@@ -760,7 +787,7 @@ export default function MaterialPricesPage() {
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2">
                               {isCheapest && (
                                 <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
                                   Termurah
@@ -774,6 +801,14 @@ export default function MaterialPricesPage() {
                               <span className="font-mono font-bold text-zinc-950 text-sm">
                                 {formatCurrency(st.price)}
                               </span>
+                              <button
+                                type="button"
+                                onClick={(e) => handleDeleteHistory(st.id, st.vendor, e)}
+                                title={`Hapus harga toko ${st.vendor}`}
+                                className="rounded-md p-1 text-zinc-300 hover:bg-red-50 hover:text-red-600 transition ml-1"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
                             </div>
                           </div>
                         );
@@ -830,12 +865,13 @@ export default function MaterialPricesPage() {
                     <th className="px-4 py-3 text-right">Kuantitas</th>
                     <th className="px-4 py-3 text-right">Harga Satuan</th>
                     <th className="px-4 py-3 text-right">Total Transaksi</th>
+                    <th className="px-3 py-3 text-center w-10">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-100">
                   {history.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-zinc-400">
+                      <td colSpan={8} className="py-12 text-center text-zinc-400">
                         Belum ada histori pembelian untuk filter yang dipilih.
                       </td>
                     </tr>
@@ -860,6 +896,16 @@ export default function MaterialPricesPage() {
                         </td>
                         <td className="px-4 py-3 text-right font-bold text-zinc-950">
                           {formatCurrency(row.total_price)}
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteHistory(row.id, row.vendor_name, e)}
+                            title={`Hapus riwayat harga ${row.vendor_name}`}
+                            className="rounded-md p-1 text-zinc-300 hover:bg-red-50 hover:text-red-600 transition"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
                         </td>
                       </tr>
                     ))
@@ -950,62 +996,58 @@ export default function MaterialPricesPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-2">
                 <div>
-                  <label className="text-xs font-semibold text-zinc-700">Satuan Pembelian</label>
+                  <label className="text-xs font-semibold text-zinc-700">Satuan Beli Material (di Toko/Supplier) *</label>
                   <input
                     type="text"
-                    placeholder="lembar / sak"
+                    placeholder="Contoh: sak, m3, batang, kg, dus, pail, lembar, m', pcs, ls"
                     value={newMaterialForm.purchase_unit}
                     onChange={(e) => {
                       const pUnit = e.target.value;
                       setNewMaterialForm({
                         ...newMaterialForm,
                         purchase_unit: pUnit,
-                        // If same unit, auto reset conversion to 1
-                        conversion_factor: pUnit === newMaterialForm.usage_unit ? 1 : newMaterialForm.conversion_factor,
+                        usage_unit: pUnit,
+                        conversion_factor: 1,
                       });
                     }}
-                    className="mt-1 w-full rounded-xl border border-zinc-200 p-2.5 text-xs text-zinc-900 outline-none focus:border-zinc-400"
+                    className="mt-1 w-full rounded-xl border border-zinc-200 p-2.5 text-xs text-zinc-900 outline-none focus:border-zinc-400 font-medium"
                     required
                   />
+                  <p className="mt-1 text-[11px] text-zinc-400">
+                    Cukup masukkan satuan beli dari toko (misal: /sak, /m3, /batang). Angka konversi kebutuhan pekerjaan diatur di Master AHSP.
+                  </p>
                 </div>
-                <div>
-                  <label className="text-xs font-semibold text-zinc-700">Satuan Pemakaian</label>
-                  <input
-                    type="text"
-                    placeholder="lembar / kg"
-                    value={newMaterialForm.usage_unit}
-                    onChange={(e) => {
-                      const uUnit = e.target.value;
-                      setNewMaterialForm({
-                        ...newMaterialForm,
-                        usage_unit: uUnit,
-                        conversion_factor: newMaterialForm.purchase_unit === uUnit ? 1 : newMaterialForm.conversion_factor,
-                      });
-                    }}
-                    className="mt-1 w-full rounded-xl border border-zinc-200 p-2.5 text-xs text-zinc-900 outline-none focus:border-zinc-400"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-zinc-700">Faktor Konversi</label>
-                  <input
-                    type="number"
-                    step="any"
-                    placeholder="1"
-                    value={newMaterialForm.conversion_factor}
-                    onChange={(e) =>
-                      setNewMaterialForm({ ...newMaterialForm, conversion_factor: Number(e.target.value) })
-                    }
-                    className="mt-1 w-full rounded-xl border border-zinc-200 p-2.5 text-xs text-zinc-900 outline-none focus:border-zinc-400"
-                    required
-                  />
-                </div>
+
+                <details className="text-xs text-zinc-500 pt-1">
+                  <summary className="cursor-pointer font-semibold text-zinc-600 hover:text-zinc-900">
+                    ⚙️ Opsi Konversi Satuan Pemakaian (Lanjutan)
+                  </summary>
+                  <div className="grid grid-cols-2 gap-3 mt-2 rounded-xl bg-zinc-50 p-3 border border-zinc-200">
+                    <div>
+                      <label className="text-[11px] font-semibold text-zinc-700">Satuan Pemakaian</label>
+                      <input
+                        type="text"
+                        placeholder="Contoh: kg"
+                        value={newMaterialForm.usage_unit}
+                        onChange={(e) => setNewMaterialForm({ ...newMaterialForm, usage_unit: e.target.value })}
+                        className="mt-1 w-full rounded-lg border border-zinc-200 bg-white p-2 text-xs outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-zinc-700">Rasio Konversi (1 Beli = ... Pemakaian)</label>
+                      <input
+                        type="number"
+                        step="any"
+                        value={newMaterialForm.conversion_factor}
+                        onChange={(e) => setNewMaterialForm({ ...newMaterialForm, conversion_factor: Number(e.target.value) })}
+                        className="mt-1 w-full rounded-lg border border-zinc-200 bg-white p-2 text-xs outline-none"
+                      />
+                    </div>
+                  </div>
+                </details>
               </div>
-              <p className="text-[11px] text-zinc-500">
-                💡 <strong>Faktor Konversi:</strong> Isi <strong>1</strong> jika satuan beli & pemakaian sama (contoh: lembar ke lembar). Jika beda satuan, isi rasio pengalinya (contoh: 1 sak = 50 kg).
-              </p>
 
               {/* Input Toko Pertama (Hanya saat pembuatan baru) */}
               {!editingMaterial && (

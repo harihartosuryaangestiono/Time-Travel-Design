@@ -13,22 +13,38 @@ function assertRapEditor(role: string) {
   }
 }
 
-export interface RapProjectItem {
+export interface RapItemComponent {
   id: string;
-  organization_id: string;
-  project_id: string;
-  rab_id?: string | null;
-  rap_number: string;
-  title: string;
-  version: number;
-  status: "DRAFT" | "APPROVED" | "ACTIVE" | "COMPLETED";
-  total_planned_budget: number;
-  target_savings: number;
-  notes?: string | null;
-  created_at: string;
-  project?: { id: string; name: string; code: string };
-  rab?: { rab_number: string; title: string; grand_total: number };
-  items?: RapWorkItem[];
+  component_type: "MATERIAL" | "LABOR" | "EQUIPMENT";
+  name: string;
+  coefficient: number;
+  unit: string;
+  unit_price: number;
+  subtotal: number;
+  base_quantity: number;
+  waste_percent: number;
+  planned_quantity: number;
+  planned_total_cost: number;
+}
+
+export interface ProjectMaterialTakeoffItem {
+  name: string;
+  unit: string;
+  total_base_qty: number;
+  waste_percent: number;
+  total_planned_qty: number;
+  unit_price: number;
+  total_cost: number;
+  used_in_items: string[];
+}
+
+export interface ProjectLaborTakeoffItem {
+  name: string;
+  unit: string;
+  total_volume: number;
+  unit_rate: number;
+  total_cost: number;
+  used_in_items: string[];
 }
 
 export interface RapWorkItem {
@@ -49,6 +65,29 @@ export interface RapWorkItem {
   execution_schedule?: string | null;
   pic_name?: string | null;
   sort_order: number;
+  components?: RapItemComponent[];
+}
+
+export interface RapProjectItem {
+  id: string;
+  organization_id: string;
+  project_id: string;
+  rab_id?: string | null;
+  rap_number: string;
+  title: string;
+  version: number;
+  status: "DRAFT" | "APPROVED" | "ACTIVE" | "COMPLETED";
+  total_planned_budget: number;
+  target_savings: number;
+  total_material_budget?: number;
+  total_labor_budget?: number;
+  material_takeoff?: ProjectMaterialTakeoffItem[];
+  labor_takeoff?: ProjectLaborTakeoffItem[];
+  notes?: string | null;
+  created_at: string;
+  project?: { id: string; name: string; code: string };
+  rab?: { rab_number: string; title: string; grand_total: number };
+  items?: RapWorkItem[];
 }
 
 export interface BudgetVsActualComparison {
@@ -121,7 +160,7 @@ export async function getRapProjectDetail(rapId: string): Promise<RapProjectItem
     .select(`
       *,
       project:projects(id, name, code),
-      rab:rab_projects(rab_number, title, grand_total),
+      rab:rab_projects(id, rab_number, title, grand_total),
       items:rap_items(*)
     `)
     .eq("id", rapId)
@@ -130,22 +169,133 @@ export async function getRapProjectDetail(rapId: string): Promise<RapProjectItem
 
   if (error || !rap) throw new Error(`RAP tidak ditemukan: ${error?.message}`);
 
-  const formattedItems: RapWorkItem[] = (rap.items || [])
+  const rawItems = rap.items || [];
+  const rabItemIds = rawItems.map((i: any) => i.rab_item_id).filter(Boolean);
+
+  let componentsByRabItemId: Record<string, any[]> = {};
+  if (rabItemIds.length > 0) {
+    const { data: comps } = await supabase
+      .from("rab_item_components")
+      .select("*")
+      .in("rab_item_id", rabItemIds);
+
+    if (comps && comps.length > 0) {
+      for (const comp of comps) {
+        if (!componentsByRabItemId[comp.rab_item_id]) {
+          componentsByRabItemId[comp.rab_item_id] = [];
+        }
+        componentsByRabItemId[comp.rab_item_id].push(comp);
+      }
+    }
+  }
+
+  // Material and Labor Takeoff aggregators
+  const materialMap = new Map<string, ProjectMaterialTakeoffItem>();
+  const laborMap = new Map<string, ProjectLaborTakeoffItem>();
+
+  let totalMaterialBudget = 0;
+  let totalLaborBudget = 0;
+
+  const formattedItems: RapWorkItem[] = rawItems
     .sort((a: any, b: any) => a.sort_order - b.sort_order)
-    .map((item: any) => ({
-      ...item,
-      volume: Number(item.volume),
-      target_material_cost: Number(item.target_material_cost),
-      target_labor_cost: Number(item.target_labor_cost),
-      target_equipment_cost: Number(item.target_equipment_cost),
-      target_unit_price: Number(item.target_unit_price),
-      total_budget: Number(item.total_budget),
-    }));
+    .map((item: any) => {
+      const vol = Number(item.volume || 1);
+      const rawComps = componentsByRabItemId[item.rab_item_id] || [];
+
+      const itemComponents: RapItemComponent[] = rawComps.map((c: any) => {
+        const coeff = Number(c.coefficient || 0);
+        const up = Number(c.unit_price || 0);
+        const sub = Number(c.subtotal ?? coeff * up);
+        const baseQty = vol * coeff;
+
+        const isMaterial = c.component_type === "MATERIAL";
+        const wastePct = isMaterial ? 5.0 : 0; // 5% waste tolerance on materials (Dustin requirement)
+        const plannedQty = isMaterial ? baseQty * 1.05 : baseQty;
+        const plannedCost = plannedQty * up;
+
+        if (isMaterial) {
+          totalMaterialBudget += plannedCost;
+          const key = `${c.name.trim().toLowerCase()}__${c.unit.trim().toLowerCase()}`;
+          const existing = materialMap.get(key);
+          if (existing) {
+            existing.total_base_qty += baseQty;
+            existing.total_planned_qty += plannedQty;
+            existing.total_cost += plannedCost;
+            if (!existing.used_in_items.includes(item.item_name)) {
+              existing.used_in_items.push(item.item_name);
+            }
+          } else {
+            materialMap.set(key, {
+              name: c.name.trim(),
+              unit: c.unit.trim(),
+              total_base_qty: baseQty,
+              waste_percent: 5.0,
+              total_planned_qty: plannedQty,
+              unit_price: up,
+              total_cost: plannedCost,
+              used_in_items: [item.item_name],
+            });
+          }
+        } else if (c.component_type === "LABOR") {
+          totalLaborBudget += plannedCost;
+          const key = `${c.name.trim().toLowerCase()}__${c.unit.trim().toLowerCase()}`;
+          const existing = laborMap.get(key);
+          if (existing) {
+            existing.total_volume += plannedQty;
+            existing.total_cost += plannedCost;
+            if (!existing.used_in_items.includes(item.item_name)) {
+              existing.used_in_items.push(item.item_name);
+            }
+          } else {
+            laborMap.set(key, {
+              name: c.name.trim(),
+              unit: c.unit.trim(),
+              total_volume: plannedQty,
+              unit_rate: up,
+              total_cost: plannedCost,
+              used_in_items: [item.item_name],
+            });
+          }
+        }
+
+        return {
+          id: c.id,
+          component_type: c.component_type,
+          name: c.name,
+          coefficient: coeff,
+          unit: c.unit,
+          unit_price: up,
+          subtotal: sub,
+          base_quantity: baseQty,
+          waste_percent: wastePct,
+          planned_quantity: plannedQty,
+          planned_total_cost: plannedCost,
+        };
+      });
+
+      return {
+        ...item,
+        volume: vol,
+        target_material_cost: Number(item.target_material_cost),
+        target_labor_cost: Number(item.target_labor_cost),
+        target_equipment_cost: Number(item.target_equipment_cost),
+        target_unit_price: Number(item.target_unit_price),
+        total_budget: Number(item.total_budget),
+        components: itemComponents,
+      };
+    });
+
+  const materialTakeoff = Array.from(materialMap.values()).sort((a, b) => b.total_cost - a.total_cost);
+  const laborTakeoff = Array.from(laborMap.values()).sort((a, b) => b.total_cost - a.total_cost);
 
   return {
     ...rap,
     total_planned_budget: Number(rap.total_planned_budget),
     target_savings: Number(rap.target_savings),
+    total_material_budget: totalMaterialBudget > 0 ? totalMaterialBudget : undefined,
+    total_labor_budget: totalLaborBudget > 0 ? totalLaborBudget : undefined,
+    material_takeoff: materialTakeoff,
+    labor_takeoff: laborTakeoff,
     items: formattedItems,
   };
 }
@@ -157,6 +307,29 @@ export async function createRapFromRab(rabId: string, options?: { targetSavingsP
   const savingsPct = options?.targetSavingsPercent !== undefined ? options.targetSavingsPercent : 5.0; // target 5% internal cost reduction
   if (!Number.isFinite(savingsPct) || savingsPct < 0 || savingsPct > 30) {
     throw new Error("Target efisiensi RAP harus berada di antara 0 dan 30 persen.");
+  }
+
+  // Ensure RAB exists and is approved/locked so RPC succeeds
+  const { data: rab, error: rabErr } = await supabase
+    .from("rab_projects")
+    .select("id, status, is_locked, title")
+    .eq("id", rabId)
+    .eq("organization_id", user.organizationId)
+    .single();
+
+  if (rabErr || !rab) throw new Error("RAB tidak ditemukan di organisasi ini.");
+
+  if (rab.status !== "APPROVED" || !rab.is_locked) {
+    await supabase
+      .from("rab_projects")
+      .update({
+        status: "APPROVED",
+        is_locked: true,
+        approved_by: user.profileId,
+        approved_at: new Date().toISOString(),
+      })
+      .eq("id", rabId)
+      .eq("organization_id", user.organizationId);
   }
 
   const rapNumber = `RAP-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;

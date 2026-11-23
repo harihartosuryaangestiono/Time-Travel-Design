@@ -19,6 +19,7 @@ import {
   RefreshCw,
   FolderKanban,
   FileSpreadsheet,
+  Layers,
 } from "lucide-react";
 import { getCostControlDashboard, CostControlDashboardData } from "@/app/actions/cost-control/varianceActions";
 import { getProjects } from "@/app/actions/projectActions";
@@ -64,6 +65,7 @@ export default function CostControlOverviewPage() {
   }, [fetchData]);
 
   const quickLinks = [
+    { title: "Master AHSP", desc: "Katalog resep harga satuan pekerjaan (Upah + Bahan)", href: "/cost-control/ahsp", icon: Layers, badge: "Resep Satuan" },
     { title: "Rekapitulasi Upah", desc: "Pantau volume klaim tukang vs verifikasi pengawas", href: "/cost-control/labor-recap", icon: HardHat, badge: "Tenaga Kerja" },
     { title: "Rekapitulasi Material", desc: "Kontrol beli, terima, pakai, sisa & waste material", href: "/cost-control/material-recap", icon: Boxes, badge: "Persediaan" },
     { title: "Analisis Selisih Proyek", desc: "Deteksi overclaim upah & waste melebihi toleransi", href: "/cost-control/variance-analysis", icon: GitCompare, badge: "Cost Variance" },

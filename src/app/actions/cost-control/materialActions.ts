@@ -92,6 +92,7 @@ export async function getMasterMaterials(filters?: { category?: string; search?:
     .from("master_materials")
     .select("*")
     .eq("organization_id", user.organizationId)
+    .eq("is_active", true)
     .order("name", { ascending: true });
 
   if (filters?.category && filters.category !== "ALL") {
@@ -117,13 +118,13 @@ export async function getMasterMaterials(filters?: { category?: string; search?:
 }
 
 export async function createMasterMaterial(input: {
-  code: string;
+  code?: string;
   name: string;
   category: string;
   brand?: string;
   specification?: string;
   purchase_unit: string;
-  usage_unit: string;
+  usage_unit?: string;
   conversion_factor?: number;
   standard_price?: number;
   min_price?: number;
@@ -137,6 +138,9 @@ export async function createMasterMaterial(input: {
   assertRole(user.role, MATERIAL_MASTER_EDITOR_ROLES, "Anda tidak memiliki izin untuk mengubah master material.");
   const supabase = await createClient();
 
+  const code = (input.code?.trim() || `MAT-${Date.now().toString().slice(-6)}`).toUpperCase();
+  const purchaseUnit = input.purchase_unit.trim();
+  const usageUnit = (input.usage_unit?.trim() || purchaseUnit);
   const factor = input.conversion_factor ?? 1;
   if (!Number.isFinite(factor) || factor <= 0) {
     throw new Error("Faktor konversi harus berupa angka lebih besar dari 0.");
@@ -154,13 +158,13 @@ export async function createMasterMaterial(input: {
     .from("master_materials")
     .insert({
       organization_id: user.organizationId,
-      code: input.code.trim().toUpperCase(),
+      code,
       name: input.name.trim(),
       category: input.category.trim(),
       brand: input.brand?.trim() || null,
       specification: input.specification?.trim() || null,
-      purchase_unit: input.purchase_unit.trim(),
-      usage_unit: input.usage_unit.trim(),
+      purchase_unit: purchaseUnit,
+      usage_unit: usageUnit,
       conversion_factor: factor,
       standard_price: stdPrice,
       min_price: minP,
@@ -313,21 +317,56 @@ export async function updateMasterMaterial(id: string, input: Partial<Parameters
 
 export async function deleteMasterMaterial(id: string) {
   const user = await requireAuthUser();
-  assertRole(user.role, MATERIAL_MASTER_EDITOR_ROLES, "Anda tidak memiliki izin untuk menonaktifkan master material.");
+  assertRole(user.role, MATERIAL_MASTER_EDITOR_ROLES, "Anda tidak memiliki izin untuk menghapus master material.");
   const supabase = await createClient();
 
-  const { error } = await supabase
+  // Coba hard delete terlebih dahulu
+  const { error: delError } = await supabase
     .from("master_materials")
-    .update({ is_active: false, updated_at: new Date().toISOString() })
+    .delete()
     .eq("id", id)
     .eq("organization_id", user.organizationId);
 
-  if (error) throw new Error(`Gagal menonaktifkan master material: ${error.message}`);
+  // Jika gagal karena foreign key constraint (misal ada riwayat proyek/stok), lakukan soft delete (is_active = false)
+  if (delError) {
+    console.warn("Hard delete master material gagal, beralih ke soft delete:", delError.message);
+    const { error: updateError } = await supabase
+      .from("master_materials")
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("organization_id", user.organizationId);
+
+    if (updateError) throw new Error(`Gagal menghapus material: ${updateError.message}`);
+  }
 
   await logAudit(user, {
     action: "DELETE_MASTER_MATERIAL",
     entityType: "master_materials",
     entityId: id,
+  });
+
+  revalidatePath("/cost-control/material-prices");
+  revalidatePath("/cost-control/material-recap");
+  return { success: true };
+}
+
+export async function deleteMaterialPriceHistory(historyId: string) {
+  const user = await requireAuthUser();
+  assertRole(user.role, MATERIAL_MASTER_EDITOR_ROLES, "Anda tidak memiliki izin untuk menghapus catatan harga material.");
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("material_price_history")
+    .delete()
+    .eq("id", historyId)
+    .eq("organization_id", user.organizationId);
+
+  if (error) throw new Error(`Gagal menghapus catatan harga toko: ${error.message}`);
+
+  await logAudit(user, {
+    action: "DELETE_MATERIAL_PRICE_HISTORY",
+    entityType: "material_price_history",
+    entityId: historyId,
   });
 
   revalidatePath("/cost-control/material-prices");

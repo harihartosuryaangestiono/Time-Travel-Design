@@ -33,6 +33,7 @@ import {
   LineChart,
   Activity,
   Eye,
+  Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isSidebarItemActive } from "@/lib/navigation";
@@ -69,6 +70,7 @@ const navigationGroups: NavGroup[] = [
     label: "BORONGAN & COST CONTROL",
     items: [
       { name: "Overview Cost Control", href: "/cost-control", icon: Activity, exact: true },
+      { name: "Master AHSP", href: "/cost-control/ahsp", icon: Layers },
       { name: "Rekapitulasi Upah Tukang", href: "/cost-control/labor-recap", icon: HardHat },
       { name: "Rekapitulasi Material", href: "/cost-control/material-recap", icon: Boxes },
       { name: "Database Harga Material", href: "/cost-control/material-prices", icon: Tags },
