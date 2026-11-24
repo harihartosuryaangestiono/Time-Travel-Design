@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireAuthUser } from "@/lib/auth/auth";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/audit/auditLogger";
+import { normalizeAhspCategory } from "@/lib/cost-control/ahspCategories";
 
 const AHSP_EDITOR_ROLES = ["OWNER", "FINANCE", "PROJECT_MANAGER"];
 
@@ -59,61 +60,7 @@ export interface MasterAhspItem {
 }
 
 // ----------------------------------------------------
-// 1. KATEGORI STANDAR & NORMALISASI (SESUAI DUSTIN)
-// ----------------------------------------------------
-
-export const STANDARD_AHSP_CATEGORIES = [
-  "Pekerjaan Persiapan dan Bongkaran",
-  "Pekerjaan Struktural",
-  "Pekerjaan Arsitektural",
-  "Pekerjaan Atap",
-  "Pekerjaan Mechanical, Elektrikal, dan Plumbing",
-  "Pekerjaan Interior & Furniture",
-] as const;
-
-export function normalizeAhspCategory(cat?: string | null): string {
-  const c = (cat || "").trim();
-  if (!c) return "Pekerjaan Arsitektural";
-  if (c.includes("Persiapan") || c.includes("Bongkaran")) {
-    return "Pekerjaan Persiapan dan Bongkaran";
-  }
-  if (c.includes("Struktur")) {
-    return "Pekerjaan Struktural";
-  }
-  if (c.includes("Atap") || c.includes("Genteng")) {
-    return "Pekerjaan Atap";
-  }
-  if (
-    c.includes("Mekanikal") ||
-    c.includes("Elektrikal") ||
-    c.includes("Plumbing") ||
-    c.includes("MEP") ||
-    c.includes("Mechanical")
-  ) {
-    return "Pekerjaan Mechanical, Elektrikal, dan Plumbing";
-  }
-  if (c.includes("Interior") || c.includes("Furniture")) {
-    return "Pekerjaan Interior & Furniture";
-  }
-  if (
-    c.includes("Arsitektur") ||
-    c.includes("Dinding") ||
-    c.includes("Plafon") ||
-    c.includes("Partisi") ||
-    c.includes("Lantai") ||
-    c.includes("Keramik") ||
-    c.includes("Pengecatan") ||
-    c.includes("Vendor") ||
-    c.includes("Pintu") ||
-    c.includes("Jendela")
-  ) {
-    return "Pekerjaan Arsitektural";
-  }
-  return c;
-}
-
-// ----------------------------------------------------
-// 2. GET AHSP LIST & DETAIL
+// 1. GET AHSP LIST & DETAIL
 // ----------------------------------------------------
 
 export async function getMasterAhspList(filters?: { category?: string; search?: string }): Promise<MasterAhspItem[]> {

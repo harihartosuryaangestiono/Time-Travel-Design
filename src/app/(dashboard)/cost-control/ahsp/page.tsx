@@ -41,6 +41,8 @@ import { getLaborRates, LaborRateItem } from "@/app/actions/cost-control/laborAc
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
 
+import { STANDARD_AHSP_CATEGORIES } from "@/lib/cost-control/ahspCategories";
+
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
@@ -50,15 +52,7 @@ function formatCurrency(amount: number) {
   }).format(amount || 0);
 }
 
-const CATEGORIES = [
-  "ALL",
-  "Pekerjaan Persiapan dan Bongkaran",
-  "Pekerjaan Struktural",
-  "Pekerjaan Arsitektural",
-  "Pekerjaan Atap",
-  "Pekerjaan Mechanical, Elektrikal, dan Plumbing",
-  "Pekerjaan Interior & Furniture",
-];
+const CATEGORIES = ["ALL", ...STANDARD_AHSP_CATEGORIES];
 
 const COMMON_UNITS = ["m2", "m3", "m'", "pcs", "set", "ls", "titik", "bln", "unit"];
 
