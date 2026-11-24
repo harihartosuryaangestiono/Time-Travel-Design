@@ -34,6 +34,7 @@ import {
 import { getSubcontractors } from "@/app/actions/subcontractorActions";
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
+import { DeleteConfirmDialog } from "@/components/modals/DeleteConfirmDialog";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("id-ID", {
@@ -58,6 +59,13 @@ export default function LaborRatesPage() {
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingRate, setEditingRate] = useState<LaborRateItem | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    type: "LABOR_RATE" | "MANDOR";
+    id: string;
+    secondaryId?: string;
+    name: string;
+  } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Quick Add Mandor Modal
   const [showQuickAddMandorModal, setShowQuickAddMandorModal] = useState(false);
@@ -269,15 +277,8 @@ export default function LaborRatesPage() {
     }
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Hapus item pekerjaan "${name}"?`)) return;
-    try {
-      await deleteLaborRate(id);
-      setSuccessMsg("Item tarif berhasil dinonaktifkan.");
-      fetchData();
-    } catch (err: any) {
-      setError(err?.message || "Gagal menghapus tarif.");
-    }
+  const handleDelete = (id: string, name: string) => {
+    setDeleteTarget({ type: "LABOR_RATE", id, name });
   };
 
   // Quick Add Mandor Handlers
@@ -313,15 +314,8 @@ export default function LaborRatesPage() {
     }
   };
 
-  const handleDeleteMandor = async (mandorRateId: string, laborRateId: string, mandorName: string) => {
-    if (!confirm(`Hapus referensi tarif mandor "${mandorName}" dari item ini?`)) return;
-    try {
-      await deleteMandorFromLaborRate(mandorRateId, laborRateId);
-      setSuccessMsg(`Tarif mandor ${mandorName} berhasil dihapus.`);
-      fetchData();
-    } catch (err: any) {
-      setError(err?.message || "Gagal menghapus tarif mandor.");
-    }
+  const handleDeleteMandor = (mandorRateId: string, laborRateId: string, mandorName: string) => {
+    setDeleteTarget({ type: "MANDOR", id: mandorRateId, secondaryId: laborRateId, name: mandorName });
   };
 
   return (
@@ -942,6 +936,42 @@ export default function LaborRatesPage() {
           </div>
         </div>
       )}
+      {/* Dialog Konfirmasi Hapus Branded Modern */}
+      <DeleteConfirmDialog
+        isOpen={!!deleteTarget}
+        title={deleteTarget?.type === "LABOR_RATE" ? "Hapus Master Tarif Upah" : "Hapus Referensi Mandor"}
+        description={
+          deleteTarget?.type === "LABOR_RATE"
+            ? `Apakah Anda yakin ingin menonaktifkan master tarif pekerjaan ini?`
+            : `Apakah Anda yakin ingin menghapus referensi tarif mandor ini dari pekerjaan?`
+        }
+        itemName={deleteTarget?.name}
+        confirmLabel="Hapus"
+        deletingLabel="Menghapus..."
+        cancelLabel="Batal"
+        isDeleting={isDeleting}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          try {
+            setIsDeleting(true);
+            if (deleteTarget.type === "LABOR_RATE") {
+              await deleteLaborRate(deleteTarget.id);
+              setSuccessMsg(`Item tarif "${deleteTarget.name}" berhasil dinonaktifkan.`);
+            } else if (deleteTarget.secondaryId) {
+              await deleteMandorFromLaborRate(deleteTarget.id, deleteTarget.secondaryId);
+              setSuccessMsg(`Tarif mandor ${deleteTarget.name} berhasil dihapus.`);
+            }
+            setDeleteTarget(null);
+            fetchData();
+          } catch (err: any) {
+            setError(err?.message || "Gagal menghapus data.");
+            fetchData();
+          } finally {
+            setIsDeleting(false);
+          }
+        }}
+      />
     </div>
   );
 }

@@ -56,7 +56,7 @@ export default function WorkWeightsPage() {
 
   const [form, setForm] = useState({
     task_name: "",
-    division: "Pekerjaan Struktur",
+    division: "Pekerjaan Struktural",
     budget_amount: 50000000,
     start_date: new Date().toISOString().slice(0, 10),
     end_date: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
@@ -125,7 +125,7 @@ export default function WorkWeightsPage() {
     setEditingItem(null);
     setForm({
       task_name: "",
-      division: "Pekerjaan Struktur",
+      division: "Pekerjaan Struktural",
       budget_amount: 50000000,
       start_date: new Date().toISOString().slice(0, 10),
       end_date: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),

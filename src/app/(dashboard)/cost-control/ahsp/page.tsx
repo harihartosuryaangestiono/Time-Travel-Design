@@ -52,16 +52,12 @@ function formatCurrency(amount: number) {
 
 const CATEGORIES = [
   "ALL",
-  "Pekerjaan Persiapan & Bongkaran",
-  "Pekerjaan Struktur",
-  "Pekerjaan Arsitektur & Dinding",
-  "Pekerjaan Plafon & Partisi",
-  "Pekerjaan Lantai & Keramik",
-  "Pekerjaan Pengecatan",
-  "Pekerjaan Interior & Custom Furniture",
-  "Pekerjaan Mekanikal & Plumbing",
-  "Pekerjaan Elektrikal",
-  "Vendor & Pintu / Jendela",
+  "Pekerjaan Persiapan dan Bongkaran",
+  "Pekerjaan Struktural",
+  "Pekerjaan Arsitektural",
+  "Pekerjaan Atap",
+  "Pekerjaan Mechanical, Elektrikal, dan Plumbing",
+  "Pekerjaan Interior & Furniture",
 ];
 
 const COMMON_UNITS = ["m2", "m3", "m'", "pcs", "set", "ls", "titik", "bln", "unit"];
@@ -92,7 +88,7 @@ export default function MasterAhspPage() {
   const [form, setForm] = useState({
     code: "",
     name: "",
-    category: "Pekerjaan Arsitektur & Dinding",
+    category: "Pekerjaan Arsitektural",
     unit: "m2",
     overhead_percent: 10,
     notes: "",
@@ -169,7 +165,7 @@ export default function MasterAhspPage() {
     setForm({
       code: "",
       name: "",
-      category: categoryFilter !== "ALL" ? categoryFilter : "Pekerjaan Arsitektur & Dinding",
+      category: categoryFilter !== "ALL" ? categoryFilter : "Pekerjaan Arsitektural",
       unit: "m2",
       overhead_percent: 10,
       notes: "",

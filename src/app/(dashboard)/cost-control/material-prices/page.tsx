@@ -42,6 +42,7 @@ import { getVendors } from "@/app/actions/vendorActions";
 import { getCashAccountsWithBalances } from "@/app/actions/cashAccountActions";
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
+import { DeleteConfirmDialog } from "@/components/modals/DeleteConfirmDialog";
 import {
   ResponsiveContainer,
   LineChart,
@@ -83,6 +84,12 @@ export default function MaterialPricesPage() {
   const [editingMaterial, setEditingMaterial] = useState<MasterMaterialItem | null>(null);
   const [showRecordPurchaseModal, setShowRecordPurchaseModal] = useState(false);
   const [showAddStorePriceModal, setShowAddStorePriceModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    type: "MATERIAL" | "HISTORY";
+    id: string;
+    name: string;
+  } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Form: Tambah / Edit Master Material
   const [newMaterialForm, setNewMaterialForm] = useState({
@@ -312,35 +319,14 @@ export default function MaterialPricesPage() {
     setShowAddMaterialModal(true);
   };
 
-  const handleDeleteMaterial = async (id: string, name: string, e?: React.MouseEvent) => {
+  const handleDeleteMaterial = (id: string, name: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    if (!confirm(`Hapus material "${name}" dari database?`)) return;
-    try {
-      // Optimistic update: langsung hilangkan dari tampilan agar instan
-      setMaterials((prev) => prev.filter((m) => m.id !== id));
-      if (selectedMaterialId === id) setSelectedMaterialId("ALL");
-
-      await deleteMasterMaterial(id);
-      setSuccessMsg(`Material "${name}" berhasil dihapus.`);
-      fetchData();
-    } catch (err: any) {
-      setError(err?.message || "Gagal menghapus material.");
-      fetchData();
-    }
+    setDeleteTarget({ type: "MATERIAL", id, name });
   };
 
-  const handleDeleteHistory = async (historyId: string, vendorName: string, e?: React.MouseEvent) => {
+  const handleDeleteHistory = (historyId: string, vendorName: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    if (!confirm(`Hapus catatan harga toko "${vendorName}"?`)) return;
-    try {
-      setHistory((prev) => prev.filter((h) => h.id !== historyId));
-      await deleteMaterialPriceHistory(historyId);
-      setSuccessMsg(`Catatan harga dari "${vendorName}" berhasil dihapus.`);
-      fetchData();
-    } catch (err: any) {
-      setError(err?.message || "Gagal menghapus catatan harga.");
-      fetchData();
-    }
+    setDeleteTarget({ type: "HISTORY", id: historyId, name: vendorName });
   };
 
   const handleCreateOrUpdateMaterial = async (e: React.FormEvent) => {
@@ -348,9 +334,14 @@ export default function MaterialPricesPage() {
     try {
       if (!newMaterialForm.name.trim()) throw new Error("Nama material wajib diisi.");
       const finalCode = newMaterialForm.code.trim() || `MAT-${Date.now().toString().slice(-6)}`;
+      const stdPrice = Number(newMaterialForm.standard_price) > 0
+        ? Number(newMaterialForm.standard_price)
+        : (Number(newMaterialForm.initial_price) || 0);
+
       const payload = {
         ...newMaterialForm,
         code: finalCode,
+        standard_price: stdPrice,
         usage_unit: newMaterialForm.usage_unit?.trim() || newMaterialForm.purchase_unit.trim(),
         conversion_factor: newMaterialForm.conversion_factor || 1,
       };
@@ -1075,7 +1066,14 @@ export default function MaterialPricesPage() {
                         type="number"
                         placeholder="Contoh: 60000"
                         value={newMaterialForm.initial_price || ""}
-                        onChange={(e) => setNewMaterialForm({ ...newMaterialForm, initial_price: Number(e.target.value) })}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setNewMaterialForm({
+                            ...newMaterialForm,
+                            initial_price: val,
+                            standard_price: val > 0 ? val : newMaterialForm.standard_price,
+                          });
+                        }}
                         className="mt-1 w-full rounded-xl border border-zinc-200 bg-white p-2 text-xs text-zinc-900 outline-none focus:border-zinc-400"
                       />
                     </div>
@@ -1384,6 +1382,45 @@ export default function MaterialPricesPage() {
           </div>
         </div>
       )}
+      {/* Dialog Konfirmasi Hapus Branded Modern */}
+      <DeleteConfirmDialog
+        isOpen={!!deleteTarget}
+        title={deleteTarget?.type === "MATERIAL" ? "Hapus Master Material" : "Hapus Riwayat Harga Toko"}
+        description={
+          deleteTarget?.type === "MATERIAL"
+            ? "Apakah Anda yakin ingin menghapus material ini dari katalog master? Tindakan ini tidak dapat dibatalkan."
+            : "Apakah Anda yakin ingin menghapus catatan harga toko ini dari histori survei?"
+        }
+        itemName={deleteTarget?.name}
+        confirmLabel="Hapus"
+        deletingLabel="Menghapus..."
+        cancelLabel="Batal"
+        isDeleting={isDeleting}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          try {
+            setIsDeleting(true);
+            if (deleteTarget.type === "MATERIAL") {
+              setMaterials((prev) => prev.filter((m) => m.id !== deleteTarget.id));
+              if (selectedMaterialId === deleteTarget.id) setSelectedMaterialId("ALL");
+              await deleteMasterMaterial(deleteTarget.id);
+              setSuccessMsg(`Material "${deleteTarget.name}" berhasil dihapus.`);
+            } else {
+              setHistory((prev) => prev.filter((h) => h.id !== deleteTarget.id));
+              await deleteMaterialPriceHistory(deleteTarget.id);
+              setSuccessMsg(`Catatan harga dari "${deleteTarget.name}" berhasil dihapus.`);
+            }
+            setDeleteTarget(null);
+            fetchData();
+          } catch (err: any) {
+            setError(err?.message || "Gagal menghapus data.");
+            fetchData();
+          } finally {
+            setIsDeleting(false);
+          }
+        }}
+      />
     </div>
   );
 }

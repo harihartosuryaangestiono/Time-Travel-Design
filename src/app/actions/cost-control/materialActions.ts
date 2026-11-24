@@ -90,7 +90,10 @@ export async function getMasterMaterials(filters?: { category?: string; search?:
 
   let query = supabase
     .from("master_materials")
-    .select("*")
+    .select(`
+      *,
+      price_history:material_price_history(unit_price, purchase_date)
+    `)
     .eq("organization_id", user.organizationId)
     .eq("is_active", true)
     .order("name", { ascending: true });
@@ -107,14 +110,50 @@ export async function getMasterMaterials(filters?: { category?: string; search?:
   const { data, error } = await query;
   if (error) throw new Error(`Gagal memuat katalog material: ${error.message}`);
 
-  return (data || []).map((row) => ({
-    ...row,
-    conversion_factor: Number(row.conversion_factor),
-    standard_price: Number(row.standard_price),
-    min_price: Number(row.min_price),
-    max_price: Number(row.max_price),
-    waste_tolerance_percent: Number(row.waste_tolerance_percent),
-  }));
+  const toHeal: Array<{ id: string; price: number }> = [];
+
+  const mapped = (data || []).map((row: any) => {
+    let stdPrice = Number(row.standard_price || 0);
+
+    // If standard_price is 0 or unassigned, fallback to latest price from price_history
+    if (stdPrice <= 0 && Array.isArray(row.price_history) && row.price_history.length > 0) {
+      const validPrices = row.price_history
+        .map((p: any) => Number(p.unit_price))
+        .filter((p: number) => Number.isFinite(p) && p > 0);
+
+      if (validPrices.length > 0) {
+        stdPrice = validPrices[validPrices.length - 1];
+        toHeal.push({ id: row.id, price: stdPrice });
+      }
+    }
+
+    return {
+      ...row,
+      conversion_factor: Number(row.conversion_factor),
+      standard_price: stdPrice,
+      min_price: Number(row.min_price) || (stdPrice > 0 ? stdPrice * 0.9 : 0),
+      max_price: Number(row.max_price) || (stdPrice > 0 ? stdPrice * 1.15 : 0),
+      waste_tolerance_percent: Number(row.waste_tolerance_percent),
+    };
+  });
+
+  // Permanently heal materials that have 0 standard_price in database
+  if (toHeal.length > 0) {
+    await Promise.all(
+      toHeal.map((h) =>
+        supabase
+          .from("master_materials")
+          .update({
+            standard_price: h.price,
+            min_price: h.price * 0.9,
+            max_price: h.price * 1.15,
+          })
+          .eq("id", h.id)
+      )
+    ).catch((err) => console.error("Auto-heal material price error:", err));
+  }
+
+  return mapped;
 }
 
 export async function createMasterMaterial(input: {
@@ -146,12 +185,12 @@ export async function createMasterMaterial(input: {
     throw new Error("Faktor konversi harus berupa angka lebih besar dari 0.");
   }
   
-  const stdPrice = Number.isFinite(input.standard_price) && input.standard_price! >= 0
+  const stdPrice = (Number.isFinite(input.standard_price) && input.standard_price! > 0)
     ? Number(input.standard_price)
     : (input.initial_price && input.initial_price > 0 ? Number(input.initial_price) : 0);
 
-  const minP = input.min_price !== undefined ? input.min_price : (stdPrice > 0 ? stdPrice * 0.9 : 0);
-  const maxP = input.max_price !== undefined ? input.max_price : (stdPrice > 0 ? stdPrice * 1.15 : 0);
+  const minP = input.min_price !== undefined && input.min_price > 0 ? input.min_price : (stdPrice > 0 ? stdPrice * 0.9 : 0);
+  const maxP = input.max_price !== undefined && input.max_price > 0 ? input.max_price : (stdPrice > 0 ? stdPrice * 1.15 : 0);
   const wasteTolerance = input.waste_tolerance_percent !== undefined ? input.waste_tolerance_percent : 5.0;
 
   const { data, error } = await supabase
@@ -186,7 +225,7 @@ export async function createMasterMaterial(input: {
       vendor_name: input.initial_vendor_name.trim(),
       purchase_date: new Date().toISOString(),
       quantity: 1,
-      unit: input.purchase_unit.trim(),
+      unit: purchaseUnit,
       unit_price: input.initial_price,
       tax_amount: 0,
       total_price: input.initial_price,
@@ -204,6 +243,7 @@ export async function createMasterMaterial(input: {
 
   revalidatePath("/cost-control/material-prices");
   revalidatePath("/cost-control/material-recap");
+  revalidatePath("/cost-control/ahsp");
   return data;
 }
 
@@ -228,12 +268,24 @@ export async function recordStoreMaterialPrice(input: {
 
   const { data: mat, error: matErr } = await supabase
     .from("master_materials")
-    .select("id, name, purchase_unit")
+    .select("id, name, purchase_unit, standard_price")
     .eq("id", input.material_id)
     .eq("organization_id", user.organizationId)
     .single();
 
   if (matErr || !mat) throw new Error("Material tidak ditemukan.");
+
+  // Jika standard_price masih 0 atau belum ada, perbarui otomatis ke harga toko ini
+  if (!mat.standard_price || Number(mat.standard_price) <= 0) {
+    await supabase
+      .from("master_materials")
+      .update({
+        standard_price: input.unit_price,
+        min_price: input.unit_price * 0.9,
+        max_price: input.unit_price * 1.15,
+      })
+      .eq("id", input.material_id);
+  }
 
   const pDate = input.purchase_date || new Date().toISOString();
   const { data, error } = await supabase
@@ -274,6 +326,7 @@ export async function recordStoreMaterialPrice(input: {
   });
 
   revalidatePath("/cost-control/material-prices");
+  revalidatePath("/cost-control/ahsp");
   return data;
 }
 

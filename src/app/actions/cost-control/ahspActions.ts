@@ -59,7 +59,61 @@ export interface MasterAhspItem {
 }
 
 // ----------------------------------------------------
-// 1. GET AHSP LIST & DETAIL
+// 1. KATEGORI STANDAR & NORMALISASI (SESUAI DUSTIN)
+// ----------------------------------------------------
+
+export const STANDARD_AHSP_CATEGORIES = [
+  "Pekerjaan Persiapan dan Bongkaran",
+  "Pekerjaan Struktural",
+  "Pekerjaan Arsitektural",
+  "Pekerjaan Atap",
+  "Pekerjaan Mechanical, Elektrikal, dan Plumbing",
+  "Pekerjaan Interior & Furniture",
+] as const;
+
+export function normalizeAhspCategory(cat?: string | null): string {
+  const c = (cat || "").trim();
+  if (!c) return "Pekerjaan Arsitektural";
+  if (c.includes("Persiapan") || c.includes("Bongkaran")) {
+    return "Pekerjaan Persiapan dan Bongkaran";
+  }
+  if (c.includes("Struktur")) {
+    return "Pekerjaan Struktural";
+  }
+  if (c.includes("Atap") || c.includes("Genteng")) {
+    return "Pekerjaan Atap";
+  }
+  if (
+    c.includes("Mekanikal") ||
+    c.includes("Elektrikal") ||
+    c.includes("Plumbing") ||
+    c.includes("MEP") ||
+    c.includes("Mechanical")
+  ) {
+    return "Pekerjaan Mechanical, Elektrikal, dan Plumbing";
+  }
+  if (c.includes("Interior") || c.includes("Furniture")) {
+    return "Pekerjaan Interior & Furniture";
+  }
+  if (
+    c.includes("Arsitektur") ||
+    c.includes("Dinding") ||
+    c.includes("Plafon") ||
+    c.includes("Partisi") ||
+    c.includes("Lantai") ||
+    c.includes("Keramik") ||
+    c.includes("Pengecatan") ||
+    c.includes("Vendor") ||
+    c.includes("Pintu") ||
+    c.includes("Jendela")
+  ) {
+    return "Pekerjaan Arsitektural";
+  }
+  return c;
+}
+
+// ----------------------------------------------------
+// 2. GET AHSP LIST & DETAIL
 // ----------------------------------------------------
 
 export async function getMasterAhspList(filters?: { category?: string; search?: string }): Promise<MasterAhspItem[]> {
@@ -75,10 +129,6 @@ export async function getMasterAhspList(filters?: { category?: string; search?: 
     .eq("organization_id", user.organizationId)
     .order("code", { ascending: true });
 
-  if (filters?.category && filters.category !== "ALL") {
-    query = query.eq("category", filters.category);
-  }
-
   if (filters?.search?.trim()) {
     const term = `%${filters.search.trim()}%`;
     query = query.or(`name.ilike.${term},code.ilike.${term},category.ilike.${term}`);
@@ -87,7 +137,22 @@ export async function getMasterAhspList(filters?: { category?: string; search?: 
   const { data, error } = await query;
   if (error) throw new Error(`Gagal memuat katalog Master AHSP: ${error.message}`);
 
-  return (data || []).map((row: any) => {
+  const toUpdateCategory: Array<{ id: string; category: string }> = [];
+  const items: MasterAhspItem[] = [];
+
+  for (const row of data || []) {
+    const normalizedCat = normalizeAhspCategory(row.category);
+    if (row.category !== normalizedCat) {
+      toUpdateCategory.push({ id: row.id, category: normalizedCat });
+    }
+
+    if (filters?.category && filters.category !== "ALL") {
+      const filterNormalized = normalizeAhspCategory(filters.category);
+      if (normalizedCat !== filterNormalized && row.category !== filters.category) {
+        continue;
+      }
+    }
+
     let matCost = 0;
     let labCost = 0;
     let eqCost = 0;
@@ -121,12 +186,12 @@ export async function getMasterAhspList(filters?: { category?: string; search?: 
     const marginRate = overhead > 0 ? overhead / 100 : 0.10;
     const rabPrice = Math.round(totalModal * (1 + marginRate));
 
-    return {
+    items.push({
       id: row.id,
       organization_id: row.organization_id,
       code: row.code,
       name: row.name,
-      category: row.category,
+      category: normalizedCat,
       unit: row.unit,
       overhead_percent: overhead,
       notes: row.notes,
@@ -138,8 +203,22 @@ export async function getMasterAhspList(filters?: { category?: string; search?: 
       total_equipment_cost: eqCost,
       total_modal_hpp: totalModal,
       indicative_rab_price: rabPrice,
-    };
-  });
+    });
+  }
+
+  // Auto-migrate kategori lama di database secara background
+  if (toUpdateCategory.length > 0) {
+    Promise.all(
+      toUpdateCategory.map((u) =>
+        supabase
+          .from("master_ahsp")
+          .update({ category: u.category })
+          .eq("id", u.id)
+      )
+    ).catch((err) => console.error("Auto-migrate AHSP categories error:", err));
+  }
+
+  return items;
 }
 
 export async function getMasterAhspDetail(id: string): Promise<MasterAhspItem> {
@@ -239,7 +318,7 @@ export async function createMasterAhsp(input: {
       organization_id: user.organizationId,
       code,
       name: input.name.trim(),
-      category: input.category.trim(),
+      category: normalizeAhspCategory(input.category),
       unit: input.unit.trim(),
       overhead_percent: input.overhead_percent !== undefined ? Number(input.overhead_percent) : 0,
       notes: input.notes?.trim() || null,
@@ -310,7 +389,7 @@ export async function updateMasterAhsp(
 
   if (input.code) updatePayload.code = input.code.trim().toUpperCase();
   if (input.name) updatePayload.name = input.name.trim();
-  if (input.category) updatePayload.category = input.category.trim();
+  if (input.category) updatePayload.category = normalizeAhspCategory(input.category);
   if (input.unit) updatePayload.unit = input.unit.trim();
   if (input.overhead_percent !== undefined) updatePayload.overhead_percent = Number(input.overhead_percent);
   if (input.notes !== undefined) updatePayload.notes = input.notes?.trim() || null;
@@ -404,13 +483,13 @@ export async function seedStandardAhspCatalog(): Promise<{ count: number }> {
   assertAhspEditor(user.role);
   const supabase = await createClient();
 
-  // Template items taken directly from PDF 3 "Panduan Harga RAB & RAP 2026"
+  // Template items taken directly from PDF 3 "Panduan Harga RAB & RAP 2026" (6 Kategori Dustin)
   const standardCatalog = [
-    // PERSIAPAN DAN BONGKARAN
+    // 1. PEKERJAAN PERSIAPAN DAN BONGKARAN
     {
       code: "AHSP-SB-01",
       name: "Steger dan Catwalk (Kaso)",
-      category: "Pekerjaan Persiapan & Bongkaran",
+      category: "Pekerjaan Persiapan dan Bongkaran",
       unit: "set",
       notes: "Steger kayu kaso 4x6 dengan catwalk paku untuk perancah",
       components: [
@@ -422,7 +501,7 @@ export async function seedStandardAhspCatalog(): Promise<{ count: number }> {
     {
       code: "AHSP-SB-02",
       name: "Scaffolding dan Catwalk (Sewa)",
-      category: "Pekerjaan Persiapan & Bongkaran",
+      category: "Pekerjaan Persiapan dan Bongkaran",
       unit: "set",
       notes: "Sewa scaffolding besi include catwalk per bulan",
       components: [
@@ -434,7 +513,7 @@ export async function seedStandardAhspCatalog(): Promise<{ count: number }> {
     {
       code: "AHSP-SB-03",
       name: "Bouwplank",
-      category: "Pekerjaan Persiapan & Bongkaran",
+      category: "Pekerjaan Persiapan dan Bongkaran",
       unit: "set",
       notes: "Pemasangan patok bouwplank kayu & benang as bangunan",
       components: [
@@ -447,7 +526,7 @@ export async function seedStandardAhspCatalog(): Promise<{ count: number }> {
     {
       code: "AHSP-SB-04",
       name: "Pembobokan Dinding Bata Ringan",
-      category: "Pekerjaan Persiapan & Bongkaran",
+      category: "Pekerjaan Persiapan dan Bongkaran",
       unit: "m2",
       notes: "Bobok dinding hebel/bata eksisting",
       components: [
@@ -457,7 +536,7 @@ export async function seedStandardAhspCatalog(): Promise<{ count: number }> {
     {
       code: "AHSP-SB-05",
       name: "Pembongkaran Plafon Gypsum",
-      category: "Pekerjaan Persiapan & Bongkaran",
+      category: "Pekerjaan Persiapan dan Bongkaran",
       unit: "m2",
       notes: "Bongkar plafon gypsum eksisting dan penurunan rangka",
       components: [
@@ -467,7 +546,7 @@ export async function seedStandardAhspCatalog(): Promise<{ count: number }> {
     {
       code: "AHSP-SB-06",
       name: "Pembobokan Pelat Lantai Beton",
-      category: "Pekerjaan Persiapan & Bongkaran",
+      category: "Pekerjaan Persiapan dan Bongkaran",
       unit: "m2",
       notes: "Bobok pelat beton bertulang eksisting dengan jackhammer/manual",
       components: [
@@ -477,7 +556,7 @@ export async function seedStandardAhspCatalog(): Promise<{ count: number }> {
     {
       code: "AHSP-SB-07",
       name: "Pembongkaran Penutup dan Rangka Atap",
-      category: "Pekerjaan Persiapan & Bongkaran",
+      category: "Pekerjaan Persiapan dan Bongkaran",
       unit: "m2",
       notes: "Bongkar genteng eksisting dan rangka atap",
       components: [
@@ -485,11 +564,11 @@ export async function seedStandardAhspCatalog(): Promise<{ count: number }> {
       ],
     },
 
-    // STRUKTURAL
+    // 2. PEKERJAAN STRUKTURAL
     {
       code: "AHSP-STR-01",
       name: "Pelat Lantai Beton Bertulang 10 cm Mutu K-225",
-      category: "Pekerjaan Struktur",
+      category: "Pekerjaan Struktural",
       unit: "m2",
       notes: "Pengecoran pelat lantai tebal 10 cm include pembesian & bekisting",
       components: [
@@ -497,11 +576,11 @@ export async function seedStandardAhspCatalog(): Promise<{ count: number }> {
       ],
     },
 
-    // ARSITEKTURAL - DINDING & FINISHING (Contoh Dustin)
+    // 3. PEKERJAAN ARSITEKTURAL
     {
       code: "AHSP-ARS-01",
       name: "Dinding Bata Ringan (Hebel) Tebal 10 cm",
-      category: "Pekerjaan Arsitektur & Dinding",
+      category: "Pekerjaan Arsitektural",
       unit: "m2",
       notes: "Pasang dinding bata ringan 10 cm dengan mortar instan perekat (Sesuai Contoh Dustin)",
       components: [
@@ -513,7 +592,7 @@ export async function seedStandardAhspCatalog(): Promise<{ count: number }> {
     {
       code: "AHSP-ARS-02",
       name: "Dinding Bata Ringan (Hebel) Tebal 7.5 cm",
-      category: "Pekerjaan Arsitektur & Dinding",
+      category: "Pekerjaan Arsitektural",
       unit: "m2",
       notes: "Pasang dinding bata ringan 7.5 cm dengan mortar instan",
       components: [
@@ -525,7 +604,7 @@ export async function seedStandardAhspCatalog(): Promise<{ count: number }> {
     {
       code: "AHSP-ARS-03",
       name: "Plester Dinding Tebal 1.5 cm",
-      category: "Pekerjaan Arsitektur & Dinding",
+      category: "Pekerjaan Arsitektural",
       unit: "m2",
       notes: "Plesteran dinding bata dengan semen dan pasir ayak",
       components: [
@@ -537,7 +616,7 @@ export async function seedStandardAhspCatalog(): Promise<{ count: number }> {
     {
       code: "AHSP-ARS-04",
       name: "Aci Dinding Halus",
-      category: "Pekerjaan Arsitektur & Dinding",
+      category: "Pekerjaan Arsitektural",
       unit: "m2",
       notes: "Pengacian permukaan dinding plesteran siap cat",
       components: [
@@ -549,7 +628,7 @@ export async function seedStandardAhspCatalog(): Promise<{ count: number }> {
     {
       code: "AHSP-ARS-05",
       name: "Dinding Batu Alam Andesit 20x30 cm",
-      category: "Pekerjaan Arsitektur & Dinding",
+      category: "Pekerjaan Arsitektural",
       unit: "m2",
       notes: "Pemasangan batu alam andesit pola susun bata",
       components: [
@@ -558,12 +637,10 @@ export async function seedStandardAhspCatalog(): Promise<{ count: number }> {
         { component_type: "MATERIAL" as const, name: "Semen Pasang", coefficient: 0.20, unit: "sak", unit_price: 70000 },
       ],
     },
-
-    // ARSITEKTURAL - PLAFON
     {
       code: "AHSP-PLF-01",
       name: "Ceiling Gypsum 9mm Inc. Rangka Hollow Galvalum",
-      category: "Pekerjaan Plafon & Partisi",
+      category: "Pekerjaan Arsitektural",
       unit: "m2",
       notes: "Plafon gypsum 9mm rangka hollow 4x4 & 4x2 termasuk kompon",
       components: [
@@ -576,7 +653,7 @@ export async function seedStandardAhspCatalog(): Promise<{ count: number }> {
     {
       code: "AHSP-PLF-02",
       name: "Dinding Sekat Gypsum 9mm Rangka CNP 75 (2 sisi)",
-      category: "Pekerjaan Plafon & Partisi",
+      category: "Pekerjaan Arsitektural",
       unit: "m2",
       notes: "Partisi gypsum ganda 2 sisi rangka baja ringan CNP 75",
       components: [
@@ -586,12 +663,10 @@ export async function seedStandardAhspCatalog(): Promise<{ count: number }> {
         { component_type: "MATERIAL" as const, name: "Kompon Gypsum", coefficient: 0.20, unit: "sak", unit_price: 75000 },
       ],
     },
-
-    // ARSITEKTURAL - KERAMIK & LANTAI
     {
       code: "AHSP-KRM-01",
       name: "Keramik 40x40 cm Grade C (Ex. Platinum Asia)",
-      category: "Pekerjaan Lantai & Keramik",
+      category: "Pekerjaan Arsitektural",
       unit: "m2",
       notes: "Pemasangan keramik lantai 40x40 KW 2",
       components: [
@@ -604,7 +679,7 @@ export async function seedStandardAhspCatalog(): Promise<{ count: number }> {
     {
       code: "AHSP-KRM-02",
       name: "Keramik 40x40 cm Grade B (Ex. Mulia / Essenza)",
-      category: "Pekerjaan Lantai & Keramik",
+      category: "Pekerjaan Arsitektural",
       unit: "m2",
       notes: "Pemasangan keramik lantai 40x40 Grade B",
       components: [
@@ -617,7 +692,7 @@ export async function seedStandardAhspCatalog(): Promise<{ count: number }> {
     {
       code: "AHSP-KRM-03",
       name: "Keramik 40x40 cm Grade A (Ex. Roman)",
-      category: "Pekerjaan Lantai & Keramik",
+      category: "Pekerjaan Arsitektural",
       unit: "m2",
       notes: "Pemasangan keramik lantai 40x40 Grade A",
       components: [
@@ -630,7 +705,7 @@ export async function seedStandardAhspCatalog(): Promise<{ count: number }> {
     {
       code: "AHSP-LNT-01",
       name: "Lantai SPC Klik 5mm Ex. Taco / Champion",
-      category: "Pekerjaan Lantai & Keramik",
+      category: "Pekerjaan Arsitektural",
       unit: "m2",
       notes: "Pemasangan lantai vinyl/SPC interlocking include underlayer",
       components: [
@@ -638,12 +713,10 @@ export async function seedStandardAhspCatalog(): Promise<{ count: number }> {
         { component_type: "MATERIAL" as const, name: "SPC Klik 5mm Ex. Champion", coefficient: 0.50, unit: "box", unit_price: 400000 },
       ],
     },
-
-    // ARSITEKTURAL - PENGECATAN
     {
       code: "AHSP-CAT-01",
       name: "Pengecatan Dinding Interior Grade B (Ex. Dulux Catylac)",
-      category: "Pekerjaan Pengecatan",
+      category: "Pekerjaan Arsitektural",
       unit: "m2",
       notes: "Pengecatan 2 lapis dinding dalam ex Dulux Catylac",
       components: [
@@ -654,7 +727,7 @@ export async function seedStandardAhspCatalog(): Promise<{ count: number }> {
     {
       code: "AHSP-CAT-02",
       name: "Pengecatan Dinding Exterior Grade B (Ex. Dulux Catylac Exterior)",
-      category: "Pekerjaan Pengecatan",
+      category: "Pekerjaan Arsitektural",
       unit: "m2",
       notes: "Pengecatan eksterior tahan cuaca",
       components: [
@@ -665,7 +738,7 @@ export async function seedStandardAhspCatalog(): Promise<{ count: number }> {
     {
       code: "AHSP-CAT-03",
       name: "Pengecatan Plafon Gypsum Grade B (Ex. Dulux Pentalite)",
-      category: "Pekerjaan Pengecatan",
+      category: "Pekerjaan Arsitektural",
       unit: "m2",
       notes: "Pengecatan plafon gypsum halus",
       components: [
@@ -673,12 +746,90 @@ export async function seedStandardAhspCatalog(): Promise<{ count: number }> {
         { component_type: "MATERIAL" as const, name: "Dulux Pentalite", coefficient: 0.05, unit: "gln", unit_price: 250000 },
       ],
     },
+    {
+      code: "AHSP-VND-01",
+      name: "Pintu Sliding Meranti 85 x 200 cm Finish HPL Ex. Taco",
+      category: "Pekerjaan Arsitektural",
+      unit: "pcs",
+      notes: "Pintu geser kayu meranti finish HPL lengkap rel gantung Dekson",
+      components: [
+        { component_type: "LABOR" as const, name: "Pintu Meranti (Wasman)", coefficient: 1.0, unit: "pcs", unit_price: 900000 },
+        { component_type: "LABOR" as const, name: "Pasang Pintu dan HPL (Imam)", coefficient: 1.0, unit: "pcs", unit_price: 30000 },
+        { component_type: "MATERIAL" as const, name: "HPL Taco", coefficient: 1.50, unit: "lbr", unit_price: 400000 },
+        { component_type: "MATERIAL" as const, name: "Rail Pintu Sliding Ex. Dekson", coefficient: 1.0, unit: "pcs", unit_price: 550000 },
+      ],
+    },
 
-    // INTERIOR & CUSTOM FURNITURE
+    // 4. PEKERJAAN ATAP
+    {
+      code: "AHSP-ATP-01",
+      name: "Rangka Atap Baja Ringan Truss C75 t=0.75mm",
+      category: "Pekerjaan Atap",
+      unit: "m2",
+      notes: "Rangka atap galvalum kuda-kuda CNP 75 include reng",
+      components: [
+        { component_type: "LABOR" as const, name: "Upah Pasang Rangka Atap", coefficient: 1.0, unit: "m2", unit_price: 45000 },
+        { component_type: "MATERIAL" as const, name: "Baja Ringan C75", coefficient: 1.0, unit: "btg", unit_price: 75000 },
+        { component_type: "MATERIAL" as const, name: "Reng Baja Ringan", coefficient: 1.2, unit: "btg", unit_price: 35000 },
+        { component_type: "MATERIAL" as const, name: "Sekrup Roofing", coefficient: 15.0, unit: "pcs", unit_price: 500 },
+      ],
+    },
+    {
+      code: "AHSP-ATP-02",
+      name: "Penutup Atap Genteng Metal Pasir / Spandek",
+      category: "Pekerjaan Atap",
+      unit: "m2",
+      notes: "Pemasangan genteng metal pasir atau seng spandek",
+      components: [
+        { component_type: "LABOR" as const, name: "Upah Pasang Penutup Atap", coefficient: 1.0, unit: "m2", unit_price: 35000 },
+        { component_type: "MATERIAL" as const, name: "Genteng Metal Pasir", coefficient: 1.5, unit: "lbr", unit_price: 45000 },
+        { component_type: "MATERIAL" as const, name: "Sekrup Roofing", coefficient: 10.0, unit: "pcs", unit_price: 500 },
+      ],
+    },
+    {
+      code: "AHSP-ATP-03",
+      name: "Waterproofing Coating Dak Beton / Talang Atap",
+      category: "Pekerjaan Atap",
+      unit: "m2",
+      notes: "Waterproofing 3 lapis include serat fiber penguat",
+      components: [
+        { component_type: "LABOR" as const, name: "Upah Pekerjaan Waterproofing", coefficient: 1.0, unit: "m2", unit_price: 25000 },
+        { component_type: "MATERIAL" as const, name: "Aquaproof / SikaTop Seal", coefficient: 1.0, unit: "kg", unit_price: 60000 },
+        { component_type: "MATERIAL" as const, name: "Serat Fiber", coefficient: 1.0, unit: "m2", unit_price: 10000 },
+      ],
+    },
+
+    // 5. PEKERJAAN MECHANICAL, ELEKTRIKAL, DAN PLUMBING
+    {
+      code: "AHSP-MEP-01",
+      name: "Instalasi Pipa PVC 4 Inch Ex. Wavin Type D",
+      category: "Pekerjaan Mechanical, Elektrikal, dan Plumbing",
+      unit: "m'",
+      notes: "Pemipaan air kotor pipa PVC 4 inch include lem & gantungan",
+      components: [
+        { component_type: "LABOR" as const, name: "Upah Tukang Pipa", coefficient: 1.0, unit: "m'", unit_price: 30000 },
+        { component_type: "MATERIAL" as const, name: "Pipa PVC 4 Inch", coefficient: 1.0, unit: "m'", unit_price: 45000 },
+        { component_type: "MATERIAL" as const, name: "Lem Pipa & Fitting", coefficient: 1.0, unit: "ls", unit_price: 10000 },
+      ],
+    },
+    {
+      code: "AHSP-MEP-02",
+      name: "Pemasangan LED Strip Ex. Inlite",
+      category: "Pekerjaan Mechanical, Elektrikal, dan Plumbing",
+      unit: "m'",
+      notes: "Instalasi lampu indirect LED strip plafon",
+      components: [
+        { component_type: "LABOR" as const, name: "Upah Pasang LED Strip", coefficient: 1.0, unit: "m'", unit_price: 15000 },
+        { component_type: "MATERIAL" as const, name: "LED Strip Ex. Inlite", coefficient: 1.0, unit: "m'", unit_price: 28000 },
+        { component_type: "MATERIAL" as const, name: "Socket LED Strip", coefficient: 0.20, unit: "m'", unit_price: 25000 },
+      ],
+    },
+
+    // 6. PEKERJAAN INTERIOR & FURNITURE
     {
       code: "AHSP-INT-01",
       name: "Wallpanel / Backdrop Finish HPL Ex. Taco",
-      category: "Pekerjaan Interior & Custom Furniture",
+      category: "Pekerjaan Interior & Furniture",
       unit: "m2",
       notes: "Backdrop dinding multipleks 18mm lapis HPL Taco",
       components: [
@@ -691,7 +842,7 @@ export async function seedStandardAhspCatalog(): Promise<{ count: number }> {
     {
       code: "AHSP-INT-02",
       name: "Meja Kerja/Belajar/Makan Finish HPL Ex. Taco",
-      category: "Pekerjaan Interior & Custom Furniture",
+      category: "Pekerjaan Interior & Furniture",
       unit: "m'",
       notes: "Meja panjang multipleks 18mm lapis HPL Taco tanpa laci",
       components: [
@@ -699,47 +850,6 @@ export async function seedStandardAhspCatalog(): Promise<{ count: number }> {
         { component_type: "MATERIAL" as const, name: "Multipleks 18 mm", coefficient: 0.30, unit: "lbr", unit_price: 265000 },
         { component_type: "MATERIAL" as const, name: "HPL Taco", coefficient: 0.30, unit: "lbr", unit_price: 400000 },
         { component_type: "MATERIAL" as const, name: "Cat Oplos", coefficient: 1.0, unit: "ls", unit_price: 35000 },
-      ],
-    },
-
-    // MEP (MECHANICAL, ELECTRICAL & PLUMBING)
-    {
-      code: "AHSP-MEP-01",
-      name: "Instalasi Pipa PVC 4 Inch Ex. Wavin Type D",
-      category: "Pekerjaan Mekanikal & Plumbing",
-      unit: "m'",
-      notes: "Pemipaan air kotor pipa PVC 4 inch include lem & gantungan",
-      components: [
-        { component_type: "LABOR" as const, name: "Upah Tukang Pipa", coefficient: 1.0, unit: "m'", unit_price: 30000 },
-        { component_type: "MATERIAL" as const, name: "Pipa PVC 4 Inch", coefficient: 1.0, unit: "m'", unit_price: 45000 },
-        { component_type: "MATERIAL" as const, name: "Lem Pipa & Fitting", coefficient: 1.0, unit: "ls", unit_price: 10000 },
-      ],
-    },
-    {
-      code: "AHSP-MEP-02",
-      name: "Pemasangan LED Strip Ex. Inlite",
-      category: "Pekerjaan Elektrikal",
-      unit: "m'",
-      notes: "Instalasi lampu indirect LED strip plafon",
-      components: [
-        { component_type: "LABOR" as const, name: "Upah Pasang LED Strip", coefficient: 1.0, unit: "m'", unit_price: 15000 },
-        { component_type: "MATERIAL" as const, name: "LED Strip Ex. Inlite", coefficient: 1.0, unit: "m'", unit_price: 28000 },
-        { component_type: "MATERIAL" as const, name: "Socket LED Strip", coefficient: 0.20, unit: "m'", unit_price: 25000 },
-      ],
-    },
-
-    // VENDOR / BELI JADI
-    {
-      code: "AHSP-VND-01",
-      name: "Pintu Sliding Meranti 85 x 200 cm Finish HPL Ex. Taco",
-      category: "Vendor & Pintu / Jendela",
-      unit: "pcs",
-      notes: "Pintu geser kayu meranti finish HPL lengkap rel gantung Dekson",
-      components: [
-        { component_type: "LABOR" as const, name: "Pintu Meranti (Wasman)", coefficient: 1.0, unit: "pcs", unit_price: 900000 },
-        { component_type: "LABOR" as const, name: "Pasang Pintu dan HPL (Imam)", coefficient: 1.0, unit: "pcs", unit_price: 30000 },
-        { component_type: "MATERIAL" as const, name: "HPL Taco", coefficient: 1.50, unit: "lbr", unit_price: 400000 },
-        { component_type: "MATERIAL" as const, name: "Rail Pintu Sliding Ex. Dekson", coefficient: 1.0, unit: "pcs", unit_price: 550000 },
       ],
     },
   ];
@@ -750,12 +860,20 @@ export async function seedStandardAhspCatalog(): Promise<{ count: number }> {
     // Check if code already exists
     const { data: existing } = await supabase
       .from("master_ahsp")
-      .select("id")
+      .select("id, category")
       .eq("organization_id", user.organizationId)
       .eq("code", item.code)
       .maybeSingle();
 
-    if (!existing) {
+    if (existing) {
+      // Sync category jika berbeda dengan standar baru 6 kategori
+      if (existing.category !== item.category) {
+        await supabase
+          .from("master_ahsp")
+          .update({ category: item.category })
+          .eq("id", existing.id);
+      }
+    } else {
       const { data: ahsp, error: insErr } = await supabase
         .from("master_ahsp")
         .insert({
