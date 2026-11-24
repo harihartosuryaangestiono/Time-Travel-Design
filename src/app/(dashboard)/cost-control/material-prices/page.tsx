@@ -43,6 +43,7 @@ import { getCashAccountsWithBalances } from "@/app/actions/cashAccountActions";
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import { DeleteConfirmDialog } from "@/components/modals/DeleteConfirmDialog";
+import { summarizeMaterialPrices } from "@/lib/cost-control/materialPrices";
 import {
   ResponsiveContainer,
   LineChart,
@@ -72,7 +73,6 @@ export default function MaterialPricesPage() {
   const [selectedMaterialId, setSelectedMaterialId] = useState<string>("ALL");
   const [selectedVendorFilter, setSelectedVendorFilter] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [analytics, setAnalytics] = useState<Awaited<ReturnType<typeof getMaterialPriceAnalytics>> | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -95,7 +95,6 @@ export default function MaterialPricesPage() {
   const [newMaterialForm, setNewMaterialForm] = useState({
     code: "",
     name: "",
-    category: "Plafond & Partisi",
     brand: "",
     specification: "",
     purchase_unit: "lembar",
@@ -233,9 +232,10 @@ export default function MaterialPricesPage() {
     Object.keys(map).forEach((id) => {
       const item = map[id];
       const prices = item.stores.map((s) => s.price);
-      item.minPrice = Math.min(...prices);
-      item.maxPrice = Math.max(...prices);
-      item.avgPrice = Math.round(prices.reduce((a, b) => a + b, 0) / prices.length);
+      const summary = summarizeMaterialPrices(prices);
+      item.minPrice = summary.minPrice;
+      item.maxPrice = summary.maxPrice;
+      item.avgPrice = summary.averagePrice;
       const cheapest = item.stores.find((s) => s.price === item.minPrice);
       const highest = item.stores.find((s) => s.price === item.maxPrice);
       if (cheapest) item.cheapestVendor = cheapest.vendor;
@@ -245,23 +245,16 @@ export default function MaterialPricesPage() {
     return map;
   }, [history]);
 
-  const categories = useMemo(() => {
-    const set = new Set<string>();
-    materials.forEach((m) => set.add(m.category));
-    return Array.from(set);
-  }, [materials]);
-
   const filteredMaterials = useMemo(() => {
     return materials.filter((m) => {
-      const matchCat = categoryFilter === "ALL" || m.category === categoryFilter;
       const matchSearch =
         !searchQuery.trim() ||
         m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         m.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (m.brand || "").toLowerCase().includes(searchQuery.toLowerCase());
-      return matchCat && matchSearch;
+      return matchSearch;
     });
-  }, [materials, categoryFilter, searchQuery]);
+  }, [materials, searchQuery]);
 
   // Material currently active
   const activeMaterial = useMemo(() => {
@@ -274,12 +267,39 @@ export default function MaterialPricesPage() {
     return materialStoreStatsMap[activeMaterial.id] || null;
   }, [activeMaterial, materialStoreStatsMap]);
 
+  const groupedHistory = useMemo(() => {
+    const groups = new Map<
+      string,
+      {
+        materialId: string;
+        materialName: string;
+        materialCode: string;
+        rows: MaterialPriceHistoryItem[];
+      }
+    >();
+
+    history.forEach((row) => {
+      let group = groups.get(row.material_id);
+      if (!group) {
+        group = {
+          materialId: row.material_id,
+          materialName: row.material?.name || "Material",
+          materialCode: row.material?.code || "",
+          rows: [],
+        };
+        groups.set(row.material_id, group);
+      }
+      group.rows.push(row);
+    });
+
+    return Array.from(groups.values());
+  }, [history]);
+
   const handleOpenAddMaterial = () => {
     setEditingMaterial(null);
     setNewMaterialForm({
       code: `MAT-${Math.floor(100 + Math.random() * 900)}`,
       name: "",
-      category: "Plafond & Partisi",
       brand: "",
       specification: "",
       purchase_unit: "lembar",
@@ -302,7 +322,6 @@ export default function MaterialPricesPage() {
     setNewMaterialForm({
       code: mat.code,
       name: mat.name,
-      category: mat.category,
       brand: mat.brand || "",
       specification: mat.specification || "",
       purchase_unit: mat.purchase_unit,
@@ -341,6 +360,7 @@ export default function MaterialPricesPage() {
       const payload = {
         ...newMaterialForm,
         code: finalCode,
+        category: editingMaterial?.category || "Material",
         standard_price: stdPrice,
         usage_unit: newMaterialForm.usage_unit?.trim() || newMaterialForm.purchase_unit.trim(),
         conversion_factor: newMaterialForm.conversion_factor || 1,
@@ -472,7 +492,7 @@ export default function MaterialPricesPage() {
             Database Harga Material
           </h1>
           <p className="text-xs text-zinc-500">
-            Koleksi harga dari berbagai toko material & supplier. Otomatis menampilkan rentang harga, harga termurah, dan rata-rata pasar.
+            Koleksi harga dari berbagai toko material & supplier. Otomatis menampilkan rentang harga, harga termurah, dan titik tengah rentang.
           </p>
         </div>
 
@@ -518,9 +538,9 @@ export default function MaterialPricesPage() {
           icon={Tags}
         />
         <StatCard
-          title="Harga Rata-Rata Pasar"
+          title="Titik Tengah Rentang Harga"
           value={formatCurrency(analytics?.averagePrice || 0)}
-          subtitle={`Berdasarkan ${analytics?.totalTransactions || 0} catatan toko`}
+          subtitle="Antara harga terendah dan tertinggi"
           icon={BarChart3}
         />
         <StatCard
@@ -655,7 +675,7 @@ export default function MaterialPricesPage() {
                           <span className="text-[10px] font-normal text-zinc-500"> / {mat.purchase_unit}</span>
                         </div>
                         <div className="text-[10px] text-zinc-500">
-                          Rata-rata: <span className="font-semibold text-zinc-700">{formatCurrency(stats.avgPrice)}</span>
+                          Titik tengah: <span className="font-semibold text-zinc-700">{formatCurrency(stats.avgPrice)}</span>
                         </div>
                       </div>
 
@@ -731,7 +751,7 @@ export default function MaterialPricesPage() {
                     </div>
 
                     <div className="rounded-xl border border-zinc-200/80 bg-white p-3">
-                      <span className="text-[11px] text-zinc-500 font-medium">Rata-Rata Harga Toko</span>
+                      <span className="text-[11px] text-zinc-500 font-medium">Titik Tengah Harga Toko</span>
                       <div className="mt-1 text-sm font-bold text-zinc-900">
                         {formatCurrency(activeMaterialStoreStats.avgPrice)}
                       </div>
@@ -867,39 +887,53 @@ export default function MaterialPricesPage() {
                       </td>
                     </tr>
                   ) : (
-                    history.map((row) => (
-                      <tr key={row.id} className="hover:bg-zinc-50/60 transition">
-                        <td className="px-4 py-3 font-medium text-zinc-800">
-                          {new Date(row.purchase_date).toLocaleDateString("id-ID")}
-                        </td>
-                        <td className="px-4 py-3 font-semibold text-zinc-950">
-                          {row.material?.name || "Material"}
-                        </td>
-                        <td className="px-4 py-3 font-medium text-zinc-900">{row.vendor_name}</td>
-                        <td className="px-4 py-3 text-zinc-500">
-                          {row.project?.code ? `Proyek: ${row.project.code}` : row.notes || "-"}
-                        </td>
-                        <td className="px-4 py-3 text-right font-medium text-zinc-800">
-                          {row.quantity} {row.unit}
-                        </td>
-                        <td className="px-4 py-3 text-right font-bold text-emerald-800">
-                          {formatCurrency(row.unit_price)}
-                        </td>
-                        <td className="px-4 py-3 text-right font-bold text-zinc-950">
-                          {formatCurrency(row.total_price)}
-                        </td>
-                        <td className="px-3 py-3 text-center">
-                          <button
-                            type="button"
-                            onClick={(e) => handleDeleteHistory(row.id, row.vendor_name, e)}
-                            title={`Hapus riwayat harga ${row.vendor_name}`}
-                            className="rounded-md p-1 text-zinc-300 hover:bg-red-50 hover:text-red-600 transition"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                    groupedHistory.flatMap((group) =>
+                      group.rows.map((row, index) => (
+                        <tr key={row.id} className="hover:bg-zinc-50/60 transition">
+                          <td className="px-4 py-3 font-medium text-zinc-800">
+                            {new Date(row.purchase_date).toLocaleDateString("id-ID")}
+                          </td>
+                          {index === 0 && (
+                            <td rowSpan={group.rows.length} className="px-4 py-3 align-top font-semibold text-zinc-950">
+                              <div>{group.materialName}</div>
+                              {group.materialCode && (
+                                <div className="font-mono text-[10px] font-normal text-zinc-400">
+                                  {group.materialCode}
+                                </div>
+                              )}
+                              {materialStoreStatsMap[group.materialId]?.stores.length > 0 && (
+                                <div className="mt-1 text-[10px] font-medium text-zinc-500">
+                                  Titik tengah: {formatCurrency(materialStoreStatsMap[group.materialId].avgPrice)}
+                                </div>
+                              )}
+                            </td>
+                          )}
+                          <td className="px-4 py-3 font-medium text-zinc-900">{row.vendor_name}</td>
+                          <td className="px-4 py-3 text-zinc-500">
+                            {row.project?.code ? `Proyek: ${row.project.code}` : row.notes || "-"}
+                          </td>
+                          <td className="px-4 py-3 text-right font-medium text-zinc-800">
+                            {row.quantity} {row.unit}
+                          </td>
+                          <td className="px-4 py-3 text-right font-bold text-emerald-800">
+                            {formatCurrency(row.unit_price)}
+                          </td>
+                          <td className="px-4 py-3 text-right font-bold text-zinc-950">
+                            {formatCurrency(row.total_price)}
+                          </td>
+                          <td className="px-3 py-3 text-center">
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteHistory(row.id, row.vendor_name, e)}
+                              title={`Hapus riwayat harga ${row.vendor_name}`}
+                              className="rounded-md p-1 text-zinc-300 hover:bg-red-50 hover:text-red-600 transition"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )
                   )}
                 </tbody>
               </table>
@@ -927,7 +961,7 @@ export default function MaterialPricesPage() {
             </div>
 
             <form onSubmit={handleCreateOrUpdateMaterial} className="mt-4 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div>
                 <div>
                   <label className="text-xs font-semibold text-zinc-700">Kode Material</label>
                   <input
@@ -936,17 +970,6 @@ export default function MaterialPricesPage() {
                     value={newMaterialForm.code}
                     onChange={(e) => setNewMaterialForm({ ...newMaterialForm, code: e.target.value })}
                     className="mt-1 w-full rounded-xl border border-zinc-200 p-2.5 text-xs text-zinc-900 uppercase font-mono outline-none focus:border-zinc-400"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-zinc-700">Kategori</label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: Plafond & Partisi"
-                    value={newMaterialForm.category}
-                    onChange={(e) => setNewMaterialForm({ ...newMaterialForm, category: e.target.value })}
-                    className="mt-1 w-full rounded-xl border border-zinc-200 p-2.5 text-xs text-zinc-900 outline-none focus:border-zinc-400"
                     required
                   />
                 </div>

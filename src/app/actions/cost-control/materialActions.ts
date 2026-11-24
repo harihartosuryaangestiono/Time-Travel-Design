@@ -5,6 +5,7 @@ import { requireAuthUser } from "@/lib/auth/auth";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/audit/auditLogger";
 import { convertMaterialQuantityToUsageUnit } from "@/lib/cost-control/materialUnits";
+import { summarizeMaterialPrices } from "@/lib/cost-control/materialPrices";
 
 const MATERIAL_MASTER_EDITOR_ROLES = ["OWNER", "FINANCE", "PROJECT_MANAGER"];
 const MATERIAL_MOVEMENT_ROLES = ["OWNER", "FINANCE", "PROJECT_MANAGER", "SITE_STAFF"];
@@ -110,48 +111,31 @@ export async function getMasterMaterials(filters?: { category?: string; search?:
   const { data, error } = await query;
   if (error) throw new Error(`Gagal memuat katalog material: ${error.message}`);
 
-  const toHeal: Array<{ id: string; price: number }> = [];
-
   const mapped = (data || []).map((row: any) => {
     let stdPrice = Number(row.standard_price || 0);
-
-    // If standard_price is 0 or unassigned, fallback to latest price from price_history
-    if (stdPrice <= 0 && Array.isArray(row.price_history) && row.price_history.length > 0) {
-      const validPrices = row.price_history
-        .map((p: any) => Number(p.unit_price))
-        .filter((p: number) => Number.isFinite(p) && p > 0);
-
-      if (validPrices.length > 0) {
-        stdPrice = validPrices[validPrices.length - 1];
-        toHeal.push({ id: row.id, price: stdPrice });
-      }
+    const validPrices = Array.isArray(row.price_history)
+      ? row.price_history
+          .map((price: any) => Number(price.unit_price))
+          .filter((price: number) => Number.isFinite(price) && price > 0)
+      : [];
+    const priceSummary = summarizeMaterialPrices(validPrices);
+    if (validPrices.length > 0) {
+      stdPrice = priceSummary.averagePrice;
     }
 
     return {
       ...row,
       conversion_factor: Number(row.conversion_factor),
       standard_price: stdPrice,
-      min_price: Number(row.min_price) || (stdPrice > 0 ? stdPrice * 0.9 : 0),
-      max_price: Number(row.max_price) || (stdPrice > 0 ? stdPrice * 1.15 : 0),
+      min_price: validPrices.length > 0
+        ? priceSummary.minPrice
+        : Number(row.min_price) || (stdPrice > 0 ? stdPrice * 0.9 : 0),
+      max_price: validPrices.length > 0
+        ? priceSummary.maxPrice
+        : Number(row.max_price) || (stdPrice > 0 ? stdPrice * 1.15 : 0),
       waste_tolerance_percent: Number(row.waste_tolerance_percent),
     };
   });
-
-  // Permanently heal materials that have 0 standard_price in database
-  if (toHeal.length > 0) {
-    await Promise.all(
-      toHeal.map((h) =>
-        supabase
-          .from("master_materials")
-          .update({
-            standard_price: h.price,
-            min_price: h.price * 0.9,
-            max_price: h.price * 1.15,
-          })
-          .eq("id", h.id)
-      )
-    ).catch((err) => console.error("Auto-heal material price error:", err));
-  }
 
   return mapped;
 }
@@ -268,24 +252,12 @@ export async function recordStoreMaterialPrice(input: {
 
   const { data: mat, error: matErr } = await supabase
     .from("master_materials")
-    .select("id, name, purchase_unit, standard_price")
+    .select("id, name, purchase_unit")
     .eq("id", input.material_id)
     .eq("organization_id", user.organizationId)
     .single();
 
   if (matErr || !mat) throw new Error("Material tidak ditemukan.");
-
-  // Jika standard_price masih 0 atau belum ada, perbarui otomatis ke harga toko ini
-  if (!mat.standard_price || Number(mat.standard_price) <= 0) {
-    await supabase
-      .from("master_materials")
-      .update({
-        standard_price: input.unit_price,
-        min_price: input.unit_price * 0.9,
-        max_price: input.unit_price * 1.15,
-      })
-      .eq("id", input.material_id);
-  }
 
   const pDate = input.purchase_date || new Date().toISOString();
   const { data, error } = await supabase
@@ -327,6 +299,7 @@ export async function recordStoreMaterialPrice(input: {
 
   revalidatePath("/cost-control/material-prices");
   revalidatePath("/cost-control/ahsp");
+  revalidatePath("/cost-control/rab");
   return data;
 }
 
@@ -343,12 +316,29 @@ export async function updateMasterMaterial(id: string, input: Partial<Parameters
   }
   const supabase = await createClient();
 
+  const updatePayload: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+
+  if (input.code !== undefined) updatePayload.code = input.code.trim().toUpperCase();
+  if (input.name !== undefined) updatePayload.name = input.name.trim();
+  if (input.category !== undefined) updatePayload.category = input.category.trim();
+  if (input.brand !== undefined) updatePayload.brand = input.brand.trim() || null;
+  if (input.specification !== undefined) updatePayload.specification = input.specification.trim() || null;
+  if (input.purchase_unit !== undefined) updatePayload.purchase_unit = input.purchase_unit.trim();
+  if (input.usage_unit !== undefined) updatePayload.usage_unit = input.usage_unit.trim();
+  if (input.conversion_factor !== undefined) updatePayload.conversion_factor = input.conversion_factor;
+  if (input.standard_price !== undefined) updatePayload.standard_price = input.standard_price;
+  if (input.min_price !== undefined) updatePayload.min_price = input.min_price;
+  if (input.max_price !== undefined) updatePayload.max_price = input.max_price;
+  if (input.waste_tolerance_percent !== undefined) {
+    updatePayload.waste_tolerance_percent = input.waste_tolerance_percent;
+  }
+  if (input.notes !== undefined) updatePayload.notes = input.notes.trim() || null;
+
   const { data, error } = await supabase
     .from("master_materials")
-    .update({
-      ...input,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updatePayload)
     .eq("id", id)
     .eq("organization_id", user.organizationId)
     .select()
@@ -365,6 +355,8 @@ export async function updateMasterMaterial(id: string, input: Partial<Parameters
 
   revalidatePath("/cost-control/material-prices");
   revalidatePath("/cost-control/material-recap");
+  revalidatePath("/cost-control/ahsp");
+  revalidatePath("/cost-control/rab");
   return data;
 }
 
@@ -400,6 +392,8 @@ export async function deleteMasterMaterial(id: string) {
 
   revalidatePath("/cost-control/material-prices");
   revalidatePath("/cost-control/material-recap");
+  revalidatePath("/cost-control/ahsp");
+  revalidatePath("/cost-control/rab");
   return { success: true };
 }
 
@@ -423,6 +417,8 @@ export async function deleteMaterialPriceHistory(historyId: string) {
   });
 
   revalidatePath("/cost-control/material-prices");
+  revalidatePath("/cost-control/ahsp");
+  revalidatePath("/cost-control/rab");
   return { success: true };
 }
 
@@ -514,11 +510,10 @@ export async function getMaterialPriceAnalytics(materialId?: string) {
     date: d.purchase_date,
   }));
 
-  const sortedByPrice = [...prices].sort((a, b) => a.price - b.price);
-  const cheapest = sortedByPrice[0];
-  const highest = sortedByPrice[sortedByPrice.length - 1];
-  const sum = prices.reduce((acc, p) => acc + p.price, 0);
-  const averagePrice = Math.round(sum / prices.length);
+  const priceSummary = summarizeMaterialPrices(prices.map((price) => price.price));
+  const pricedEntries = prices.filter((price) => Number.isFinite(price.price) && price.price > 0);
+  const cheapest = [...pricedEntries].sort((a, b) => a.price - b.price)[0];
+  const highest = [...pricedEntries].sort((a, b) => b.price - a.price)[0];
   const last = prices[0];
 
   const priceTrend = [...prices]
@@ -531,11 +526,11 @@ export async function getMaterialPriceAnalytics(materialId?: string) {
     }));
 
   return {
-    cheapestPrice: cheapest.price,
-    cheapestVendor: cheapest.vendor,
-    highestPrice: highest.price,
-    highestVendor: highest.vendor,
-    averagePrice,
+    cheapestPrice: priceSummary.minPrice,
+    cheapestVendor: cheapest?.vendor || "-",
+    highestPrice: priceSummary.maxPrice,
+    highestVendor: highest?.vendor || "-",
+    averagePrice: priceSummary.averagePrice,
     lastPrice: last.price,
     lastVendor: last.vendor,
     totalTransactions: prices.length,
@@ -606,6 +601,8 @@ export async function recordMaterialPurchase(input: {
 
   revalidatePath("/cost-control/material-prices");
   revalidatePath("/cost-control/material-recap");
+  revalidatePath("/cost-control/ahsp");
+  revalidatePath("/cost-control/rab");
   return history;
 }
 
