@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import type { CashAdvanceStatus } from "@prisma/client";
 import { logAudit } from "@/lib/audit/auditLogger";
 import { EXCEL_CATEGORY_TO_ACCOUNT_CODE } from "@/lib/accounting/defaultCoa";
+import { getCashLedgerAccountCode } from "@/lib/accounting/cashLedgerAccount";
 import {
   GENERAL_EXPENSE_CATEGORIES,
   PROJECT_EXPENSE_CATEGORIES,
@@ -277,13 +278,6 @@ export async function checkAdvanceLimit(input: {
   };
 }
 
-function getCashLedgerCode(type: string, bankName?: string | null, accountName?: string | null) {
-  const label = `${bankName || ""} ${accountName || ""}`.toLowerCase();
-  if (type === "BANK" && label.includes("mandiri")) return "1120";
-  if (type === "BANK" && label.includes("bca")) return "1110";
-  return "1100";
-}
-
 async function getCashLedgerCodeForAccount(
   supabase: Awaited<ReturnType<typeof createClient>>,
   organizationId: string,
@@ -299,7 +293,7 @@ async function getCashLedgerCodeForAccount(
     .maybeSingle();
   if (error) throw new Error(`Gagal memuat rekening kas: ${error.message}`);
   if (!cashAccount) throw new Error("Rekening kas tidak ditemukan atau tidak aktif.");
-  return getCashLedgerCode(cashAccount.type, cashAccount.bank_name, cashAccount.name);
+  return getCashLedgerAccountCode(cashAccount.type, cashAccount.bank_name, cashAccount.name);
 }
 
 async function postInternalAdvanceJournal(input: {
@@ -339,7 +333,7 @@ async function postInternalAdvanceJournal(input: {
   if (cashAccountError) throw new Error(`Gagal memuat rekening kasbon: ${cashAccountError.message}`);
   if (!cashAccount) throw new Error("Rekening kasbon tidak ditemukan atau tidak aktif.");
 
-  const cashCode = getCashLedgerCode(cashAccount.type, cashAccount.bank_name, cashAccount.name);
+  const cashCode = getCashLedgerAccountCode(cashAccount.type, cashAccount.bank_name, cashAccount.name);
   const { data: accounts, error: accountsError } = await supabase
     .from("accounts")
     .select("id, code")

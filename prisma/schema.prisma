@@ -413,7 +413,8 @@ model CashAccount {
 model CashTransfer {
   id              String   @id @default(uuid())
   organization_id  String
-  from_account_id String
+  from_account_id   String?
+  from_account_name String?
   to_account_id   String
   amount          Decimal  @db.Decimal(15, 2)
   date            DateTime
@@ -422,6 +423,21 @@ model CashTransfer {
   created_by      String
   created_at      DateTime @default(now())
   @@map("cash_transfers")
+}
+
+model DividendDisbursement {
+  id              String   @id @default(uuid())
+  organization_id String
+  cash_account_id String
+  recipient_name  String
+  date            DateTime
+  amount          Decimal  @db.Decimal(15, 2)
+  reference       String?
+  notes           String?
+  created_by      String
+  created_at      DateTime @default(now())
+
+  @@map("dividend_disbursements")
 }
 
 model CashReceipt {

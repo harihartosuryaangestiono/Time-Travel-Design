@@ -70,7 +70,7 @@ export interface RabProjectItem {
 
 export type CreateRabProjectResult =
   | { success: true; rab: RabProjectItem }
-  | { success: false; message: string };
+  | { success: false; message: string; diagnostic: string };
 
 class RabCreationError extends Error {
   constructor(message: string, readonly code?: string) {
@@ -288,10 +288,13 @@ async function createRabProjectRecord(input: {
   contingency_percentage?: number;
   tax_percentage?: number;
   notes?: string;
-}) {
+}, context: { stage: string }) {
+  context.stage = "autentikasi";
   const user = await requireAuthUser();
+  context.stage = "otorisasi";
   assertCanEditRab(user.role);
   const supabase = await createClient();
+  context.stage = "validasi-parameter";
   const profitType = input.profit_type ?? "MARKUP";
   const profitPercentage = input.profit_percentage ?? 20;
   const overheadPercentage = input.overhead_percentage ?? 5;
@@ -306,6 +309,7 @@ async function createRabProjectRecord(input: {
     taxPercentage,
   });
 
+  context.stage = "validasi-proyek";
   const { data: project, error: projectErr } = await supabase
     .from("projects")
     .select("id")
@@ -323,6 +327,7 @@ async function createRabProjectRecord(input: {
   let createError: RabCreationError | null = null;
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
+    context.stage = "tentukan-versi";
     const { data: latest, error: versionError } = await supabase
       .from("rab_projects")
       .select("version")
@@ -338,6 +343,7 @@ async function createRabProjectRecord(input: {
       );
     }
 
+    context.stage = "simpan-rab";
     const { data: created, error } = await supabase
       .from("rab_projects")
       .insert({
@@ -375,6 +381,7 @@ async function createRabProjectRecord(input: {
   }
   if (!data) throw new Error("Gagal membuat RAB: server tidak mengembalikan dokumen.");
 
+  context.stage = "catat-audit";
   await logAudit(user, {
     action: "CREATE_RAB_PROJECT",
     entityType: "rab_projects",
@@ -382,15 +389,18 @@ async function createRabProjectRecord(input: {
     metadata: { rab_number: rabNumber, title: input.title },
   });
 
+  context.stage = "perbarui-cache";
   revalidatePath("/cost-control/rab");
   return data;
 }
 
+function getRabCreationErrorCode(error: unknown): string | undefined {
+  if (typeof error !== "object" || error === null || !("code" in error)) return undefined;
+  return typeof error.code === "string" ? error.code : undefined;
+}
+
 function getRabCreationErrorMessage(error: unknown): string {
-  const code =
-    typeof error === "object" && error !== null && "code" in error
-      ? (error as { code?: unknown }).code
-      : undefined;
+  const code = getRabCreationErrorCode(error);
 
   if (code === "42P01" || code === "PGRST205" || code === "PGRST204") {
     return "Database RAB belum siap. Admin perlu menjalankan migrasi cost-control RAB/RAP di Supabase.";
@@ -427,12 +437,14 @@ export async function createRabProject(input: {
   tax_percentage?: number;
   notes?: string;
 }): Promise<CreateRabProjectResult> {
+  const context = { stage: "mulai" };
   try {
-    const rab = await createRabProjectRecord(input);
+    const rab = await createRabProjectRecord(input, context);
     return { success: true, rab };
   } catch (error) {
-    console.error("Gagal membuat RAB:", error);
-    return { success: false, message: getRabCreationErrorMessage(error) };
+    const diagnostic = `rab-create:${context.stage}:${getRabCreationErrorCode(error) ?? (error instanceof Error ? error.name : "unknown")}`;
+    console.error(`[${diagnostic}] Gagal membuat RAB:`, error);
+    return { success: false, message: getRabCreationErrorMessage(error), diagnostic };
   }
 }
 

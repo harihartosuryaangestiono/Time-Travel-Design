@@ -6,7 +6,8 @@ import { revalidatePath } from "next/cache";
 import { logAudit } from "@/lib/audit/auditLogger";
 
 export interface CreateTransferInput {
-  from_account_id: string;
+  from_account_id?: string | null;
+  from_account_name?: string;
   to_account_id: string;
   amount: number;
   date?: string;
@@ -33,7 +34,7 @@ export async function getCashTransfers() {
       (transfers || []).flatMap((transfer) => [
         transfer.from_account_id,
         transfer.to_account_id,
-      ])
+      ].filter((id): id is string => Boolean(id)))
     )
   );
   const creatorIds = Array.from(
@@ -66,7 +67,11 @@ export async function getCashTransfers() {
 
   return (transfers || []).map((transfer) => ({
     ...transfer,
-    from_account: accountsById.get(transfer.from_account_id) || null,
+    from_account: transfer.from_account_id
+      ? accountsById.get(transfer.from_account_id) || null
+      : transfer.from_account_name
+        ? { id: "", name: transfer.from_account_name, account_number: null }
+        : null,
     to_account: accountsById.get(transfer.to_account_id) || null,
     creator: transfer.created_by ? creatorsById.get(transfer.created_by) || null : null,
   }));
@@ -76,19 +81,44 @@ export async function createCashTransfer(input: CreateTransferInput) {
   const user = await requireAuthUser();
   const supabase = await createClient();
 
-  if (!input.from_account_id || !input.to_account_id) {
-    throw new Error("Akun sumber dan akun tujuan wajib dipilih.");
+  const fromAccountId = input.from_account_id?.trim() || null;
+  const fromAccountName = input.from_account_name?.trim() || null;
+  const toAccountId = input.to_account_id?.trim();
+
+  if (!toAccountId) {
+    throw new Error("Akun tujuan wajib dipilih.");
   }
 
-  if (input.from_account_id === input.to_account_id) {
+  if (!fromAccountId && !fromAccountName) {
+    throw new Error("Pilih rekening sumber atau isi nama rekening luar perusahaan.");
+  }
+
+  if (fromAccountId && fromAccountId === toAccountId) {
     throw new Error("Akun sumber dan akun tujuan tidak boleh sama.");
   }
 
-  if (!input.amount || input.amount <= 0) {
+  if (!Number.isFinite(input.amount) || input.amount <= 0) {
     throw new Error("Nominal transfer harus lebih besar dari 0.");
   }
 
-  const transferDate = input.date ? new Date(input.date).toISOString() : new Date().toISOString();
+  const transferDateValue = input.date ? new Date(input.date) : new Date();
+  if (!Number.isFinite(transferDateValue.getTime())) {
+    throw new Error("Tanggal transfer tidak valid.");
+  }
+  const transferDate = transferDateValue.toISOString();
+
+  const accountIdsToValidate = [fromAccountId, toAccountId].filter((id): id is string => Boolean(id));
+  const { data: validAccounts, error: accountError } = await supabase
+    .from("cash_accounts")
+    .select("id")
+    .eq("organization_id", user.organizationId)
+    .eq("is_active", true)
+    .in("id", accountIdsToValidate);
+  if (accountError) throw new Error(`Gagal memvalidasi rekening transfer: ${accountError.message}`);
+  if (new Set((validAccounts || []).map((account) => account.id)).size !== accountIdsToValidate.length) {
+    throw new Error("Rekening sumber atau tujuan tidak aktif atau bukan milik organisasi ini.");
+  }
+
   let refCode = input.reference?.trim();
   if (!refCode) {
     const year = new Date().getFullYear();
@@ -102,8 +132,9 @@ export async function createCashTransfer(input: CreateTransferInput) {
     .from("cash_transfers")
     .insert({
       organization_id: user.organizationId,
-      from_account_id: input.from_account_id,
-      to_account_id: input.to_account_id,
+      from_account_id: fromAccountId,
+      from_account_name: fromAccountId ? null : fromAccountName,
+      to_account_id: toAccountId,
       amount: input.amount,
       date: transferDate,
       reference: refCode,
@@ -125,13 +156,15 @@ export async function createCashTransfer(input: CreateTransferInput) {
     metadata: {
       reference: refCode,
       amount: input.amount,
-      from_account_id: input.from_account_id,
-      to_account_id: input.to_account_id,
+      from_account_id: fromAccountId,
+      from_account_name: fromAccountId ? null : fromAccountName,
+      to_account_id: toAccountId,
     },
   });
 
   revalidatePath("/transfers");
   revalidatePath("/cash-accounts");
+  revalidatePath("/cash-book");
   revalidatePath("/dashboard");
   return transferRecord;
 }
@@ -158,6 +191,7 @@ export async function deleteCashTransfer(id: string) {
 
   revalidatePath("/transfers");
   revalidatePath("/cash-accounts");
+  revalidatePath("/cash-book");
   revalidatePath("/dashboard");
   return { success: true };
 }

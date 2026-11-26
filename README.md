@@ -73,6 +73,10 @@ Untuk mengaktifkan alur Cost Control RAB/RAP, jalankan migrasi berikut secara be
 
 Database Cost Control ini menyediakan master upah/material dan AHSP, yang dipakai untuk menyusun RAB. Setelah RAB disetujui, RAB dapat menjadi dasar penyusunan RAP.
 
+Untuk mencatat pemindahan dana dari halaman Buku Kas atau halaman Pemindahan Dana, jalankan `supabase/migrations/20261126185000_cash_transfer_external_source.sql` di Supabase SQL Editor agar sumber luar perusahaan (misalnya rekening pribadi Owner) juga didukung.
+
+Untuk mencatat pencairan dividen terpisah dari kasbon dan biaya operasional, jalankan `supabase/migrations/20261126195200_dividend_disbursements.sql` di Supabase SQL Editor. Pencairan dividen mengurangi kas dan laba ditahan, bukan laba-rugi.
+
 Jika menghapus transaksi Buku Kas, jalankan `supabase/migrations/20261030_cash_book_expense_delete.sql` untuk memberi izin hapus pengeluaran khusus Owner/Finance.
 
 Bonus Sales Person dihitung otomatis dari pembayaran yang sudah disetujui/diposting; tidak perlu mengisi bonus secara manual. Filter Buku Besar/Buku Kecil menggunakan data transaksi yang sudah ada.

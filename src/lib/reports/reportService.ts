@@ -227,11 +227,16 @@ export async function getBalanceSheetData(asOfDate: string) {
   });
 
   const balances: Record<string, number> = {};
-  const accountMap: Record<string, { code: string; name: string; type: string }> = {};
+  const accountMap: Record<string, { code: string; name: string; type: string; normal_balance: string }> = {};
 
   for (const acc of accounts || []) {
     balances[acc.id] = 0;
-    accountMap[acc.id] = { code: acc.code, name: acc.name, type: acc.type };
+    accountMap[acc.id] = {
+      code: acc.code,
+      name: acc.name,
+      type: acc.type,
+      normal_balance: acc.normal_balance,
+    };
   }
 
   for (const line of lines || []) {
@@ -240,14 +245,17 @@ export async function getBalanceSheetData(asOfDate: string) {
 
   const assets: { code: string; name: string; amount: number }[] = [];
   const liabilities: { code: string; name: string; amount: number }[] = [];
+  const equity: { code: string; name: string; amount: number }[] = [];
 
   for (const [accountId, balance] of Object.entries(balances)) {
     const acc = accountMap[accountId];
     if (!acc) continue;
     if (balance === 0) continue;
-    const row = { code: acc.code, name: acc.name, amount: balance };
+    const normalBalanceAmount = acc.normal_balance === "CREDIT" ? -balance : balance;
+    const row = { code: acc.code, name: acc.name, amount: normalBalanceAmount };
     if (acc.type === "ASSET") assets.push(row);
     else if (acc.type === "LIABILITY") liabilities.push(row);
+    else if (acc.type === "EQUITY" && acc.code !== "3300") equity.push(row);
   }
 
   const incomeData = await getIncomeStatementData(`${new Date().getFullYear()}-01-01`, asOfDate);
@@ -255,17 +263,18 @@ export async function getBalanceSheetData(asOfDate: string) {
 
   const totalAssets = assets.reduce((s: number, a: { code: string; name: string; amount: number }) => s + a.amount, 0);
   const totalLiabilities = liabilities.reduce((s: number, l: { code: string; name: string; amount: number }) => s + l.amount, 0);
+  const totalEquity = equity.reduce((s, item) => s + item.amount, 0);
 
   return {
     as_of_date: asOfDate,
     assets,
     liabilities,
-    equity: [],
+    equity,
     current_profit_loss: currentProfit,
     total_assets: totalAssets,
     total_liabilities: totalLiabilities,
-    total_equity: currentProfit,
-    total_liabilities_equity: totalLiabilities + currentProfit,
+    total_equity: totalEquity,
+    total_liabilities_equity: totalLiabilities + totalEquity + currentProfit,
   };
 }
 
@@ -289,16 +298,22 @@ export async function getCashFlowData(startDate: string, endDate: string) {
   });
 
   let netChange = 0;
-  const activities: { description: string; amount: number }[] = [];
+  const operatingActivities: { description: string; amount: number }[] = [];
+  const financingActivities: { description: string; amount: number }[] = [];
 
   for (const line of lines) {
     const amount = Number(line.debit || 0) - Number(line.credit || 0);
     netChange += amount;
     const sourceType = line.source_type || "JOURNAL";
-    activities.push({
+    const activity = {
       description: `${sourceType} - ${line.account_id}`,
       amount,
-    });
+    };
+    if (sourceType === "DIVIDEND_DISBURSEMENT") {
+      financingActivities.push(activity);
+    } else {
+      operatingActivities.push(activity);
+    }
   }
 
   return {
@@ -307,8 +322,8 @@ export async function getCashFlowData(startDate: string, endDate: string) {
     opening_balance: openingBalance,
     closing_balance: openingBalance + netChange,
     net_change: netChange,
-    operating_activities: activities,
+    operating_activities: operatingActivities,
     investing_activities: [],
-    financing_activities: [],
+    financing_activities: financingActivities,
   };
 }

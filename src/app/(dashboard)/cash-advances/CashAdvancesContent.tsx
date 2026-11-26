@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { CashAdvanceModal, CashAdvanceFormData } from "@/components/modals/CashAdvanceModal";
 import { AdvanceSettlementModal } from "@/components/modals/AdvanceSettlementModal";
 import { DeleteConfirmDialog } from "@/components/modals/DeleteConfirmDialog";
+import DividendDisbursementPanel from "./DividendDisbursementPanel";
 import {
   deleteCashAdvance,
   approveCashAdvance,
@@ -490,6 +491,8 @@ export default function CashAdvancesContent() {
           </button>
         </div>
       </div>
+
+      {activeTab === "TRANSACTIONS" && <DividendDisbursementPanel />}
 
       {/* ── Loading Skeleton ── */}
       {isLoading && (

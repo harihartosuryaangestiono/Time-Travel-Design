@@ -40,10 +40,13 @@ import {
   updateProjectLaborRetention,
   deleteProjectLaborRetention,
   importProjectLaborRecapBatch,
+  getLaborRates,
+  LaborRateItem,
   ProjectLaborContractItem,
   LaborClaimItem,
   ProjectRetentionItem,
 } from "@/app/actions/cost-control/laborActions";
+import { resolveLaborRatePrice } from "@/lib/cost-control/laborRatePricing";
 import { getProjects } from "@/app/actions/projectActions";
 import { getCashAccountsWithBalances } from "@/app/actions/cashAccountActions";
 import { StatCard } from "@/components/ui/StatCard";
@@ -63,6 +66,7 @@ export default function LaborRecapPage() {
   const [contracts, setContracts] = useState<ProjectLaborContractItem[]>([]);
   const [claims, setClaims] = useState<LaborClaimItem[]>([]);
   const [retentions, setRetentions] = useState<ProjectRetentionItem[]>([]);
+  const [laborRates, setLaborRates] = useState<LaborRateItem[]>([]);
   const [projects, setProjects] = useState<Array<{ id: string; name: string; code: string }>>([]);
   const [cashAccounts, setCashAccounts] = useState<Array<{ id: string; name: string }>>([]);
   
@@ -90,6 +94,7 @@ export default function LaborRecapPage() {
   const [newContractForm, setNewContractForm] = useState({
     project_id: "",
     mandor_name: "",
+    labor_rate_id: "",
     job_name: "",
     category: "Pekerjaan Renovasi",
     specifications: "",
@@ -169,17 +174,19 @@ export default function LaborRecapPage() {
       setError(null);
       const isRealProject = selectedProjectId && !selectedProjectId.startsWith("sample-");
       
-      const [recapData, claimsData, projList, accounts, retentionsData] = await Promise.all([
+      const [recapData, claimsData, projList, accounts, retentionsData, laborRateList] = await Promise.all([
         getProjectLaborRecap(isRealProject ? selectedProjectId : undefined),
         getLaborClaims(isRealProject ? { projectId: selectedProjectId } : undefined),
         getProjects(),
         getCashAccountsWithBalances(),
         isRealProject ? getProjectLaborRetentions(selectedProjectId) : Promise.resolve([]),
+        getLaborRates(),
       ]);
 
       setContracts(recapData);
       setClaims(claimsData);
       setRetentions(retentionsData);
+      setLaborRates(laborRateList);
       setProjects((projList || []).map((p: any) => ({ id: p.id, name: p.name, code: p.code })));
       setCashAccounts((accounts || []).map((a: any) => ({ id: a.id, name: a.name })));
       if (accounts && accounts.length > 0) {
@@ -192,6 +199,21 @@ export default function LaborRecapPage() {
       setIsLoading(false);
     }
   }, [selectedProjectId]);
+
+  const boronganLaborRates = useMemo(
+    () => laborRates.filter((rate) => rate.payment_system === "BORONGAN"),
+    [laborRates],
+  );
+  const selectedLaborRate = useMemo(
+    () => boronganLaborRates.find((rate) => rate.id === newContractForm.labor_rate_id) || null,
+    [boronganLaborRates, newContractForm.labor_rate_id],
+  );
+  const selectedLaborPricing = useMemo(
+    () => selectedLaborRate
+      ? resolveLaborRatePrice(selectedLaborRate, newContractForm.mandor_name)
+      : null,
+    [selectedLaborRate, newContractForm.mandor_name],
+  );
 
   useEffect(() => {
     fetchData();
@@ -288,12 +310,14 @@ export default function LaborRecapPage() {
         alert("Pilih proyek aktif perusahaan (bukan template sampel) untuk menyimpan kontrak ke database.");
         return;
       }
-      if (!newContractForm.job_name.trim()) throw new Error("Nama pekerjaan wajib diisi.");
+      if (!newContractForm.labor_rate_id) throw new Error("Pilih item dari Database Harga Upah.");
 
       await createProjectLaborItem({
-        ...newContractForm,
         project_id: projId,
         mandor_name: newContractForm.mandor_name || primaryMandor,
+        labor_rate_id: newContractForm.labor_rate_id,
+        contract_volume: Number(newContractForm.contract_volume),
+        notes: newContractForm.notes,
       });
 
       setSuccessMsg("Pekerjaan borongan baru berhasil ditambahkan.");
@@ -661,10 +685,22 @@ export default function LaborRecapPage() {
 
           <button
             onClick={() => {
+              const laborRate =
+                boronganLaborRates.find((rate) => rate.id === newContractForm.labor_rate_id) ||
+                boronganLaborRates[0];
+              const mandorName = primaryMandor;
               setNewContractForm({
                 ...newContractForm,
                 project_id: currentProject?.id || "",
-                mandor_name: primaryMandor,
+                mandor_name: mandorName,
+                labor_rate_id: laborRate?.id || "",
+                job_name: laborRate?.job_name || "",
+                category: laborRate?.category || "",
+                specifications: laborRate?.specifications || "",
+                unit: laborRate?.unit || "",
+                unit_rate: laborRate
+                  ? resolveLaborRatePrice(laborRate, mandorName).unitRate
+                  : 0,
               });
               setShowAddContractModal(true);
             }}
@@ -1279,7 +1315,17 @@ export default function LaborRecapPage() {
                   <input
                     type="text"
                     value={newContractForm.mandor_name}
-                    onChange={(e) => setNewContractForm({ ...newContractForm, mandor_name: e.target.value })}
+                    onChange={(e) => {
+                      const mandorName = e.target.value;
+                      setNewContractForm((prev) => {
+                        const rate = boronganLaborRates.find((item) => item.id === prev.labor_rate_id);
+                        return {
+                          ...prev,
+                          mandor_name: mandorName,
+                          unit_rate: rate ? resolveLaborRatePrice(rate, mandorName).unitRate : 0,
+                        };
+                      });
+                    }}
                     className="mt-1 w-full rounded-xl border border-zinc-200 p-2.5 text-xs text-zinc-900 outline-none focus:border-zinc-400"
                     placeholder="Contoh: Rian Purnama, Rosidin"
                     required
@@ -1290,23 +1336,56 @@ export default function LaborRecapPage() {
                   <input
                     type="text"
                     value={newContractForm.category}
-                    onChange={(e) => setNewContractForm({ ...newContractForm, category: e.target.value })}
-                    className="mt-1 w-full rounded-xl border border-zinc-200 p-2.5 text-xs text-zinc-900 outline-none focus:border-zinc-400"
-                    required
+                    readOnly
+                    className="mt-1 w-full rounded-xl border border-zinc-200 bg-zinc-50 p-2.5 text-xs text-zinc-500 outline-none"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-zinc-700">Nama Item Pekerjaan</label>
-                <input
-                  type="text"
-                  placeholder="Contoh: Pemasangan Keramik 60x60, Pembongkaran Atap"
-                  value={newContractForm.job_name}
-                  onChange={(e) => setNewContractForm({ ...newContractForm, job_name: e.target.value })}
-                  className="mt-1 w-full rounded-xl border border-zinc-200 p-2.5 text-xs text-zinc-900 outline-none focus:border-zinc-400 font-semibold"
+                <label className="text-xs font-semibold text-zinc-700">Pilih Item Pekerjaan dari Database Harga Upah</label>
+                <select
+                  value={newContractForm.labor_rate_id}
+                  onChange={(e) => {
+                    const rate = boronganLaborRates.find((item) => item.id === e.target.value);
+                    setNewContractForm((prev) => ({
+                      ...prev,
+                      labor_rate_id: rate?.id || "",
+                      job_name: rate?.job_name || "",
+                      category: rate?.category || "",
+                      specifications: rate?.specifications || "",
+                      unit: rate?.unit || "",
+                      unit_rate: rate
+                        ? resolveLaborRatePrice(rate, prev.mandor_name).unitRate
+                        : 0,
+                    }));
+                  }}
+                  className="mt-1 w-full rounded-xl border border-zinc-200 bg-white p-2.5 text-xs font-semibold text-zinc-900 outline-none focus:border-zinc-400"
                   required
-                />
+                >
+                  <option value="">Pilih item pekerjaan...</option>
+                  {boronganLaborRates.map((rate) => {
+                    const pricing = resolveLaborRatePrice(rate, newContractForm.mandor_name);
+                    return (
+                      <option key={rate.id} value={rate.id}>
+                        {rate.job_code} • {rate.job_name} ({formatCurrency(pricing.unitRate)} / {rate.unit})
+                      </option>
+                    );
+                  })}
+                </select>
+                {boronganLaborRates.length === 0 ? (
+                  <p className="mt-1 text-[11px] text-amber-700">
+                    Belum ada item Borongan aktif. Tambahkan dulu di{" "}
+                    <Link href="/cost-control/labor-rates" className="font-semibold underline">
+                      Database Harga Upah
+                    </Link>
+                    .
+                  </p>
+                ) : (
+                  <p className="mt-1 text-[11px] text-zinc-500">
+                    Nama item, kategori, satuan, dan tarif diambil otomatis dari database.
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-3 gap-3">
@@ -1325,21 +1404,20 @@ export default function LaborRecapPage() {
                   <label className="text-xs font-semibold text-zinc-700">Satuan</label>
                   <input
                     type="text"
-                    placeholder="m², m', m³, ttk"
                     value={newContractForm.unit}
-                    onChange={(e) => setNewContractForm({ ...newContractForm, unit: e.target.value })}
-                    className="mt-1 w-full rounded-xl border border-zinc-200 p-2.5 text-xs text-zinc-900 outline-none focus:border-zinc-400"
-                    required
+                    readOnly
+                    className="mt-1 w-full rounded-xl border border-zinc-200 bg-zinc-50 p-2.5 text-xs text-zinc-500 outline-none"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-zinc-700">Tarif Satuan (Rp)</label>
+                  <label className="text-xs font-semibold text-zinc-700">
+                    Tarif Satuan (Rp) — {selectedLaborPricing?.source === "MANDOR" ? "tarif mandor" : "tarif standar"}
+                  </label>
                   <input
                     type="number"
                     value={newContractForm.unit_rate}
-                    onChange={(e) => setNewContractForm({ ...newContractForm, unit_rate: Number(e.target.value) })}
-                    className="mt-1 w-full rounded-xl border border-zinc-200 p-2.5 text-xs text-zinc-900 font-bold outline-none focus:border-zinc-400"
-                    required
+                    readOnly
+                    className="mt-1 w-full rounded-xl border border-zinc-200 bg-zinc-50 p-2.5 text-xs font-bold text-zinc-500 outline-none"
                   />
                 </div>
               </div>
@@ -1354,7 +1432,8 @@ export default function LaborRecapPage() {
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black transition shadow-xs"
+                  disabled={!selectedLaborRate || newContractForm.unit_rate <= 0}
+                  className="rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black transition shadow-xs disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Simpan Pekerjaan
                 </button>

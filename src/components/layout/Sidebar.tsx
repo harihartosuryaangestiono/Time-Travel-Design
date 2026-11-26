@@ -9,6 +9,7 @@ import {
   FolderKanban,
   Users,
   Wallet,
+  ArrowLeftRight,
   Coins,
   FileCheck,
   Building2,
@@ -97,6 +98,7 @@ const navigationGroups: NavGroup[] = [
       { name: "Cash Advances", href: "/cash-advances", icon: Coins },
       { name: "Reimbursements", href: "/reimbursements", icon: FileCheck },
       { name: "Treasury & Bank Accounts", href: "/cash-accounts", icon: Wallet },
+      { name: "Pemindahan Dana", href: "/transfers", icon: ArrowLeftRight },
     ],
   },
   {

@@ -72,6 +72,12 @@ const MONTH_NAMES = [
 export default function CashBookPage() {
   const [entries, setEntries] = useState<CashBookEntry[]>([]);
   const [accounts, setAccounts] = useState<Array<{ id: string; name: string; opening_balance: number }>>([]);
+  const [bookAccounts, setBookAccounts] = useState<Array<{
+    id: string;
+    name: string;
+    opening_balance: number;
+    is_active?: boolean;
+  }>>([]);
   const [projects, setProjects] = useState<Array<{ id: string; name: string; code: string; status: string }>>([]);
   const [selectedAccountId, setSelectedAccountId] = useState("");
   const [currentBalance, setCurrentBalance] = useState<number>(0);
@@ -102,7 +108,7 @@ export default function CashBookPage() {
         cashAccountId: selectedAccountId,
         projectId: selectedProjectId || undefined,
       });
-      setAccounts(res.accounts);
+      setBookAccounts(res.accounts);
       setEntries(res.entries);
       setCurrentBalance(res.currentBalance);
       setOpeningBalance(res.openingBalance);
@@ -126,6 +132,7 @@ export default function CashBookPage() {
     ])
       .then(([cashAccounts, projectRows, contracts, salesOptions]) => {
         setAccounts(cashAccounts);
+        setBookAccounts(cashAccounts);
         setSelectedAccountId((current) => current || cashAccounts[0]?.id || "");
         setProjects(projectRows.map((project) => ({
           id: project.id,
@@ -144,12 +151,17 @@ export default function CashBookPage() {
       });
   }, []);
 
-  const handleTransactionSaved = async () => {
-    await Promise.all([
-      fetchBookData(),
+  const handleTransactionSaved = async (cashAccountId?: string) => {
+    const refreshData = [
       getSubcontractorPaymentOptions().then(setSubcontractorContracts),
       getSalesPersonProjectOptions().then(setSalesAssignments),
-    ]);
+    ];
+    if (cashAccountId && cashAccountId !== selectedAccountId) {
+      setSelectedAccountId(cashAccountId);
+      await Promise.all(refreshData);
+    } else {
+      await Promise.all([fetchBookData(), ...refreshData]);
+    }
   };
 
   const handleEntryMutationComplete = async (message: string) => {
@@ -228,7 +240,7 @@ export default function CashBookPage() {
             Buku Kas Perusahaan (Lapkeu Perusahaan)
           </h2>
           <p className="text-xs text-zinc-500">
-            Catat uang masuk dan pengeluaran setelah benar-benar dibayar; transaksi langsung masuk ke rekapitulasi.
+            Catat mutasi rekening. Pemindahan dana tercatat di Buku Kas, tetapi tidak dihitung sebagai pendapatan atau biaya pada laporan laba-rugi.
           </p>
         </div>
 
@@ -279,7 +291,7 @@ export default function CashBookPage() {
         />
       </div>
 
-      {accounts.length > 0 && (
+      {bookAccounts.length > 0 && (
         <div className="flex flex-col gap-2 rounded-2xl border border-zinc-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="text-xs font-bold text-zinc-900">Rekening yang dicatat</h3>
@@ -290,8 +302,10 @@ export default function CashBookPage() {
             onChange={(event) => setSelectedAccountId(event.target.value)}
             className="h-10 rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs font-semibold text-zinc-900"
           >
-            {accounts.map((account) => (
-              <option key={account.id} value={account.id}>{account.name}</option>
+            {bookAccounts.map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.name}{account.is_active === false ? " (Nonaktif — riwayat saja)" : ""}
+              </option>
             ))}
           </select>
         </div>
@@ -309,6 +323,7 @@ export default function CashBookPage() {
             onSuccess={handleTransactionSaved}
             recentDescriptions={recentDescriptions}
             accounts={accounts}
+            defaultCashAccountId={selectedAccountId}
             subcontractorContracts={subcontractorContracts}
             salesAssignments={salesAssignments}
             projects={projects}
@@ -369,6 +384,8 @@ export default function CashBookPage() {
               <option value="Bunga Bank">Bunga Bank</option>
               <option value="Pemasukan Lainnya">Pemasukan Lainnya</option>
               <option value="Pembayaran Invoice">Pembayaran Invoice</option>
+              <option value="Pemindahan Dana">Pemindahan Dana</option>
+              <option value="Pencairan Dividen">Pencairan Dividen</option>
               <optgroup label="Buku Kecil — Pengeluaran Proyek">
                 {PROJECT_EXPENSE_CATEGORIES.map((category) => (
                   <option key={category} value={category}>{category}</option>
@@ -484,6 +501,12 @@ export default function CashBookPage() {
                       )}
                       {ent.type === "EXPENSE" && (
                         <span className="ml-2 rounded bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-rose-700">Keluar</span>
+                      )}
+                      {ent.type === "TRANSFER" && (
+                        <span className="ml-2 rounded bg-indigo-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-indigo-700">Transfer</span>
+                      )}
+                      {ent.type === "DIVIDEND" && (
+                        <span className="ml-2 rounded bg-violet-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-violet-700">Dividen</span>
                       )}
                     </p>
                     {ent.number && (

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireAuthUser } from "@/lib/auth/auth";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/audit/auditLogger";
+import { resolveLaborRatePrice } from "@/lib/cost-control/laborRatePricing";
 
 const LABOR_EDITOR_ROLES = ["OWNER", "FINANCE", "PROJECT_MANAGER"];
 
@@ -638,27 +639,60 @@ export async function getProjectLaborRecap(projectId?: string) {
 export async function createProjectLaborItem(input: {
   project_id: string;
   mandor_name: string;
-  job_name: string;
-  category: string;
-  specifications?: string;
-  unit: string;
-  payment_system?: "BORONGAN" | "UPAH_KETENG" | "HARIAN";
   contract_volume: number;
-  unit_rate: number;
+  labor_rate_id: string;
   notes?: string;
-  labor_rate_id?: string;
   subcontractor_id?: string;
 }) {
   const user = await requireAuthUser();
   assertLaborEditor(user.role);
   const supabase = await createClient();
 
-  if (
-    !Number.isFinite(input.contract_volume) || input.contract_volume <= 0 ||
-    !Number.isFinite(input.unit_rate) || input.unit_rate < 0
-  ) {
-    throw new Error("Volume kontrak harus lebih besar dari 0 dan tarif tidak boleh negatif.");
+  if (!Number.isFinite(input.contract_volume) || input.contract_volume <= 0) {
+    throw new Error("Volume kontrak harus berupa angka lebih besar dari 0.");
   }
+
+  const { data: laborRate, error: laborRateError } = await supabase
+    .from("labor_rates")
+    .select("id, job_name, category, specifications, unit, payment_system, standard_rate")
+    .eq("id", input.labor_rate_id)
+    .eq("organization_id", user.organizationId)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (laborRateError) throw new Error(`Gagal memuat item dari database harga upah: ${laborRateError.message}`);
+  if (!laborRate) throw new Error("Item pekerjaan tidak ditemukan atau sudah tidak aktif di Database Harga Upah.");
+  if (laborRate.payment_system !== "BORONGAN") {
+    throw new Error("Pilih item dengan sistem pembayaran Borongan.");
+  }
+
+  let mandorRates: Array<{ mandor_name: string; rate: number }> = [];
+  const { data: mandorRateRows, error: mandorRatesError } = await supabase
+    .from("mandor_labor_rates")
+    .select("mandor_name, rate")
+    .eq("organization_id", user.organizationId)
+    .eq("labor_rate_id", laborRate.id);
+  if (mandorRatesError) {
+    if (!["42P01", "PGRST205"].includes(mandorRatesError.code)) {
+      throw new Error(`Gagal memuat tarif mandor: ${mandorRatesError.message}`);
+    }
+  } else {
+    mandorRates = (mandorRateRows || []).map((row) => ({
+      mandor_name: row.mandor_name,
+      rate: Number(row.rate),
+    }));
+  }
+
+  const { unitRate } = resolveLaborRatePrice(
+    {
+      standard_rate: Number(laborRate.standard_rate),
+      mandor_rates: mandorRates,
+    },
+    input.mandor_name,
+  );
+  if (!Number.isFinite(unitRate) || unitRate <= 0) {
+    throw new Error("Tarif item ini belum tersedia atau belum valid di Database Harga Upah.");
+  }
+
   const { data: project, error: projectError } = await supabase
     .from("projects")
     .select("id")
@@ -668,7 +702,7 @@ export async function createProjectLaborItem(input: {
   if (projectError) throw new Error(`Gagal memvalidasi proyek: ${projectError.message}`);
   if (!project) throw new Error("Proyek tidak ditemukan di organisasi ini.");
 
-  const totalAmount = input.contract_volume * input.unit_rate;
+  const totalAmount = input.contract_volume * unitRate;
 
   const { data, error } = await supabase
     .from("project_labor_items")
@@ -676,13 +710,13 @@ export async function createProjectLaborItem(input: {
       organization_id: user.organizationId,
       project_id: input.project_id,
       mandor_name: input.mandor_name.trim(),
-      job_name: input.job_name.trim(),
-      category: input.category.trim(),
-      specifications: input.specifications || null,
-      unit: input.unit.trim(),
-      payment_system: input.payment_system || "BORONGAN",
+      job_name: laborRate.job_name,
+      category: laborRate.category,
+      specifications: laborRate.specifications || null,
+      unit: laborRate.unit,
+      payment_system: laborRate.payment_system,
       contract_volume: input.contract_volume,
-      unit_rate: input.unit_rate,
+      unit_rate: unitRate,
       total_amount: totalAmount,
       status: "ACTIVE",
       notes: input.notes || null,
@@ -698,7 +732,7 @@ export async function createProjectLaborItem(input: {
     action: "CREATE_PROJECT_LABOR_ITEM",
     entityType: "project_labor_items",
     entityId: data.id,
-    metadata: { project_id: input.project_id, job_name: input.job_name, total_amount: totalAmount },
+    metadata: { project_id: input.project_id, job_name: laborRate.job_name, total_amount: totalAmount },
   });
 
   revalidatePath("/cost-control/labor-recap");

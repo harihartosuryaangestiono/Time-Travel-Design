@@ -116,7 +116,7 @@ export default function RabProjectsListPage() {
 
       const result = await createRabProject(createForm);
       if (!result.success) {
-        setError(result.message);
+        setError(`${result.message} (Kode: ${result.diagnostic})`);
         return;
       }
       if (!result.rab?.id) throw new Error("RAB berhasil diproses tetapi ID dokumen tidak ditemukan.");

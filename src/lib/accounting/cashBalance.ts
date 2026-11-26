@@ -53,6 +53,14 @@ export async function getAccountsWithCalculatedBalance(
     .select("from_account_id, to_account_id, amount")
     .eq("organization_id", organizationId);
 
+  const { data: dividendDisbursements, error: dividendError } = await supabase
+    .from("dividend_disbursements")
+    .select("cash_account_id, amount")
+    .eq("organization_id", organizationId);
+  if (dividendError) {
+    throw new Error(`Gagal memuat pencairan dividen untuk saldo rekening: ${dividendError.message}`);
+  }
+
   // 6. Ambil pengeluaran yang terbayar dari akun kas (expenses)
   const { data: expenses } = await supabase
     .from("expenses")
@@ -105,6 +113,12 @@ export async function getAccountsWithCalculatedBalance(
       const amt = parseFloat(t.amount || "0") || 0;
       if (t.to_account_id === acc.id) totalIn += amt;
       if (t.from_account_id === acc.id) totalOut += amt;
+    });
+
+    (dividendDisbursements || []).forEach((disbursement: any) => {
+      if (disbursement.cash_account_id === acc.id) {
+        totalOut += parseFloat(disbursement.amount || "0") || 0;
+      }
     });
 
     // Mutasi pengeluaran

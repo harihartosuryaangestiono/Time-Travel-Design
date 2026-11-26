@@ -15,6 +15,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { createFastTransaction } from "@/app/actions/cashBookActions";
+import { createCashTransfer } from "@/app/actions/transferActions";
 import type { SubcontractorContractSummary } from "@/app/actions/subcontractorActions";
 import type { SalesPersonProjectOption } from "@/app/actions/salesActions";
 import {
@@ -25,10 +26,11 @@ import {
 import { parseAmountInput } from "@/lib/parseAmount";
 
 interface FastTransactionEntryProps {
-  onSuccess: () => void;
+  onSuccess: (cashAccountId?: string) => void;
   recentDescriptions?: string[];
   projects?: Array<{ id: string; name: string; status: string }>;
   accounts: Array<{ id: string; name: string; opening_balance: number }>;
+  defaultCashAccountId?: string;
   subcontractorContracts?: SubcontractorContractSummary[];
   salesAssignments?: SalesPersonProjectOption[];
   defaultProjectId?: string;
@@ -81,6 +83,7 @@ export function FastTransactionEntry({
   recentDescriptions = [],
   projects = [],
   accounts,
+  defaultCashAccountId,
   subcontractorContracts = [],
   salesAssignments = [],
   defaultProjectId,
@@ -95,9 +98,10 @@ export function FastTransactionEntry({
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
   const [amount, setAmount] = useState("");
-  const [type, setType] = useState<"INCOME" | "EXPENSE">("EXPENSE");
+  const [type, setType] = useState<"INCOME" | "EXPENSE" | "TRANSFER">("EXPENSE");
   const [expenseBook, setExpenseBook] = useState<ExpenseBook>(defaultProjectId ? "PROJECT" : "GENERAL");
-  const [cashAccountId, setCashAccountId] = useState("");
+  const [cashAccountId, setCashAccountId] = useState(defaultCashAccountId || "");
+  const [destinationAccountId, setDestinationAccountId] = useState("");
   const [projectId, setProjectId] = useState(defaultProjectId || "");
   const [subcontractorContractId, setSubcontractorContractId] = useState("");
   const [salesAssignmentKey, setSalesAssignmentKey] = useState("");
@@ -122,9 +126,21 @@ export function FastTransactionEntry({
 
   useEffect(() => {
     if (!accounts.some((account) => account.id === cashAccountId)) {
-      setCashAccountId(accounts[0]?.id || "");
+      const preferredAccount = accounts.find((account) => account.id === defaultCashAccountId);
+      setCashAccountId(preferredAccount?.id || accounts[0]?.id || "");
     }
-  }, [accounts, cashAccountId]);
+  }, [accounts, cashAccountId, defaultCashAccountId]);
+
+  useEffect(() => {
+    if (
+      !accounts.some((account) => account.id === destinationAccountId) ||
+      destinationAccountId === cashAccountId
+    ) {
+      setDestinationAccountId(
+        accounts.find((account) => account.id !== cashAccountId)?.id || ""
+      );
+    }
+  }, [accounts, cashAccountId, destinationAccountId]);
 
   const handleCategoryChange = (value: string) => {
     setCategory(value);
@@ -161,12 +177,16 @@ export function FastTransactionEntry({
       setErrorMsg("Keterangan transaksi wajib diisi.");
       return;
     }
-    if (!category) {
+    if (type !== "TRANSFER" && !category) {
       setErrorMsg("Kategori transaksi wajib dipilih.");
       return;
     }
     if (!cashAccountId) {
       setErrorMsg("Pilih rekening atau kas yang menerima atau membayar transaksi.");
+      return;
+    }
+    if (type === "TRANSFER" && !destinationAccountId) {
+      setErrorMsg("Pilih rekening tujuan yang berbeda dari rekening sumber.");
       return;
     }
     const parsedAmount = parseAmountInput(amount);
@@ -179,29 +199,39 @@ export function FastTransactionEntry({
       setIsSubmitting(true);
       setErrorMsg(null);
 
-      const result = await createFastTransaction({
-        date,
-        description: description.trim(),
-        category,
-        amount: parsedAmount,
-        type,
-        project_id:
-          type === "INCOME"
-            ? projectId || null
-            : category === "Marketing & Sales"
-            ? selectedSalesAssignment?.projectId || defaultProjectId || null
-            : expenseBook === "PROJECT"
+      if (type === "TRANSFER") {
+        await createCashTransfer({
+          from_account_id: cashAccountId,
+          to_account_id: destinationAccountId,
+          amount: parsedAmount,
+          date,
+          notes: description.trim(),
+        });
+      } else {
+        const result = await createFastTransaction({
+          date,
+          description: description.trim(),
+          category,
+          amount: parsedAmount,
+          type,
+          project_id:
+            type === "INCOME"
               ? projectId || null
+              : category === "Marketing & Sales"
+              ? selectedSalesAssignment?.projectId || defaultProjectId || null
+              : expenseBook === "PROJECT"
+                ? projectId || null
+                : null,
+          sales_person_id:
+            type === "EXPENSE" && category === "Marketing & Sales"
+              ? selectedSalesAssignment?.salesPersonId || null
               : null,
-        sales_person_id:
-          type === "EXPENSE" && category === "Marketing & Sales"
-            ? selectedSalesAssignment?.salesPersonId || null
-            : null,
-        subcontractor_contract_id:
-          type === "EXPENSE" && expenseBook === "PROJECT" ? subcontractorContractId || null : null,
-        cash_account_id: cashAccountId,
-      });
-      if (!result.success) throw new Error(result.error);
+          subcontractor_contract_id:
+            type === "EXPENSE" && expenseBook === "PROJECT" ? subcontractorContractId || null : null,
+          cash_account_id: cashAccountId,
+        });
+        if (!result.success) throw new Error(result.error);
+      }
 
       // Reset form dan fokus kembali ke input keterangan agar siap input baris berikutnya
       setDescription("");
@@ -214,7 +244,7 @@ export function FastTransactionEntry({
         descInputRef.current.focus();
       }
 
-      onSuccess();
+      onSuccess(type === "TRANSFER" ? cashAccountId : undefined);
     } catch (err: any) {
       console.error("Gagal simpan transaksi cepat:", err);
       setErrorMsg(err?.message || "Gagal menyimpan transaksi.");
@@ -323,12 +353,13 @@ export function FastTransactionEntry({
           <select
             value={type}
             onChange={(e) => {
-                const nextType = e.target.value as "INCOME" | "EXPENSE";
+                const nextType = e.target.value as "INCOME" | "EXPENSE" | "TRANSFER";
                 setType(nextType);
                 setCategory("");
                 setSmartSuggestion(null);
                 setSubcontractorContractId("");
                 setSalesAssignmentKey("");
+                if (nextType === "TRANSFER") setProjectId("");
                 if (nextType === "EXPENSE" && defaultProjectId) {
                   setExpenseBook("PROJECT");
                   setProjectId(defaultProjectId);
@@ -338,11 +369,12 @@ export function FastTransactionEntry({
           >
             <option value="EXPENSE">Uang keluar</option>
             <option value="INCOME">Uang masuk</option>
+            <option value="TRANSFER">Pemindahan Dana</option>
           </select>
         </div>
         <div>
           <label className="mb-0.5 block text-[10px] font-bold uppercase tracking-wider text-zinc-400">
-            Rekening / kas *
+            {type === "TRANSFER" ? "Rekening sumber *" : "Rekening / kas *"}
           </label>
           <select
             required
@@ -356,6 +388,26 @@ export function FastTransactionEntry({
             ))}
           </select>
         </div>
+        {type === "TRANSFER" && (
+          <div>
+            <label className="mb-0.5 block text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+              Rekening tujuan *
+            </label>
+            <select
+              required
+              value={destinationAccountId}
+              onChange={(e) => setDestinationAccountId(e.target.value)}
+              className="h-9 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 text-xs font-semibold text-zinc-900"
+            >
+              <option value="">Pilih rekening tujuan</option>
+              {accounts
+                .filter((account) => account.id !== cashAccountId)
+                .map((account) => (
+                  <option key={account.id} value={account.id}>{account.name}</option>
+                ))}
+            </select>
+          </div>
+        )}
         {type === "EXPENSE" && allowProjectSelection && (
           <div>
             <label className="mb-0.5 block text-[10px] font-bold uppercase tracking-wider text-zinc-400">
@@ -467,7 +519,15 @@ export function FastTransactionEntry({
             type="text"
             required
             list="recent-descriptions"
-            placeholder={type === "INCOME" ? "Misal: Pembayaran termin proyek..." : expenseBook === "PROJECT" ? "Misal: Pengadaan material proyek..." : "Misal: Biaya website perusahaan..."}
+            placeholder={
+              type === "TRANSFER"
+                ? "Misal: Pemindahan dana ke rekening PT"
+                : type === "INCOME"
+                  ? "Misal: Pembayaran termin proyek..."
+                  : expenseBook === "PROJECT"
+                    ? "Misal: Pengadaan material proyek..."
+                    : "Misal: Biaya website perusahaan..."
+            }
             value={description}
             onChange={(e) => handleDescChange(e.target.value)}
             className="h-9 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs font-medium text-zinc-900 focus:border-zinc-950 focus:bg-white focus:outline-none"
@@ -480,46 +540,48 @@ export function FastTransactionEntry({
         </div>
 
         {/* Kategori (Wajib) */}
-        <div className="sm:col-span-3">
-          <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-0.5">
-            Kategori (Wajib) *
-          </label>
-          <select
-            required
-            value={category}
-            onChange={(e) => handleCategoryChange(e.target.value)}
-            className={`h-9 w-full rounded-xl border px-2.5 text-xs font-semibold focus:border-zinc-950 focus:bg-white focus:outline-none ${
-              category ? "border-zinc-200 bg-zinc-50 text-zinc-900" : "border-amber-300 bg-amber-50/50 text-amber-800"
-            }`}
-          >
-            <option value="">-- Pilih Kategori --</option>
-            {type === "INCOME" ? (
-              <optgroup label="Kategori pemasukan">
-                <option value="Pendapatan Proyek">Pendapatan Proyek</option>
-                <option value="Setoran Modal">Setoran Modal</option>
-                <option value="Bunga Bank">Bunga Bank</option>
-                <option value="Pemasukan Lainnya">Pemasukan Lainnya</option>
-              </optgroup>
-            ) : isProjectEntry ? (
-              <>
-                <optgroup label="Buku Kecil — Pengeluaran Proyek">
-                  {getExpenseBookCategories("PROJECT").map((expenseCategory) => (
+        {type !== "TRANSFER" && (
+          <div className="sm:col-span-3">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-0.5">
+              Kategori (Wajib) *
+            </label>
+            <select
+              required
+              value={category}
+              onChange={(e) => handleCategoryChange(e.target.value)}
+              className={`h-9 w-full rounded-xl border px-2.5 text-xs font-semibold focus:border-zinc-950 focus:bg-white focus:outline-none ${
+                category ? "border-zinc-200 bg-zinc-50 text-zinc-900" : "border-amber-300 bg-amber-50/50 text-amber-800"
+              }`}
+            >
+              <option value="">-- Pilih Kategori --</option>
+              {type === "INCOME" ? (
+                <optgroup label="Kategori pemasukan">
+                  <option value="Pendapatan Proyek">Pendapatan Proyek</option>
+                  <option value="Setoran Modal">Setoran Modal</option>
+                  <option value="Bunga Bank">Bunga Bank</option>
+                  <option value="Pemasukan Lainnya">Pemasukan Lainnya</option>
+                </optgroup>
+              ) : isProjectEntry ? (
+                <>
+                  <optgroup label="Buku Kecil — Pengeluaran Proyek">
+                    {getExpenseBookCategories("PROJECT").map((expenseCategory) => (
+                      <option key={expenseCategory} value={expenseCategory}>{expenseCategory}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Buku Besar">
+                    <option value="Marketing & Sales">Marketing &amp; Sales</option>
+                  </optgroup>
+                </>
+              ) : (
+                <optgroup label={expenseBook === "PROJECT" ? "Buku Kecil — Pengeluaran Proyek" : "Buku Besar — Pengeluaran Umum"}>
+                  {getExpenseBookCategories(expenseBook).map((expenseCategory) => (
                     <option key={expenseCategory} value={expenseCategory}>{expenseCategory}</option>
                   ))}
                 </optgroup>
-                <optgroup label="Buku Besar">
-                  <option value="Marketing & Sales">Marketing &amp; Sales</option>
-                </optgroup>
-              </>
-            ) : (
-              <optgroup label={expenseBook === "PROJECT" ? "Buku Kecil — Pengeluaran Proyek" : "Buku Besar — Pengeluaran Umum"}>
-                {getExpenseBookCategories(expenseBook).map((expenseCategory) => (
-                  <option key={expenseCategory} value={expenseCategory}>{expenseCategory}</option>
-                ))}
-              </optgroup>
-            )}
-          </select>
-        </div>
+              )}
+            </select>
+          </div>
+        )}
 
         {type === "EXPENSE" && category === "Marketing & Sales" && (
           <div className="sm:col-span-3">

@@ -29,12 +29,14 @@ export interface CashBookEntry {
   sales_person_id?: string | null;
   sales_person_name?: string | null;
   projectName?: string | null;
-  type: "INCOME" | "EXPENSE" | "OPENING";
+  type: "INCOME" | "EXPENSE" | "TRANSFER" | "DIVIDEND" | "OPENING";
   source_type:
     | "CASH_BOOK_EXPENSE"
     | "PROJECT_REVENUE"
     | "CASH_RECEIPT"
     | "INVOICE_PAYMENT"
+    | "CASH_TRANSFER"
+    | "DIVIDEND_DISBURSEMENT"
     | "CASH_OPENING_BALANCE";
   can_edit: boolean;
 }

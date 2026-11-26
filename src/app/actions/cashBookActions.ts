@@ -37,9 +37,8 @@ export async function getCashBookTransactions(filter?: {
 
   const { data: accounts, error: accountsError } = await supabase
     .from("cash_accounts")
-    .select("id, name, opening_balance")
+    .select("id, name, opening_balance, is_active")
     .eq("organization_id", user.organizationId)
-    .eq("is_active", true)
     .order("name");
 
   if (accountsError) throw new Error(`Gagal memuat rekening: ${accountsError.message}`);
@@ -51,7 +50,8 @@ export async function getCashBookTransactions(filter?: {
   const openingBal = Number(selectedAccount.opening_balance || 0);
 
   const [{ data: expenses, error: expensesError }, { data: receipts, error: receiptsError },
-    { data: projectRevenues, error: revenuesError }, { data: invoicePayments, error: paymentsError }] =
+    { data: projectRevenues, error: revenuesError }, { data: invoicePayments, error: paymentsError },
+    { data: transfers, error: transfersError }, { data: dividendDisbursements, error: dividendsError }] =
     await Promise.all([
       supabase
     .from("expenses")
@@ -78,12 +78,26 @@ export async function getCashBookTransactions(filter?: {
         .select("id, payment_date, amount, invoice_id, reference")
         .eq("cash_account_id", selectedAccount.id)
         .order("payment_date", { ascending: true }),
+      supabase
+        .from("cash_transfers")
+        .select("id, from_account_id, from_account_name, to_account_id, date, amount, reference, notes")
+        .eq("organization_id", user.organizationId)
+        .or(`from_account_id.eq.${selectedAccount.id},to_account_id.eq.${selectedAccount.id}`)
+        .order("date", { ascending: true }),
+      supabase
+        .from("dividend_disbursements")
+        .select("id, recipient_name, date, amount, reference, notes")
+        .eq("organization_id", user.organizationId)
+        .eq("cash_account_id", selectedAccount.id)
+        .order("date", { ascending: true }),
     ]);
 
   if (expensesError) throw new Error(`Gagal memuat pengeluaran: ${expensesError.message}`);
   if (receiptsError) throw new Error(`Gagal memuat pemasukan: ${receiptsError.message}`);
   if (revenuesError) throw new Error(`Gagal memuat pendapatan proyek: ${revenuesError.message}`);
   if (paymentsError) throw new Error(`Gagal memuat pembayaran invoice: ${paymentsError.message}`);
+  if (transfersError) throw new Error(`Gagal memuat pemindahan dana: ${transfersError.message}`);
+  if (dividendsError) throw new Error(`Gagal memuat pencairan dividen: ${dividendsError.message}`);
 
   const salesPersonIds = Array.from(new Set(
     (expenses || [])
@@ -188,6 +202,59 @@ export async function getCashBookTransactions(filter?: {
     can_edit: false,
   }));
 
+  const accountNames = new Map((accounts || []).map((account) => [account.id, account.name]));
+  (transfers || []).forEach((transfer: any) => {
+    const isIncoming = transfer.to_account_id === selectedAccount.id;
+    const otherAccountName = isIncoming
+      ? transfer.from_account_id
+        ? accountNames.get(transfer.from_account_id) || "Rekening perusahaan"
+        : transfer.from_account_name || "Sumber luar perusahaan"
+      : accountNames.get(transfer.to_account_id) || "Rekening perusahaan";
+    const amount = Number(transfer.amount || 0);
+    const transferDescription = isIncoming
+      ? `Pemindahan Dana dari ${otherAccountName}`
+      : `Pemindahan Dana ke ${otherAccountName}`;
+
+    entries.push({
+      id: `CASH_TRANSFER_${transfer.id}`,
+      date: transfer.date ? new Date(transfer.date).toISOString().split("T")[0] : "",
+      number: transfer.reference || undefined,
+      description: transfer.notes?.trim()
+        ? `${transferDescription} — ${transfer.notes.trim()}`
+        : transferDescription,
+      debit: isIncoming ? amount : 0,
+      kredit: isIncoming ? 0 : amount,
+      balance: 0,
+      category: "Pemindahan Dana",
+      needs_category: false,
+      type: "TRANSFER",
+      source_type: "CASH_TRANSFER",
+      can_edit: false,
+    });
+  });
+
+  (dividendDisbursements || []).forEach((disbursement: any) => {
+    const amount = Number(disbursement.amount || 0);
+    const description = `Pencairan dividen kepada ${disbursement.recipient_name}`;
+
+    entries.push({
+      id: `DIVIDEND_DISBURSEMENT_${disbursement.id}`,
+      date: disbursement.date ? new Date(disbursement.date).toISOString().split("T")[0] : "",
+      number: disbursement.reference || undefined,
+      description: disbursement.notes?.trim()
+        ? `${description} — ${disbursement.notes.trim()}`
+        : description,
+      debit: 0,
+      kredit: amount,
+      balance: 0,
+      category: "Pencairan Dividen",
+      needs_category: false,
+      type: "DIVIDEND",
+      source_type: "DIVIDEND_DISBURSEMENT",
+      can_edit: false,
+    });
+  });
+
   entries.sort((a, b) => a.date.localeCompare(b.date));
   let runningBalance = 0;
   entries.forEach((entry) => {
@@ -214,6 +281,7 @@ export async function getCashBookTransactions(filter?: {
   if (filter?.book && filter.book !== "ALL") {
     filtered = filtered.filter((entry) => {
       if (entry.type === "OPENING") return true;
+      if (entry.type === "TRANSFER") return filter.book === "GENERAL";
       if (entry.type !== "EXPENSE") {
         return filter.book === "PROJECT"
           ? Boolean(entry.project_id)
