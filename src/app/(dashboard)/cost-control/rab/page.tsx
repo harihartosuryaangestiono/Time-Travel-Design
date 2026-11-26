@@ -114,9 +114,13 @@ export default function RabProjectsListPage() {
       if (!createForm.project_id) throw new Error("Pilih proyek terlebih dahulu.");
       if (!createForm.title.trim()) throw new Error("Judul RAB wajib diisi.");
 
-      const newRab = await createRabProject(createForm);
-      if (!newRab?.id) throw new Error("RAB berhasil diproses tetapi ID dokumen tidak ditemukan.");
-      router.push(`/cost-control/rab/${newRab.id}`);
+      const result = await createRabProject(createForm);
+      if (!result.success) {
+        setError(result.message);
+        return;
+      }
+      if (!result.rab?.id) throw new Error("RAB berhasil diproses tetapi ID dokumen tidak ditemukan.");
+      router.push(`/cost-control/rab/${result.rab.id}`);
     } catch (err: any) {
       setError(err?.message || "Gagal membuat RAB.");
     }

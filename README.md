@@ -62,6 +62,17 @@ Untuk memakai halaman Sales Person dan menghubungkan pembayaran komisi ke Buku K
 
 Untuk memakai Data Subkontraktor dan Rekap Borongan, jalankan `supabase/migrations/20261026_subcontractor_contracts.sql` lalu `supabase/migrations/20261027_subcontractors.sql` di Supabase SQL Editor.
 
+Untuk mengaktifkan alur Cost Control RAB/RAP, jalankan migrasi berikut secara berurutan di Supabase SQL Editor:
+
+1. `supabase/migrations/20261116_project_cost_control_rab_rap.sql`
+2. `supabase/migrations/20261116182100_cost_control_security_scurve_fixes.sql`
+3. `supabase/migrations/20261116184900_cost_control_rab_rbac_and_cash_fk.sql`
+4. `supabase/migrations/20261116191000_material_units_and_rls.sql`
+5. `supabase/migrations/20261116193000_rab_calculation_atomic.sql`
+6. `supabase/migrations/20261116200000_cost_control_rap_labor_permissions.sql`
+
+Database Cost Control ini menyediakan master upah/material dan AHSP, yang dipakai untuk menyusun RAB. Setelah RAB disetujui, RAB dapat menjadi dasar penyusunan RAP.
+
 Jika menghapus transaksi Buku Kas, jalankan `supabase/migrations/20261030_cash_book_expense_delete.sql` untuk memberi izin hapus pengeluaran khusus Owner/Finance.
 
 Bonus Sales Person dihitung otomatis dari pembayaran yang sudah disetujui/diposting; tidak perlu mengisi bonus secara manual. Filter Buku Besar/Buku Kecil menggunakan data transaksi yang sudah ada.

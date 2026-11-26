@@ -68,6 +68,16 @@ export interface RabProjectItem {
   items?: RabWorkItem[];
 }
 
+export type CreateRabProjectResult =
+  | { success: true; rab: RabProjectItem }
+  | { success: false; message: string };
+
+class RabCreationError extends Error {
+  constructor(message: string, readonly code?: string) {
+    super(message);
+  }
+}
+
 export interface RabWorkItem {
   id: string;
   rab_id: string;
@@ -266,7 +276,7 @@ export async function getRabProjectDetail(rabId: string): Promise<RabProjectItem
   };
 }
 
-export async function createRabProject(input: {
+async function createRabProjectRecord(input: {
   project_id: string;
   title: string;
   client_name?: string;
@@ -302,13 +312,15 @@ export async function createRabProject(input: {
     .eq("id", input.project_id)
     .eq("organization_id", user.organizationId)
     .maybeSingle();
-  if (projectErr) throw new Error(`Gagal memvalidasi proyek RAB: ${projectErr.message}`);
+  if (projectErr) {
+    throw new RabCreationError(`Gagal memvalidasi proyek RAB: ${projectErr.message}`, projectErr.code);
+  }
   if (!project) throw new Error("Proyek tidak ditemukan di organisasi ini.");
 
   const now = new Date();
   const rabNumber = `RAB-${now.getFullYear()}-${randomUUID().slice(0, 8).toUpperCase()}`;
   let data: RabProjectItem | null = null;
-  let createError: Error | null = null;
+  let createError: RabCreationError | null = null;
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const { data: latest, error: versionError } = await supabase
@@ -319,7 +331,12 @@ export async function createRabProject(input: {
       .order("version", { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (versionError) throw new Error(`Gagal menentukan versi RAB berikutnya: ${versionError.message}`);
+    if (versionError) {
+      throw new RabCreationError(
+        `Gagal menentukan versi RAB berikutnya: ${versionError.message}`,
+        versionError.code,
+      );
+    }
 
     const { data: created, error } = await supabase
       .from("rab_projects")
@@ -349,11 +366,13 @@ export async function createRabProject(input: {
       data = created;
       break;
     }
-    createError = new Error(error.message);
+    createError = new RabCreationError(error.message, error.code);
     if (error.code !== "23505") break;
   }
 
-  if (createError) throw new Error(`Gagal membuat RAB: ${createError.message}`);
+  if (createError) {
+    throw new RabCreationError(`Gagal membuat RAB: ${createError.message}`, createError.code);
+  }
   if (!data) throw new Error("Gagal membuat RAB: server tidak mengembalikan dokumen.");
 
   await logAudit(user, {
@@ -365,6 +384,56 @@ export async function createRabProject(input: {
 
   revalidatePath("/cost-control/rab");
   return data;
+}
+
+function getRabCreationErrorMessage(error: unknown): string {
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? (error as { code?: unknown }).code
+      : undefined;
+
+  if (code === "42P01" || code === "PGRST205" || code === "PGRST204") {
+    return "Database RAB belum siap. Admin perlu menjalankan migrasi cost-control RAB/RAP di Supabase.";
+  }
+  if (code === "42501") {
+    return "Tidak memiliki izin untuk membuat RAB. Periksa role akun dan kebijakan akses RAB di Supabase.";
+  }
+  if (code === "23503") {
+    return "Data proyek atau profil pembuat RAB tidak valid. Periksa kembali data proyek dan keanggotaan organisasi.";
+  }
+  if (error instanceof Error && error.message.startsWith("Hanya Owner, Finance")) {
+    return error.message;
+  }
+  if (error instanceof Error && error.message.startsWith("Persentase ")) {
+    return error.message;
+  }
+  if (error instanceof Error && error.message === "Proyek tidak ditemukan di organisasi ini.") {
+    return error.message;
+  }
+
+  return "RAB belum dapat dibuat. Detail teknis telah dicatat di log server; hubungi admin jika masalah berlanjut.";
+}
+
+export async function createRabProject(input: {
+  project_id: string;
+  title: string;
+  client_name?: string;
+  project_location?: string;
+  date?: string;
+  profit_type?: "MARKUP" | "GROSS_MARGIN";
+  profit_percentage?: number;
+  overhead_percentage?: number;
+  contingency_percentage?: number;
+  tax_percentage?: number;
+  notes?: string;
+}): Promise<CreateRabProjectResult> {
+  try {
+    const rab = await createRabProjectRecord(input);
+    return { success: true, rab };
+  } catch (error) {
+    console.error("Gagal membuat RAB:", error);
+    return { success: false, message: getRabCreationErrorMessage(error) };
+  }
 }
 
 export async function addAhspItemToRab(input: {
