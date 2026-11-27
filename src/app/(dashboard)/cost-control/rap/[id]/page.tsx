@@ -17,6 +17,7 @@ import {
   TrendingDown,
   TrendingUp,
   X,
+  Loader2,
   FileSpreadsheet,
   Boxes,
   HardHat,
@@ -53,6 +54,7 @@ export default function RapDetailWorksheetPage() {
   const [comparison, setComparison] = useState<BudgetVsActualComparison | null>(null);
   const [activeTab, setActiveTab] = useState<"ITEMS" | "MATERIAL_TAKEOFF" | "LABOR_TAKEOFF" | "COMPARISON">("ITEMS");
   const [isLoading, setIsLoading] = useState(true);
+  const [isSavingItem, setIsSavingItem] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -113,8 +115,9 @@ export default function RapDetailWorksheetPage() {
 
   const handleSaveItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingItem) return;
+    if (!editingItem || isSavingItem) return;
     try {
+      setIsSavingItem(true);
       await updateRapItem(editingItem.id, rapId, {
         target_material_cost: Number(editForm.target_material_cost),
         target_labor_cost: Number(editForm.target_labor_cost),
@@ -129,6 +132,8 @@ export default function RapDetailWorksheetPage() {
       fetchData();
     } catch (err: any) {
       setError(err?.message || "Gagal memperbarui item RAP.");
+    } finally {
+      setIsSavingItem(false);
     }
   };
 
@@ -723,6 +728,7 @@ export default function RapDetailWorksheetPage() {
               </div>
               <button
                 onClick={() => setShowEditItemModal(false)}
+                disabled={isSavingItem}
                 className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
               >
                 <X className="h-4 w-4" />
@@ -778,15 +784,19 @@ export default function RapDetailWorksheetPage() {
                 <button
                   type="button"
                   onClick={() => setShowEditItemModal(false)}
+                  disabled={isSavingItem}
                   className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-zinc-900 px-5 py-2 text-xs font-semibold text-white hover:bg-zinc-800"
+                  disabled={isSavingItem}
+                  aria-busy={isSavingItem}
+                  className="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-5 py-2 text-xs font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Simpan Perubahan
+                  {isSavingItem && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {isSavingItem ? "Menyimpan Perubahan..." : "Simpan Perubahan"}
                 </button>
               </div>
             </form>

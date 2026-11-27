@@ -168,7 +168,7 @@ export default function OrganizationSettingsContent() {
             ) : (
               <Save className="h-4 w-4" />
             )}
-            Save Changes
+            {isSaving ? "Saving..." : "Save Changes"}
           </button>
         </div>
       </form>

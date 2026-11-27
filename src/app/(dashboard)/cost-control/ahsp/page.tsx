@@ -65,6 +65,7 @@ export default function MasterAhspPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSeeding, setIsSeeding] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -274,7 +275,9 @@ export default function MasterAhspPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
     try {
+      setIsSaving(true);
       setError(null);
       if (!form.name.trim()) throw new Error("Nama pekerjaan AHSP wajib diisi.");
       if (form.components.length === 0) throw new Error("Minimal tambahkan 1 komponen (Upah atau Material).");
@@ -307,6 +310,8 @@ export default function MasterAhspPage() {
       await fetchData();
     } catch (err: any) {
       setError(err?.message || "Gagal menyimpan Master AHSP.");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -745,6 +750,7 @@ export default function MasterAhspPage() {
               </div>
               <button
                 onClick={() => setShowAddModal(false)}
+                disabled={isSaving}
                 className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
               >
                 <X className="h-4 w-4" />
@@ -1050,15 +1056,19 @@ export default function MasterAhspPage() {
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
+                  disabled={isSaving}
                   className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-zinc-900 px-5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-zinc-800"
+                  disabled={isSaving}
+                  aria-busy={isSaving}
+                  className="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {editingAhsp ? "Simpan Perubahan AHSP" : "Simpan Master AHSP"}
+                  {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {isSaving ? "Menyimpan AHSP..." : editingAhsp ? "Simpan Perubahan AHSP" : "Simpan Master AHSP"}
                 </button>
               </div>
             </form>

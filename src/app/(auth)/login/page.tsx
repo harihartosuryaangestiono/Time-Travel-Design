@@ -136,7 +136,10 @@ export default function LoginPage() {
               className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-950 py-3.5 text-xs font-bold uppercase tracking-wider text-white shadow-lg shadow-zinc-950/20 transition-all hover:bg-black active:scale-[0.99] disabled:opacity-50"
             >
               {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Signing In...</span>
+                </>
               ) : (
                 <>
                   <span>Sign In to Dashboard</span>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -17,6 +17,7 @@ import {
   Clock,
   ArrowRight,
   TrendingUp,
+  Loader2,
 } from "lucide-react";
 import {
   getRabProjects,
@@ -38,6 +39,7 @@ function formatCurrency(amount: number) {
 
 export default function RabProjectsListPage() {
   const router = useRouter();
+  const [isNavigating, startNavigation] = useTransition();
   const [rabList, setRabList] = useState<RabProjectItem[]>([]);
   const [projects, setProjects] = useState<Array<{ id: string; name: string; code: string; location?: string }>>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("ALL");
@@ -45,6 +47,8 @@ export default function RabProjectsListPage() {
   const [statusFilter, setStatusFilter] = useState("ALL");
 
   const [isLoading, setIsLoading] = useState(true);
+  const [isCreating, setIsCreating] = useState(false);
+  const [openingRabId, setOpeningRabId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -107,6 +111,7 @@ export default function RabProjectsListPage() {
 
   const totalGrandTotal = useMemo(() => rabList.reduce((sum, r) => sum + r.grand_total, 0), [rabList]);
   const approvedRabsCount = useMemo(() => rabList.filter((r) => r.status === "APPROVED").length, [rabList]);
+  const isCreatePending = isCreating || isNavigating;
 
   const handleCreateRab = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,15 +119,19 @@ export default function RabProjectsListPage() {
       if (!createForm.project_id) throw new Error("Pilih proyek terlebih dahulu.");
       if (!createForm.title.trim()) throw new Error("Judul RAB wajib diisi.");
 
+      setIsCreating(true);
+      setError(null);
       const result = await createRabProject(createForm);
       if (!result.success) {
         setError(`${result.message} (Kode: ${result.diagnostic})`);
         return;
       }
       if (!result.rab?.id) throw new Error("RAB berhasil diproses tetapi ID dokumen tidak ditemukan.");
-      router.push(`/cost-control/rab/${result.rab.id}`);
+      startNavigation(() => router.push(`/cost-control/rab/${result.rab.id}`));
     } catch (err: any) {
       setError(err?.message || "Gagal membuat RAB.");
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -259,7 +268,16 @@ export default function RabProjectsListPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">
-              {filteredRabs.length === 0 ? (
+              {isLoading ? (
+                <tr>
+                  <td colSpan={8} className="py-12 text-center text-zinc-500">
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Memuat daftar RAB...
+                    </span>
+                  </td>
+                </tr>
+              ) : filteredRabs.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-zinc-400">
                     Belum ada dokumen RAB yang dibuat. Klik &quot;Buat RAB Baru&quot; untuk memulai.
@@ -314,9 +332,20 @@ export default function RabProjectsListPage() {
                     <td className="px-4 py-3 text-center">
                       <Link
                         href={`/cost-control/rab/${rab.id}`}
+                        onClick={() => setOpeningRabId(rab.id)}
+                        aria-busy={openingRabId === rab.id}
                         className="inline-flex items-center gap-1 rounded-lg bg-zinc-950 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-black transition shadow-xs"
                       >
-                        Buka Worksheet <ArrowRight className="h-3 w-3" />
+                        {openingRabId === rab.id ? (
+                          <>
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            Membuka...
+                          </>
+                        ) : (
+                          <>
+                            Buka Worksheet <ArrowRight className="h-3 w-3" />
+                          </>
+                        )}
                       </Link>
                     </td>
                   </tr>
@@ -333,7 +362,12 @@ export default function RabProjectsListPage() {
           <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
             <div className="flex items-center justify-between border-b border-zinc-100 pb-4">
               <h3 className="text-base font-bold text-zinc-950">Buat RAB Proyek Baru</h3>
-              <button onClick={() => setShowCreateModal(false)} className="text-zinc-400 hover:text-zinc-700">
+              <button
+                type="button"
+                onClick={() => setShowCreateModal(false)}
+                disabled={isCreatePending}
+                className="text-zinc-400 hover:text-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -453,15 +487,23 @@ export default function RabProjectsListPage() {
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
+                  disabled={isCreatePending}
                   className="rounded-xl border border-zinc-200 px-4 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black"
+                  disabled={isCreatePending}
+                  aria-busy={isCreatePending}
+                  className="inline-flex min-w-36 items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  Buka Lembar Kerja
+                  {isCreatePending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Membuat RAB...
+                    </>
+                  ) : "Buka Lembar Kerja"}
                 </button>
               </div>
             </form>

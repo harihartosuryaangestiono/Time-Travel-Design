@@ -22,6 +22,7 @@ import {
   DollarSign,
   FileSpreadsheet,
   X,
+  Loader2,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import {
@@ -56,6 +57,10 @@ export default function RabDetailWorksheetPage() {
   const [rab, setRab] = useState<RabProjectItem | null>(null);
   const [ahspCatalog, setAhspCatalog] = useState<MasterAhspItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [pendingAction, setPendingAction] = useState<
+    "add-ahsp" | "add-custom" | "delete-item" | "save-margin" | "approve" | "revision" | null
+  >(null);
+  const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -152,6 +157,8 @@ export default function RabDetailWorksheetPage() {
     e.preventDefault();
     try {
       if (!ahspPickForm.ahsp_id) throw new Error("Pilih item AHSP.");
+      setPendingAction("add-ahsp");
+      setError(null);
       await addAhspItemToRab({
         rab_id: rabId,
         ahsp_id: ahspPickForm.ahsp_id,
@@ -159,11 +166,13 @@ export default function RabDetailWorksheetPage() {
         sub_division: ahspPickForm.sub_division,
         volume: Number(ahspPickForm.volume),
       });
+      await fetchData();
       setSuccessMsg("Pekerjaan dari AHSP berhasil ditambahkan ke RAB.");
       setShowAhspPickerModal(false);
-      fetchData();
     } catch (err: any) {
       setError(err?.message || "Gagal menambahkan AHSP.");
+    } finally {
+      setPendingAction(null);
     }
   };
 
@@ -171,6 +180,8 @@ export default function RabDetailWorksheetPage() {
     e.preventDefault();
     try {
       if (!customItemForm.item_name.trim()) throw new Error("Nama item pekerjaan wajib diisi.");
+      setPendingAction("add-custom");
+      setError(null);
       await addCustomRabItem({
         rab_id: rabId,
         division: customItemForm.division,
@@ -183,11 +194,13 @@ export default function RabDetailWorksheetPage() {
         labor_unit_cost: Number(customItemForm.labor_unit_cost),
         equipment_unit_cost: Number(customItemForm.equipment_unit_cost),
       });
+      await fetchData();
       setSuccessMsg("Item kustom berhasil ditambahkan ke RAB.");
       setShowCustomItemModal(false);
-      fetchData();
     } catch (err: any) {
       setError(err?.message || "Gagal menambahkan item kustom.");
+    } finally {
+      setPendingAction(null);
     }
   };
 
@@ -198,44 +211,61 @@ export default function RabDetailWorksheetPage() {
     }
     if (!confirm("Hapus item pekerjaan ini dari RAB?")) return;
     try {
+      setPendingAction("delete-item");
+      setDeletingItemId(itemId);
+      setError(null);
       await deleteRabItem(itemId, rabId);
       setSuccessMsg("Item pekerjaan berhasil dihapus.");
-      fetchData();
+      await fetchData();
     } catch (err: any) {
       setError(err?.message || "Gagal menghapus item.");
+    } finally {
+      setPendingAction(null);
+      setDeletingItemId(null);
     }
   };
 
   const handleSaveMargin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      setPendingAction("save-margin");
+      setError(null);
       await recalculateRab(rabId, marginForm);
+      await fetchData();
       setSuccessMsg("Pengaturan margin dan keuntungan Owner berhasil diperbarui.");
       setShowMarginModal(false);
-      fetchData();
     } catch (err: any) {
       setError(err?.message || "Gagal memperbarui margin.");
+    } finally {
+      setPendingAction(null);
     }
   };
 
   const handleApprove = async () => {
     if (!confirm("Setujui dan kunci RAB ini? Setelah disetujui, harga akan dibekukan sebagai acuan kontrak klien dan RAP.")) return;
     try {
+      setPendingAction("approve");
+      setError(null);
       await approveRabProject(rabId);
       setSuccessMsg("RAB berhasil disetujui dan versi telah terkunci aman.");
-      fetchData();
+      await fetchData();
     } catch (err: any) {
       setError(err?.message || "Gagal menyetujui RAB.");
+    } finally {
+      setPendingAction(null);
     }
   };
 
   const handleCreateRevision = async () => {
     if (!confirm("Buat revisi baru (versi berikutnya) dari RAB ini?")) return;
     try {
+      setPendingAction("revision");
+      setError(null);
       const newVer = await createNewRabVersion(rabId);
       router.push(`/cost-control/rab/${newVer.id}`);
     } catch (err: any) {
       setError(err?.message || "Gagal membuat revisi.");
+      setPendingAction(null);
     }
   };
 
@@ -291,6 +321,17 @@ export default function RabDetailWorksheetPage() {
     XLSX.utils.book_append_sheet(workbook, worksheet, "Worksheet RAB");
     XLSX.writeFile(workbook, `${rab.rab_number}_V${rab.version}.xlsx`);
   };
+
+  if (!rab && isLoading) {
+    return (
+      <div className="flex min-h-64 items-center justify-center">
+        <span className="inline-flex items-center gap-2 text-sm text-zinc-500">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          Memuat worksheet RAB...
+        </span>
+      </div>
+    );
+  }
 
   if (!rab && !isLoading) {
     return (
@@ -348,6 +389,7 @@ export default function RabDetailWorksheetPage() {
             <>
               <button
                 onClick={() => setShowMarginModal(true)}
+                disabled={pendingAction !== null}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3.5 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition shadow-sm"
               >
                 <Sliders className="h-3.5 w-3.5 text-zinc-500" />
@@ -355,19 +397,41 @@ export default function RabDetailWorksheetPage() {
               </button>
               <button
                 onClick={handleApprove}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 transition shadow-sm"
+                disabled={pendingAction !== null}
+                aria-busy={pendingAction === "approve"}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 transition shadow-sm disabled:cursor-not-allowed disabled:opacity-70"
               >
-                <CheckCircle2 className="h-4 w-4" />
-                Setujui & Kunci RAB
+                {pendingAction === "approve" ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Menyetujui...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-4 w-4" />
+                    Setujui & Kunci RAB
+                  </>
+                )}
               </button>
             </>
           ) : (
             <button
               onClick={handleCreateRevision}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black transition shadow-sm"
+              disabled={pendingAction !== null}
+              aria-busy={pendingAction === "revision"}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black transition shadow-sm disabled:cursor-not-allowed disabled:opacity-70"
             >
-              <Copy className="h-3.5 w-3.5" />
-              Buat Revisi (V{(rab?.version || 1) + 1})
+              {pendingAction === "revision" ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Membuat Revisi...
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3.5 w-3.5" />
+                  Buat Revisi (V{(rab?.version || 1) + 1})
+                </>
+              )}
             </button>
           )}
         </div>
@@ -425,6 +489,7 @@ export default function RabDetailWorksheetPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowAhspPickerModal(true)}
+              disabled={pendingAction !== null}
               className="inline-flex items-center gap-1.5 rounded-xl bg-zinc-950 px-3.5 py-2 text-xs font-semibold text-white hover:bg-black transition"
             >
               <Plus className="h-3.5 w-3.5" />
@@ -432,6 +497,7 @@ export default function RabDetailWorksheetPage() {
             </button>
             <button
               onClick={() => setShowCustomItemModal(true)}
+              disabled={pendingAction !== null}
               className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3.5 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition"
             >
               <Plus className="h-3.5 w-3.5" />
@@ -453,6 +519,7 @@ export default function RabDetailWorksheetPage() {
             {!rab?.is_locked && (
               <button
                 onClick={() => setShowAhspPickerModal(true)}
+                disabled={pendingAction !== null}
                 className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black"
               >
                 <Plus className="h-4 w-4" /> Tambah Item AHSP
@@ -527,9 +594,15 @@ export default function RabDetailWorksheetPage() {
                               <td className="px-4 py-3 text-center">
                                 <button
                                   onClick={() => handleDeleteItem(item.id)}
-                                  className="text-zinc-400 hover:text-red-600 p-1"
+                                  disabled={pendingAction !== null}
+                                  aria-label="Hapus item pekerjaan"
+                                  className="text-zinc-400 hover:text-red-600 p-1 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
-                                  <Trash2 className="h-3.5 w-3.5" />
+                                  {deletingItemId === item.id ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  )}
                                 </button>
                               </td>
                             )}
@@ -625,7 +698,12 @@ export default function RabDetailWorksheetPage() {
           <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
             <div className="flex items-center justify-between border-b border-zinc-100 pb-4">
               <h3 className="text-base font-bold text-zinc-950">Pilih dari Master AHSP</h3>
-              <button onClick={() => setShowAhspPickerModal(false)} className="text-zinc-400 hover:text-zinc-700">
+              <button
+                type="button"
+                onClick={() => setShowAhspPickerModal(false)}
+                disabled={pendingAction !== null}
+                className="text-zinc-400 hover:text-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -690,15 +768,23 @@ export default function RabDetailWorksheetPage() {
                 <button
                   type="button"
                   onClick={() => setShowAhspPickerModal(false)}
+                  disabled={pendingAction !== null}
                   className="rounded-xl border border-zinc-200 px-4 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black"
+                  disabled={pendingAction !== null}
+                  aria-busy={pendingAction === "add-ahsp"}
+                  className="inline-flex min-w-36 items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  Masukkan ke RAB
+                  {pendingAction === "add-ahsp" ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Menambahkan...
+                    </>
+                  ) : "Masukkan ke RAB"}
                 </button>
               </div>
             </form>
@@ -712,7 +798,12 @@ export default function RabDetailWorksheetPage() {
           <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
             <div className="flex items-center justify-between border-b border-zinc-100 pb-4">
               <h3 className="text-base font-bold text-zinc-950">Tambah Item Pekerjaan Kustom</h3>
-              <button onClick={() => setShowCustomItemModal(false)} className="text-zinc-400 hover:text-zinc-700">
+              <button
+                type="button"
+                onClick={() => setShowCustomItemModal(false)}
+                disabled={pendingAction !== null}
+                className="text-zinc-400 hover:text-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -799,15 +890,23 @@ export default function RabDetailWorksheetPage() {
                 <button
                   type="button"
                   onClick={() => setShowCustomItemModal(false)}
+                  disabled={pendingAction !== null}
                   className="rounded-xl border border-zinc-200 px-4 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black"
+                  disabled={pendingAction !== null}
+                  aria-busy={pendingAction === "add-custom"}
+                  className="inline-flex min-w-36 items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  Simpan Item Kustom
+                  {pendingAction === "add-custom" ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Menyimpan...
+                    </>
+                  ) : "Simpan Item Kustom"}
                 </button>
               </div>
             </form>
@@ -824,7 +923,12 @@ export default function RabDetailWorksheetPage() {
                 <h3 className="text-base font-bold text-zinc-950">Pengaturan Margin & Simulasi Keuntungan</h3>
                 <p className="text-xs text-zinc-500">Konfigurasi persentase profitabilitas dan overhead Owner</p>
               </div>
-              <button onClick={() => setShowMarginModal(false)} className="text-zinc-400 hover:text-zinc-700">
+              <button
+                type="button"
+                onClick={() => setShowMarginModal(false)}
+                disabled={pendingAction !== null}
+                className="text-zinc-400 hover:text-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -904,15 +1008,23 @@ export default function RabDetailWorksheetPage() {
                 <button
                   type="button"
                   onClick={() => setShowMarginModal(false)}
+                  disabled={pendingAction !== null}
                   className="rounded-xl border border-zinc-200 px-4 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black"
+                  disabled={pendingAction !== null}
+                  aria-busy={pendingAction === "save-margin"}
+                  className="inline-flex min-w-40 items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  Simpan & Rekalkulasi
+                  {pendingAction === "save-margin" ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Menghitung ulang...
+                    </>
+                  ) : "Simpan & Rekalkulasi"}
                 </button>
               </div>
             </form>

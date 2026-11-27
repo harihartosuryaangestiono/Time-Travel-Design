@@ -99,9 +99,14 @@ export default function SubcontractorRecapPage() {
       {error && (
         <div className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 p-4 text-xs text-red-700">
           <span>{error}</span>
-          <button type="button" onClick={() => void fetchData()} className="inline-flex items-center gap-1 font-semibold">
-            <RefreshCw className="h-3 w-3" />
-            Coba lagi
+          <button
+            type="button"
+            onClick={() => void fetchData()}
+            disabled={isLoading}
+            className="inline-flex items-center gap-1 font-semibold disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3 w-3 ${isLoading ? "animate-spin" : ""}`} />
+            {isLoading ? "Memuat..." : "Coba lagi"}
           </button>
         </div>
       )}

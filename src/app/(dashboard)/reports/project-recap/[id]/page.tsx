@@ -107,8 +107,14 @@ export default function ProjectRecapDetailPage() {
       {error && (
         <div role="alert" className="flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
           <span className="flex items-center gap-2"><AlertCircle className="h-4 w-4" />{error}</span>
-          <button type="button" onClick={() => void fetchData()} className="inline-flex items-center gap-1 font-semibold">
-            <RefreshCw className="h-3.5 w-3.5" />Coba lagi
+          <button
+            type="button"
+            onClick={() => void fetchData()}
+            disabled={isLoading}
+            className="inline-flex items-center gap-1 font-semibold disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
+            {isLoading ? "Memuat..." : "Coba lagi"}
           </button>
         </div>
       )}

@@ -23,6 +23,7 @@ import {
   ShoppingBag,
   ArrowUpDown,
   Check,
+  Loader2,
 } from "lucide-react";
 import {
   getMasterMaterials,
@@ -76,6 +77,7 @@ export default function MaterialPricesPage() {
   const [analytics, setAnalytics] = useState<Awaited<ReturnType<typeof getMaterialPriceAnalytics>> | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
+  const [pendingAction, setPendingAction] = useState<"material" | "store-price" | "purchase" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -350,7 +352,9 @@ export default function MaterialPricesPage() {
 
   const handleCreateOrUpdateMaterial = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (pendingAction) return;
     try {
+      setPendingAction("material");
       if (!newMaterialForm.name.trim()) throw new Error("Nama material wajib diisi.");
       const finalCode = newMaterialForm.code.trim() || `MAT-${Date.now().toString().slice(-6)}`;
       const stdPrice = Number(newMaterialForm.standard_price) > 0
@@ -381,6 +385,8 @@ export default function MaterialPricesPage() {
       fetchData();
     } catch (err: any) {
       setError(err?.message || "Gagal menyimpan master material.");
+    } finally {
+      setPendingAction(null);
     }
   };
 
@@ -398,7 +404,9 @@ export default function MaterialPricesPage() {
 
   const handleSaveStorePrice = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (pendingAction) return;
     try {
+      setPendingAction("store-price");
       if (!storePriceForm.material_id) throw new Error("Pilih material terlebih dahulu.");
       if (!storePriceForm.vendor_name.trim()) throw new Error("Nama toko / supplier wajib diisi.");
       if (storePriceForm.unit_price <= 0) throw new Error("Harga satuan harus lebih besar dari Rp 0.");
@@ -418,12 +426,16 @@ export default function MaterialPricesPage() {
       fetchData();
     } catch (err: any) {
       setError(err?.message || "Gagal mencatat harga toko.");
+    } finally {
+      setPendingAction(null);
     }
   };
 
   const handleRecordPurchase = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (pendingAction) return;
     try {
+      setPendingAction("purchase");
       if (!purchaseForm.material_id) throw new Error("Pilih material terlebih dahulu.");
       if (!purchaseForm.vendor_name.trim()) throw new Error("Nama toko / vendor wajib diisi.");
       if (purchaseForm.quantity <= 0) throw new Error("Kuantitas harus lebih dari 0.");
@@ -450,6 +462,8 @@ export default function MaterialPricesPage() {
       fetchData();
     } catch (err: any) {
       setError(err?.message || "Gagal mencatat transaksi pembelian material.");
+    } finally {
+      setPendingAction(null);
     }
   };
 
@@ -955,7 +969,7 @@ export default function MaterialPricesPage() {
                   Daftarkan spesifikasi material baru ke database perusahaan.
                 </p>
               </div>
-              <button onClick={() => setShowAddMaterialModal(false)} className="text-zinc-400 hover:text-zinc-700">
+              <button onClick={() => setShowAddMaterialModal(false)} disabled={pendingAction === "material"} className="text-zinc-400 hover:text-zinc-700">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -1111,15 +1125,23 @@ export default function MaterialPricesPage() {
                 <button
                   type="button"
                   onClick={() => setShowAddMaterialModal(false)}
+                  disabled={pendingAction === "material"}
                   className="rounded-xl border border-zinc-200 px-4 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black transition shadow-xs"
+                  disabled={pendingAction !== null}
+                  aria-busy={pendingAction === "material"}
+                  className="inline-flex items-center gap-2 rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black transition shadow-xs disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {editingMaterial ? "Simpan Perubahan Material" : "Simpan Master Material"}
+                  {pendingAction === "material" && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {pendingAction === "material"
+                    ? "Menyimpan Material..."
+                    : editingMaterial
+                      ? "Simpan Perubahan Material"
+                      : "Simpan Master Material"}
                 </button>
               </div>
             </form>
@@ -1136,7 +1158,7 @@ export default function MaterialPricesPage() {
                 <h3 className="text-base font-bold text-zinc-950">Catat Harga dari Toko Material</h3>
                 <p className="text-xs text-zinc-500">Tambahkan toko dan tarif harga untuk perbandingan pasar.</p>
               </div>
-              <button onClick={() => setShowAddStorePriceModal(false)} className="text-zinc-400 hover:text-zinc-700">
+              <button onClick={() => setShowAddStorePriceModal(false)} disabled={pendingAction === "store-price"} className="text-zinc-400 hover:text-zinc-700">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -1213,15 +1235,19 @@ export default function MaterialPricesPage() {
                 <button
                   type="button"
                   onClick={() => setShowAddStorePriceModal(false)}
+                  disabled={pendingAction === "store-price"}
                   className="rounded-xl border border-zinc-200 px-4 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 transition shadow-xs"
+                  disabled={pendingAction !== null}
+                  aria-busy={pendingAction === "store-price"}
+                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 transition shadow-xs disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Simpan Harga Toko
+                  {pendingAction === "store-price" && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {pendingAction === "store-price" ? "Menyimpan Harga..." : "Simpan Harga Toko"}
                 </button>
               </div>
             </form>
@@ -1235,7 +1261,7 @@ export default function MaterialPricesPage() {
           <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
             <div className="flex items-center justify-between border-b border-zinc-100 pb-4">
               <h3 className="text-base font-bold text-zinc-950">Catat Pembelian Material ke Proyek</h3>
-              <button onClick={() => setShowRecordPurchaseModal(false)} className="text-zinc-400 hover:text-zinc-700">
+              <button onClick={() => setShowRecordPurchaseModal(false)} disabled={pendingAction === "purchase"} className="text-zinc-400 hover:text-zinc-700">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -1390,15 +1416,19 @@ export default function MaterialPricesPage() {
                 <button
                   type="button"
                   onClick={() => setShowRecordPurchaseModal(false)}
+                  disabled={pendingAction === "purchase"}
                   className="rounded-xl border border-zinc-200 px-4 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black"
+                  disabled={pendingAction !== null}
+                  aria-busy={pendingAction === "purchase"}
+                  className="inline-flex items-center gap-2 rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Simpan Transaksi
+                  {pendingAction === "purchase" && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {pendingAction === "purchase" ? "Mencatat Pembelian..." : "Simpan Transaksi"}
                 </button>
               </div>
             </form>

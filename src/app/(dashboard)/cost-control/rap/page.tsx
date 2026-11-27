@@ -17,6 +17,7 @@ import {
   DollarSign,
   TrendingDown,
   X,
+  Loader2,
 } from "lucide-react";
 import {
   getRapProjects,
@@ -45,6 +46,7 @@ export default function RapListPage() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const [isLoading, setIsLoading] = useState(true);
+  const [isDeriving, setIsDeriving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -100,7 +102,9 @@ export default function RapListPage() {
 
   const handleDeriveRap = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isDeriving) return;
     try {
+      setIsDeriving(true);
       if (!deriveForm.rab_id) throw new Error("Pilih RAB acuan.");
       await createRapFromRab(deriveForm.rab_id, {
         targetSavingsPercent: Number(deriveForm.targetSavingsPercent),
@@ -110,6 +114,8 @@ export default function RapListPage() {
       fetchData();
     } catch (err: any) {
       setError(err?.message || "Gagal menurunkan RAP.");
+    } finally {
+      setIsDeriving(false);
     }
   };
 
@@ -286,7 +292,7 @@ export default function RapListPage() {
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
             <div className="flex items-center justify-between border-b border-zinc-100 pb-4">
               <h3 className="text-base font-bold text-zinc-950">Turunkan RAP dari Dokumen RAB</h3>
-              <button onClick={() => setShowDeriveModal(false)} className="text-zinc-400 hover:text-zinc-700">
+              <button onClick={() => setShowDeriveModal(false)} disabled={isDeriving} className="text-zinc-400 hover:text-zinc-700">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -331,15 +337,19 @@ export default function RapListPage() {
                 <button
                   type="button"
                   onClick={() => setShowDeriveModal(false)}
+                  disabled={isDeriving}
                   className="rounded-xl border border-zinc-200 px-4 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black"
+                  disabled={isDeriving}
+                  aria-busy={isDeriving}
+                  className="inline-flex items-center gap-2 rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Buat Lembar RAP
+                  {isDeriving && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {isDeriving ? "Membuat RAP..." : "Buat Lembar RAP"}
                 </button>
               </div>
             </form>

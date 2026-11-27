@@ -260,6 +260,13 @@ export default function ImportPage() {
         </div>
       )}
 
+      {isProcessingFile && (
+        <div role="status" aria-live="polite" className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 p-4 text-xs font-medium text-blue-800">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Membaca dan memvalidasi berkas impor...
+        </div>
+      )}
+
       {/* ── Peringatan Jika File Excel Multi-Sheet / Ada Rekapitulasi (Poin 4) ── */}
       {unsupportedWorkbookMsg && (
         <div className="rounded-3xl border border-amber-300 bg-amber-50/70 p-6 space-y-3">

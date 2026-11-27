@@ -177,6 +177,7 @@ export function FastTransactionEntry({
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (isSubmitting) return;
     if (!description.trim()) {
       setErrorMsg("Keterangan transaksi wajib diisi.");
       return;
@@ -259,7 +260,7 @@ export function FastTransactionEntry({
 
   // Paste multiple rows dari Excel (Tab-delimited: Tanggal \t Keterangan \t Kategori \t Nominal)
   const handleBatchPasteSubmit = async () => {
-    if (!pasteText.trim()) return;
+    if (isSubmitting || !pasteText.trim()) return;
     const lines = pasteText.trim().split("\n");
     setIsSubmitting(true);
     setErrorMsg(null);
@@ -646,11 +647,14 @@ export function FastTransactionEntry({
           <button
             type="submit"
             disabled={isSubmitting}
-            title="Simpan (Enter)"
-            className="h-9 w-full rounded-xl bg-zinc-950 flex items-center justify-center text-white hover:bg-black active:scale-95 transition-all disabled:opacity-50"
+            title={isSubmitting ? "Menyimpan transaksi..." : "Simpan (Enter)"}
+            className="h-9 w-full rounded-xl bg-zinc-950 flex items-center justify-center gap-1.5 text-white hover:bg-black active:scale-95 transition-all disabled:opacity-50"
           >
             {isSubmitting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-[10px] font-semibold">Menyimpan...</span>
+              </>
             ) : (
               <Send className="h-4 w-4" />
             )}

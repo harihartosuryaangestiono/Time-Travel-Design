@@ -253,10 +253,11 @@ export default function InvoicesPage() {
           <button
             type="button"
             onClick={fetchInvoices}
-            className="inline-flex items-center gap-1 font-semibold text-red-800 hover:underline"
+            disabled={isLoading}
+            className="inline-flex items-center gap-1 font-semibold text-red-800 hover:underline disabled:opacity-50"
           >
-            <RefreshCw className="h-3 w-3" />
-            Coba lagi
+            <RefreshCw className={`h-3 w-3 ${isLoading ? "animate-spin" : ""}`} />
+            {isLoading ? "Memuat..." : "Coba lagi"}
           </button>
         </div>
       )}

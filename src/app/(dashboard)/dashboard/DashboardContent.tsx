@@ -349,6 +349,8 @@ export default function DashboardContent() {
               whileTap={reducedMotion ? undefined : { scale: 0.94 }}
               transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
               onClick={() => fetchDashboardData()}
+              disabled={isLoading}
+              aria-busy={isLoading}
               className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
               title="Muat ulang data"
             >
@@ -361,8 +363,14 @@ export default function DashboardContent() {
       {loadError && (
         <div role="alert" className="flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
           <span className="flex items-center gap-2"><AlertCircle className="h-4 w-4" />{loadError}</span>
-          <button type="button" onClick={() => void fetchDashboardData()} className="inline-flex items-center gap-1 font-semibold">
-            <RefreshCw className="h-3.5 w-3.5" />Coba lagi
+          <button
+            type="button"
+            onClick={() => void fetchDashboardData()}
+            disabled={isLoading}
+            className="inline-flex items-center gap-1 font-semibold disabled:opacity-50"
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
+            {isLoading ? "Memuat..." : "Coba lagi"}
           </button>
         </div>
       )}

@@ -32,6 +32,7 @@ export default function UserSettingsContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState("");
   const [profileMessage, setProfileMessage] = useState("");
@@ -199,8 +200,13 @@ export default function UserSettingsContent() {
   };
 
   const handleLogout = async () => {
-    await signOut();
-    router.push("/login");
+    setIsSigningOut(true);
+    try {
+      await signOut();
+      router.push("/login");
+    } finally {
+      setIsSigningOut(false);
+    }
   };
 
   if (isLoading) {
@@ -319,7 +325,7 @@ export default function UserSettingsContent() {
             className="inline-flex items-center gap-2 rounded-xl bg-zinc-950 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition-all hover:bg-black active:scale-95 disabled:opacity-50"
           >
             {isSavingProfile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Save Profile
+            {isSavingProfile ? "Saving..." : "Save Profile"}
           </button>
         </div>
       </form>
@@ -374,7 +380,7 @@ export default function UserSettingsContent() {
             className="inline-flex items-center gap-2 rounded-xl bg-zinc-950 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition-all hover:bg-black active:scale-95 disabled:opacity-50"
           >
             {isSavingPassword ? <Loader2 className="h-4 w-4 animate-spin" /> : <LockKeyhole className="h-4 w-4" />}
-            Change Password
+            {isSavingPassword ? "Changing..." : "Change Password"}
           </button>
         </div>
       </form>
@@ -388,10 +394,11 @@ export default function UserSettingsContent() {
           <button
             type="button"
             onClick={handleLogout}
-            className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-xs font-bold text-rose-700 transition-colors hover:bg-rose-100"
+            disabled={isSigningOut}
+            className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-xs font-bold text-rose-700 transition-colors hover:bg-rose-100 disabled:opacity-50"
           >
-            <LogOut className="h-4 w-4" />
-            Sign Out
+            {isSigningOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+            {isSigningOut ? "Signing out..." : "Sign Out"}
           </button>
         </div>
       </div>

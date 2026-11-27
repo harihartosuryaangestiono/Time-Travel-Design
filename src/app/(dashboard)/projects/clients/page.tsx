@@ -17,6 +17,7 @@ import {
   MapPin,
   AlertCircle,
   Briefcase,
+  RefreshCw,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { StatCard } from "@/components/ui/StatCard";
@@ -220,10 +221,13 @@ export default function ClientsPage() {
           <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
           <span>{errorMessage}</span>
           <button
-            onClick={() => fetchClients()}
-            className="ml-auto underline hover:text-rose-950 font-semibold"
+            type="button"
+            onClick={() => void fetchClients()}
+            disabled={isLoading}
+            className="ml-auto inline-flex items-center gap-1 underline hover:text-rose-950 font-semibold disabled:opacity-50"
           >
-            Coba lagi
+            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
+            {isLoading ? "Memuat..." : "Coba lagi"}
           </button>
         </div>
       )}

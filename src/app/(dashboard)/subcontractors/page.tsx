@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Building2, Pencil, Plus, RefreshCw, Trash2, X } from "lucide-react";
+import { Building2, Loader2, Pencil, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import {
   deleteSubcontractor,
   getSubcontractors,
@@ -118,9 +118,14 @@ export default function SubcontractorsPage() {
       {error && (
         <div className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 p-4 text-xs text-red-700">
           <span>{error}</span>
-          <button type="button" onClick={() => void fetchData()} className="inline-flex items-center gap-1 font-semibold">
-            <RefreshCw className="h-3 w-3" />
-            Coba lagi
+          <button
+            type="button"
+            onClick={() => void fetchData()}
+            disabled={isLoading}
+            className="inline-flex items-center gap-1 font-semibold disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3 w-3 ${isLoading ? "animate-spin" : ""}`} />
+            {isLoading ? "Memuat..." : "Coba lagi"}
           </button>
         </div>
       )}
@@ -153,7 +158,8 @@ export default function SubcontractorsPage() {
           </div>
           <div className="flex justify-end gap-2 border-t border-zinc-100 pt-4">
             <button type="button" onClick={() => setFormOpen(false)} disabled={isSaving} className="rounded-xl border border-zinc-200 px-4 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50">Batal</button>
-            <button type="submit" disabled={isSaving} className="rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black disabled:opacity-50">
+            <button type="submit" disabled={isSaving} className="inline-flex items-center gap-2 rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black disabled:opacity-50">
+              {isSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               {isSaving ? "Menyimpan..." : editing ? "Simpan Perubahan" : "Simpan Subkontraktor"}
             </button>
           </div>

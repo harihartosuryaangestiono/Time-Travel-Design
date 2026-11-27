@@ -18,6 +18,7 @@ import {
   HardHat,
   ShieldCheck,
   Check,
+  Loader2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { StatCard } from "@/components/ui/StatCard";
@@ -387,10 +388,11 @@ export default function CashAdvancesContent() {
           <button
             type="button"
             onClick={fetchAdvancesAndRecap}
-            className="inline-flex items-center gap-1 font-semibold text-red-800 hover:underline"
+            disabled={isLoading}
+            className="inline-flex items-center gap-1 font-semibold text-red-800 hover:underline disabled:opacity-50"
           >
-            <RefreshCw className="h-3 w-3" />
-            Coba lagi
+            <RefreshCw className={`h-3 w-3 ${isLoading ? "animate-spin" : ""}`} />
+            {isLoading ? "Memuat..." : "Coba lagi"}
           </button>
         </div>
       )}
@@ -667,7 +669,7 @@ export default function CashAdvancesContent() {
                               {canApprove && (
                                 <button
                                   type="button"
-                                  disabled={isOwnAdvance || isApproving === ca.id}
+                                  disabled={isOwnAdvance || isApproving !== null}
                                   onClick={() => handleApprove(ca)}
                                   className={cn(
                                     "inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold transition-colors border",
@@ -681,8 +683,12 @@ export default function CashAdvancesContent() {
                                       : "Setujui pengajuan kasbon"
                                   }
                                 >
-                                  <Check className="h-3 w-3" />
-                                  <span>{isApproving === ca.id ? "..." : "Setujui"}</span>
+                                  {isApproving === ca.id ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <Check className="h-3 w-3" />
+                                  )}
+                                  <span>{isApproving === ca.id ? "Menyetujui..." : "Setujui"}</span>
                                 </button>
                               )}
 

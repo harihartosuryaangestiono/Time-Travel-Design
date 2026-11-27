@@ -13,6 +13,7 @@ import {
   Sparkles,
   Menu,
   UserRound,
+  Loader2,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { motion, useReducedMotion } from "framer-motion";
@@ -124,6 +125,7 @@ export default function Header({
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showQuickAction, setShowQuickAction] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [userInfo, setUserInfo] = useState<{
     name: string;
     email: string;
@@ -208,8 +210,14 @@ export default function Header({
   }, []);
 
   const handleLogout = async () => {
-    await signOut();
-    router.push("/login");
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      await signOut();
+      router.push("/login");
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
   // Resolve Title and Description
@@ -404,10 +412,20 @@ export default function Header({
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 transition-colors"
+                  disabled={isLoggingOut}
+                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 transition-colors disabled:opacity-50"
                 >
-                  <LogOut className="h-3.5 w-3.5" />
-                  Sign Out
+                  {isLoggingOut ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Signing Out...
+                    </>
+                  ) : (
+                    <>
+                      <LogOut className="h-3.5 w-3.5" />
+                      Sign Out
+                    </>
+                  )}
                 </button>
               </div>
             </div>

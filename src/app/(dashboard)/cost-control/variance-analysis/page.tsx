@@ -14,6 +14,7 @@ import {
   Ruler,
   TrendingDown,
   X,
+  Loader2,
   Search,
   Sliders,
   DollarSign,
@@ -50,6 +51,8 @@ export default function VarianceAnalysisPage() {
   const [activeTab, setActiveTab] = useState<"MATERIAL" | "LABOR" | "TAKEOFF">("MATERIAL");
 
   const [isLoading, setIsLoading] = useState(true);
+  const [isSavingTakeoff, setIsSavingTakeoff] = useState(false);
+  const [deletingTakeoffId, setDeletingTakeoffId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -118,7 +121,9 @@ export default function VarianceAnalysisPage() {
 
   const handleSaveTakeoff = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSavingTakeoff) return;
     try {
+      setIsSavingTakeoff(true);
       if (!selectedProjectId) throw new Error("Pilih proyek terlebih dahulu.");
       if (!takeoffForm.room_name.trim()) throw new Error("Nama ruang / zona wajib diisi.");
 
@@ -139,17 +144,22 @@ export default function VarianceAnalysisPage() {
       fetchData();
     } catch (err: any) {
       setError(err?.message || "Gagal menyimpan quantity takeoff.");
+    } finally {
+      setIsSavingTakeoff(false);
     }
   };
 
   const handleDeleteTakeoff = async (id: string) => {
-    if (!confirm("Hapus dimensi ruang ini?")) return;
+    if (deletingTakeoffId || !confirm("Hapus dimensi ruang ini?")) return;
     try {
+      setDeletingTakeoffId(id);
       await deleteProjectTakeoff(id);
       setSuccessMsg("Dimensi ruang berhasil dihapus.");
       fetchData();
     } catch (err: any) {
       setError(err?.message || "Gagal menghapus.");
+    } finally {
+      setDeletingTakeoffId(null);
     }
   };
 
@@ -543,9 +553,15 @@ export default function VarianceAnalysisPage() {
                         <td className="px-4 py-3 text-center">
                           <button
                             onClick={() => handleDeleteTakeoff(item.id)}
+                            disabled={deletingTakeoffId !== null}
+                            aria-busy={deletingTakeoffId === item.id}
                             className="text-red-500 hover:text-red-700 p-1"
                           >
-                            <X className="h-4 w-4" />
+                            {deletingTakeoffId === item.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <X className="h-4 w-4" />
+                            )}
                           </button>
                         </td>
                       </tr>
@@ -657,15 +673,19 @@ export default function VarianceAnalysisPage() {
                 <button
                   type="button"
                   onClick={() => setShowTakeoffModal(false)}
+                  disabled={isSavingTakeoff}
                   className="rounded-xl border border-zinc-200 px-4 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black"
+                  disabled={isSavingTakeoff}
+                  aria-busy={isSavingTakeoff}
+                  className="inline-flex items-center gap-2 rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Simpan Dimensi
+                  {isSavingTakeoff && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {isSavingTakeoff ? "Menyimpan Dimensi..." : "Simpan Dimensi"}
                 </button>
               </div>
             </form>

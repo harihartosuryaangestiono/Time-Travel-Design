@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, Loader2, Trash2, X } from "lucide-react";
 import {
   deleteOrganizationDraftExpenses,
@@ -19,12 +19,17 @@ function formatCurrency(amount: number) {
 export function DraftExpenseCleanup() {
   const [preview, setPreview] = useState<{ count: number; totalAmount: number } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const isRefreshingRef = useRef(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   const refreshPreview = useCallback(async () => {
+    if (isRefreshingRef.current) return;
+    isRefreshingRef.current = true;
+    setIsRefreshing(true);
     try {
       setError(null);
       setPreview(await getDraftExpenseCleanupPreview());
@@ -33,6 +38,8 @@ export function DraftExpenseCleanup() {
       setError(err instanceof Error ? err.message : "Gagal memuat pratinjau voucher Draft.");
     } finally {
       setIsLoading(false);
+      isRefreshingRef.current = false;
+      setIsRefreshing(false);
     }
   }, []);
 
@@ -41,7 +48,7 @@ export function DraftExpenseCleanup() {
   }, [refreshPreview]);
 
   const handleDelete = async () => {
-    if (!preview?.count) return;
+    if (isDeleting || !preview?.count) return;
 
     try {
       setIsDeleting(true);
@@ -83,12 +90,27 @@ export function DraftExpenseCleanup() {
           disabled={isDeleting}
           className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-rose-700 px-3.5 py-2 text-xs font-semibold text-white hover:bg-rose-800 disabled:opacity-50"
         >
-          {isDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-          Hapus Semua Draft
+          {isDeleting ? (
+            <>
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Menghapus...
+            </>
+          ) : (
+            <>
+              <Trash2 className="h-3.5 w-3.5" />
+              Hapus Semua Draft
+            </>
+          )}
         </button>
       ) : error ? (
-        <button type="button" onClick={() => void refreshPreview()} className="text-xs font-semibold text-red-800 underline">
-          Coba lagi
+        <button
+          type="button"
+          onClick={() => void refreshPreview()}
+          disabled={isRefreshing}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-800 underline disabled:opacity-50"
+        >
+          {isRefreshing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+          {isRefreshing ? "Memuat..." : "Coba lagi"}
         </button>
       ) : null}
       {showConfirmation && preview?.count ? (

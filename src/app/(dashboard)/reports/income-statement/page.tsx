@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Download, Printer, Filter, AlertCircle, FileSpreadsheet } from "lucide-react";
+import { Download, Printer, Filter, AlertCircle, FileSpreadsheet, Loader2 } from "lucide-react";
 import { fetchIncomeStatement } from "@/app/actions/reportActions";
 import { createClient } from "@/lib/supabase/client";
 
@@ -163,7 +163,7 @@ export default function IncomeStatementPage() {
             disabled={isLoading}
             className="flex items-center gap-1.5 rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-zinc-800 active:scale-95 transition-all disabled:opacity-50"
           >
-            <Filter className="h-3.5 w-3.5" />
+            {isLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Filter className="h-3.5 w-3.5" />}
             {isLoading ? "Memuat..." : "Terapkan Periode"}
           </button>
         </div>
@@ -193,9 +193,11 @@ export default function IncomeStatementPage() {
           <span>{errorMessage}</span>
           <button
             onClick={() => loadData(startDate, endDate)}
-            className="ml-auto underline hover:text-rose-950 font-semibold"
+            disabled={isLoading}
+            className="ml-auto inline-flex items-center gap-1 underline hover:text-rose-950 font-semibold disabled:opacity-50"
           >
-            Coba lagi
+            {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {isLoading ? "Memuat..." : "Coba lagi"}
           </button>
         </div>
       )}

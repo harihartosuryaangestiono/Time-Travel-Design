@@ -9,6 +9,7 @@ import {
   Building2,
   CheckCircle2,
   CircleDollarSign,
+  Loader2,
   Pencil,
   Plus,
   RefreshCw,
@@ -203,9 +204,14 @@ export default function SubcontractorProjectRecapPage() {
       {error && (
         <div role="alert" className="flex items-center justify-between gap-4 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
           <span>{error}</span>
-          <button type="button" onClick={() => void fetchData()} className="inline-flex shrink-0 items-center gap-1.5 font-semibold">
-            <RefreshCw className="h-3.5 w-3.5" />
-            Coba lagi
+          <button
+            type="button"
+            onClick={() => void fetchData()}
+            disabled={isLoading}
+            className="inline-flex shrink-0 items-center gap-1.5 font-semibold disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
+            {isLoading ? "Memuat..." : "Coba lagi"}
           </button>
         </div>
       )}
@@ -320,7 +326,7 @@ export default function SubcontractorProjectRecapPage() {
                 disabled={isSaving || !data.subcontractors.length}
                 className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-black disabled:opacity-50"
               >
-                {editingContract ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : editingContract ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
                 {isSaving ? "Menyimpan..." : editingContract ? "Simpan perubahan" : "Simpan borongan"}
               </button>
               <button

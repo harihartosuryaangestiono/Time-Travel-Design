@@ -17,6 +17,7 @@ import {
   Sliders,
   DollarSign,
   ArrowRight,
+  Loader2,
 } from "lucide-react";
 import {
   getSCurveReport,
@@ -43,6 +44,7 @@ export default function SCurvePage() {
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
 
   const [isLoading, setIsLoading] = useState(true);
+  const [isRecordingProgress, setIsRecordingProgress] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -91,7 +93,9 @@ export default function SCurvePage() {
 
   const handleRecordProgress = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isRecordingProgress) return;
     try {
+      setIsRecordingProgress(true);
       if (!selectedProjectId) throw new Error("Pilih proyek terlebih dahulu.");
       if (!progressForm.schedule_id) throw new Error("Pilih aktivitas pekerjaan.");
 
@@ -108,6 +112,8 @@ export default function SCurvePage() {
       fetchData();
     } catch (err: any) {
       setError(err?.message || "Gagal mencatat progres.");
+    } finally {
+      setIsRecordingProgress(false);
     }
   };
 
@@ -329,7 +335,7 @@ export default function SCurvePage() {
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
             <div className="flex items-center justify-between border-b border-zinc-100 pb-4">
               <h3 className="text-base font-bold text-zinc-950">Catat Realisasi Progres Mingguan</h3>
-              <button onClick={() => setShowProgressModal(false)} className="text-zinc-400 hover:text-zinc-700">
+              <button onClick={() => setShowProgressModal(false)} disabled={isRecordingProgress} className="text-zinc-400 hover:text-zinc-700">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -394,15 +400,19 @@ export default function SCurvePage() {
                 <button
                   type="button"
                   onClick={() => setShowProgressModal(false)}
+                  disabled={isRecordingProgress}
                   className="rounded-xl border border-zinc-200 px-4 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black"
+                  disabled={isRecordingProgress}
+                  aria-busy={isRecordingProgress}
+                  className="inline-flex items-center gap-2 rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Simpan Progres
+                  {isRecordingProgress && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {isRecordingProgress ? "Mencatat Progres..." : "Simpan Progres"}
                 </button>
               </div>
             </form>

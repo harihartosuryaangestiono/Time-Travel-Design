@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
 import { createDividendDisbursement, getDividendDisbursements } from "@/app/actions/dividendActions";
 import { getCashAccountsWithBalances } from "@/app/actions/cashAccountActions";
 
@@ -176,6 +177,7 @@ export default function DividendDisbursementPanel() {
             className="fixed inset-0 bg-black/50"
             aria-label="Tutup form pencairan dividen"
             onClick={() => setIsOpen(false)}
+            disabled={isSaving}
           />
           <form
             onSubmit={handleSubmit}
@@ -270,7 +272,12 @@ export default function DividendDisbursementPanel() {
                 disabled={isSaving || !cashAccountId}
                 className="rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
               >
-                {isSaving ? "Menyimpan..." : "Catat Dividen"}
+                {isSaving ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Menyimpan...
+                  </span>
+                ) : "Catat Dividen"}
               </button>
             </div>
           </form>

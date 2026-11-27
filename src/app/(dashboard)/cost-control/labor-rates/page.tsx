@@ -20,6 +20,7 @@ import {
   Users,
   Info,
   Check,
+  Loader2,
 } from "lucide-react";
 import {
   getLaborRates,
@@ -66,6 +67,8 @@ export default function LaborRatesPage() {
     name: string;
   } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSavingMandor, setIsSavingMandor] = useState(false);
 
   // Quick Add Mandor Modal
   const [showQuickAddMandorModal, setShowQuickAddMandorModal] = useState(false);
@@ -229,7 +232,9 @@ export default function LaborRatesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
     try {
+      setIsSaving(true);
       if (!form.job_code.trim()) throw new Error("Kode pekerjaan wajib diisi.");
       if (!form.job_name.trim()) throw new Error("Nama pekerjaan wajib diisi.");
 
@@ -274,6 +279,8 @@ export default function LaborRatesPage() {
       fetchData();
     } catch (err: any) {
       setError(err?.message || "Gagal menyimpan item upah.");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -294,8 +301,9 @@ export default function LaborRatesPage() {
 
   const handleQuickAddMandorSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!quickTargetRate) return;
+    if (!quickTargetRate || isSavingMandor) return;
     try {
+      setIsSavingMandor(true);
       if (!quickMandorForm.mandor_name.trim()) throw new Error("Nama mandor wajib diisi.");
       if (!quickMandorForm.rate || quickMandorForm.rate <= 0) throw new Error("Tarif upah harus lebih dari 0.");
 
@@ -311,6 +319,8 @@ export default function LaborRatesPage() {
       fetchData();
     } catch (err: any) {
       setError(err?.message || "Gagal menambah tarif mandor.");
+    } finally {
+      setIsSavingMandor(false);
     }
   };
 
@@ -599,7 +609,7 @@ export default function LaborRatesPage() {
                   Masukkan data pekerjaan dan tarif dari masing-masing mandor. Rentang harga akan dihitung otomatis.
                 </p>
               </div>
-              <button onClick={() => setShowAddModal(false)} className="text-zinc-400 hover:text-zinc-700">
+              <button onClick={() => setShowAddModal(false)} disabled={isSaving} className="text-zinc-400 hover:text-zinc-700">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -820,15 +830,19 @@ export default function LaborRatesPage() {
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
+                  disabled={isSaving}
                   className="rounded-xl border border-zinc-200 px-4 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-zinc-950 px-5 py-2 text-xs font-semibold text-white hover:bg-black transition shadow-sm"
+                  disabled={isSaving}
+                  aria-busy={isSaving}
+                  className="inline-flex items-center gap-2 rounded-xl bg-zinc-950 px-5 py-2 text-xs font-semibold text-white hover:bg-black transition shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {editingRate ? "Simpan Perubahan Tarif" : "Simpan Standar Tarif"}
+                  {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {isSaving ? "Menyimpan Tarif..." : editingRate ? "Simpan Perubahan Tarif" : "Simpan Standar Tarif"}
                 </button>
               </div>
             </form>
@@ -851,6 +865,7 @@ export default function LaborRatesPage() {
               </div>
               <button
                 onClick={() => setShowQuickAddMandorModal(false)}
+                disabled={isSavingMandor}
                 className="text-zinc-400 hover:text-zinc-700"
               >
                 <X className="h-5 w-5" />
@@ -921,15 +936,19 @@ export default function LaborRatesPage() {
                 <button
                   type="button"
                   onClick={() => setShowQuickAddMandorModal(false)}
+                  disabled={isSavingMandor}
                   className="rounded-xl border border-zinc-200 px-4 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-zinc-950 px-5 py-2 text-xs font-semibold text-white hover:bg-black transition shadow-sm"
+                  disabled={isSavingMandor}
+                  aria-busy={isSavingMandor}
+                  className="inline-flex items-center gap-2 rounded-xl bg-zinc-950 px-5 py-2 text-xs font-semibold text-white hover:bg-black transition shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Simpan Tarif Mandor
+                  {isSavingMandor && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {isSavingMandor ? "Menyimpan Tarif..." : "Simpan Tarif Mandor"}
                 </button>
               </div>
             </form>

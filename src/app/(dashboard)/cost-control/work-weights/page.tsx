@@ -19,6 +19,7 @@ import {
   Trash2,
   Edit2,
   X,
+  Loader2,
 } from "lucide-react";
 import {
   getProjectSchedules,
@@ -47,6 +48,9 @@ export default function WorkWeightsPage() {
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
 
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isRecalculating, setIsRecalculating] = useState(false);
+  const [deletingScheduleId, setDeletingScheduleId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -151,7 +155,9 @@ export default function WorkWeightsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
     try {
+      setIsSaving(true);
       if (!selectedProjectId) throw new Error("Pilih proyek terlebih dahulu.");
       if (!form.task_name.trim()) throw new Error("Nama pekerjaan wajib diisi.");
 
@@ -169,27 +175,36 @@ export default function WorkWeightsPage() {
       fetchData();
     } catch (err: any) {
       setError(err?.message || "Gagal menyimpan jadwal pekerjaan.");
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Hapus jadwal pekerjaan ini? Bobot proyek akan dihitung ulang secara otomatis.")) return;
+    if (deletingScheduleId || !confirm("Hapus jadwal pekerjaan ini? Bobot proyek akan dihitung ulang secara otomatis.")) return;
     try {
+      setDeletingScheduleId(id);
       await deleteProjectSchedule(id, selectedProjectId);
       setSuccessMsg("Pekerjaan berhasil dihapus dan bobot telah dihitung ulang.");
       fetchData();
     } catch (err: any) {
       setError(err?.message || "Gagal menghapus.");
+    } finally {
+      setDeletingScheduleId(null);
     }
   };
 
   const handleRecalculate = async () => {
+    if (isRecalculating || !selectedProjectId) return;
     try {
+      setIsRecalculating(true);
       await recalculateProjectWeights(selectedProjectId);
       setSuccessMsg("Bobot seluruh pekerjaan berhasil dinormalisasi menjadi tepat 100%.");
       fetchData();
     } catch (err: any) {
       setError(err?.message || "Gagal menghitung bobot.");
+    } finally {
+      setIsRecalculating(false);
     }
   };
 
@@ -229,10 +244,16 @@ export default function WorkWeightsPage() {
 
           <button
             onClick={handleRecalculate}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3.5 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition shadow-sm"
+            disabled={isRecalculating || isLoading || !selectedProjectId}
+            aria-busy={isRecalculating}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3.5 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <RefreshCw className="h-3.5 w-3.5 text-zinc-500" />
-            Normalisasi 100%
+            {isRecalculating ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-500" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5 text-zinc-500" />
+            )}
+            {isRecalculating ? "Menormalisasi..." : "Normalisasi 100%"}
           </button>
 
           <button
@@ -359,9 +380,15 @@ export default function WorkWeightsPage() {
                             </button>
                             <button
                               onClick={() => handleDelete(item.id)}
-                              className="rounded-lg p-1 text-zinc-400 hover:text-red-600 transition"
+                              disabled={deletingScheduleId !== null}
+                              aria-busy={deletingScheduleId === item.id}
+                              className="rounded-lg p-1 text-zinc-400 hover:text-red-600 transition disabled:cursor-not-allowed disabled:opacity-60"
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
+                              {deletingScheduleId === item.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3.5 w-3.5" />
+                              )}
                             </button>
                           </div>
                         </td>
@@ -399,7 +426,7 @@ export default function WorkWeightsPage() {
               <h3 className="text-base font-bold text-zinc-950">
                 {editingItem ? "Edit Tahap Pekerjaan" : "Tambah Tahap Pekerjaan & Alokasi Anggaran"}
               </h3>
-              <button onClick={() => setShowAddModal(false)} className="text-zinc-400 hover:text-zinc-700">
+              <button onClick={() => setShowAddModal(false)} disabled={isSaving} className="text-zinc-400 hover:text-zinc-700">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -481,15 +508,19 @@ export default function WorkWeightsPage() {
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
+                  disabled={isSaving}
                   className="rounded-xl border border-zinc-200 px-4 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black"
+                  disabled={isSaving}
+                  aria-busy={isSaving}
+                  className="inline-flex items-center gap-2 rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Simpan Tahap Pekerjaan
+                  {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {isSaving ? "Menyimpan Tahap..." : "Simpan Tahap Pekerjaan"}
                 </button>
               </div>
             </form>

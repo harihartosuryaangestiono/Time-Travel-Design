@@ -24,6 +24,7 @@ import {
   Users,
   Layers,
   ChevronDown,
+  Loader2,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import {
@@ -76,6 +77,8 @@ export default function LaborRecapPage() {
   const [activeTab, setActiveTab] = useState<"BORONGAN" | "RETENSI" | "CONTRACTS" | "CLAIMS">("BORONGAN");
 
   const [isLoading, setIsLoading] = useState(true);
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -304,7 +307,9 @@ export default function LaborRecapPage() {
   // Handlers for Contracts & Claims
   const handleCreateContract = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (pendingAction) return;
     try {
+      setPendingAction("create-contract");
       let projId = newContractForm.project_id || currentProject?.id || "";
       if (projId.startsWith("sample-")) {
         alert("Pilih proyek aktif perusahaan (bukan template sampel) untuk menyimpan kontrak ke database.");
@@ -325,6 +330,8 @@ export default function LaborRecapPage() {
       fetchData();
     } catch (err: any) {
       setError(err?.message || "Gagal membuat pekerjaan borongan.");
+    } finally {
+      setPendingAction(null);
     }
   };
 
@@ -340,8 +347,9 @@ export default function LaborRecapPage() {
 
   const handleSubmitClaim = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedContract) return;
+    if (!selectedContract || pendingAction) return;
     try {
+      setPendingAction("submit-claim");
       await submitLaborClaim({
         project_id: selectedContract.project_id,
         labor_item_id: selectedContract.id,
@@ -356,6 +364,8 @@ export default function LaborRecapPage() {
       fetchData();
     } catch (err: any) {
       setError(err?.message || "Gagal mengajukan klaim upah.");
+    } finally {
+      setPendingAction(null);
     }
   };
 
@@ -370,25 +380,32 @@ export default function LaborRecapPage() {
 
   const handleVerifyClaim = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedClaim) return;
+    if (!selectedClaim || pendingAction) return;
     try {
+      setPendingAction("verify-claim");
       await verifyLaborClaim(selectedClaim.id, Number(verifyForm.verified_volume), verifyForm.supervisor_notes);
       setSuccessMsg("Volume klaim upah berhasil diverifikasi oleh pengawas.");
       setShowVerifyModal(false);
       fetchData();
     } catch (err: any) {
       setError(err?.message || "Gagal memverifikasi klaim upah.");
+    } finally {
+      setPendingAction(null);
     }
   };
 
   const handleApprove = async (claim: LaborClaimItem) => {
+    if (pendingAction) return;
     try {
+      setPendingAction(`approve-${claim.id}`);
       const volToApprove = claim.verified_volume > 0 ? claim.verified_volume : claim.claimed_volume;
       await approveLaborClaim(claim.id, volToApprove);
       setSuccessMsg("Klaim upah berhasil disetujui.");
       fetchData();
     } catch (err: any) {
       setError(err?.message || "Gagal menyetujui klaim.");
+    } finally {
+      setPendingAction(null);
     }
   };
 
@@ -404,8 +421,9 @@ export default function LaborRecapPage() {
 
   const handlePayClaim = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedClaim) return;
+    if (!selectedClaim || pendingAction) return;
     try {
+      setPendingAction("pay-claim");
       await payLaborClaim({
         claim_id: selectedClaim.id,
         cash_account_id: payForm.cash_account_id,
@@ -417,6 +435,8 @@ export default function LaborRecapPage() {
       fetchData();
     } catch (err: any) {
       setError(err?.message || "Gagal memproses pembayaran upah.");
+    } finally {
+      setPendingAction(null);
     }
   };
 
@@ -508,9 +528,10 @@ export default function LaborRecapPage() {
   // IMPORT FROM EXCEL: Reads uploaded spreadsheet & saves to DB
   const handleImportExcelFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || isImporting) return;
 
     try {
+      setIsImporting(true);
       setIsLoading(true);
       const data = await file.arrayBuffer();
       const wb = XLSX.read(data, { type: "array" });
@@ -626,6 +647,7 @@ export default function LaborRecapPage() {
       console.error("Gagal impor Excel:", err);
       setError("Gagal mengimpor file Excel: " + err.message);
     } finally {
+      setIsImporting(false);
       setIsLoading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
@@ -1189,9 +1211,12 @@ export default function LaborRecapPage() {
                           {claim.status === "VERIFIED" && (
                             <button
                               onClick={() => handleApprove(claim)}
-                              className="rounded-lg bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100 transition"
+                              disabled={pendingAction !== null}
+                              aria-busy={pendingAction === `approve-${claim.id}`}
+                              className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100 transition disabled:cursor-not-allowed disabled:opacity-60"
                             >
-                              Setujui
+                              {pendingAction === `approve-${claim.id}` && <Loader2 className="h-3 w-3 animate-spin" />}
+                              {pendingAction === `approve-${claim.id}` ? "Menyetujui..." : "Setujui"}
                             </button>
                           )}
                           {claim.status === "APPROVED" && (
@@ -1231,19 +1256,24 @@ export default function LaborRecapPage() {
                   Mendukung file Excel format standar TTD (Sheet Upah & Sheet Retensi per proyek).
                 </p>
               </div>
-              <button onClick={() => setShowImportExcelModal(false)} className="text-zinc-400 hover:text-zinc-700">
+              <button onClick={() => setShowImportExcelModal(false)} disabled={isImporting} className="text-zinc-400 hover:text-zinc-700">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             <div className="mt-5 space-y-4">
               <div
-                onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-zinc-300 rounded-2xl p-8 text-center cursor-pointer hover:border-zinc-900 transition bg-zinc-50/50"
+                onClick={() => !isImporting && fileInputRef.current?.click()}
+                aria-busy={isImporting}
+                className={`border-2 border-dashed border-zinc-300 rounded-2xl p-8 text-center transition bg-zinc-50/50 ${isImporting ? "cursor-wait opacity-70" : "cursor-pointer hover:border-zinc-900"}`}
               >
-                <Upload className="mx-auto h-8 w-8 text-zinc-400 mb-2" />
+                {isImporting ? (
+                  <Loader2 className="mx-auto h-8 w-8 animate-spin text-blue-600 mb-2" />
+                ) : (
+                  <Upload className="mx-auto h-8 w-8 text-zinc-400 mb-2" />
+                )}
                 <p className="text-xs font-bold text-zinc-800">
-                  Klik untuk memilih file Excel (.xlsx)
+                  {isImporting ? "Mengimpor file Excel..." : "Klik untuk memilih file Excel (.xlsx)"}
                 </p>
                 <p className="text-[11px] text-zinc-500 mt-1">
                   File seperti <span className="font-mono text-zinc-700">Rekapitulasi Upah Material Proyek.xlsx</span>
@@ -1253,6 +1283,7 @@ export default function LaborRecapPage() {
                   type="file"
                   accept=".xlsx, .xls"
                   onChange={handleImportExcelFile}
+                  disabled={isImporting}
                   className="hidden"
                 />
               </div>
@@ -1269,6 +1300,7 @@ export default function LaborRecapPage() {
                 <button
                   type="button"
                   onClick={() => setShowImportExcelModal(false)}
+                  disabled={isImporting}
                   className="rounded-xl border border-zinc-200 px-4 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
                 >
                   Tutup
@@ -1287,7 +1319,7 @@ export default function LaborRecapPage() {
           <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
             <div className="flex items-center justify-between border-b border-zinc-100 pb-4">
               <h3 className="text-base font-bold text-zinc-950">Tambah Paket Pekerjaan Borongan</h3>
-              <button onClick={() => setShowAddContractModal(false)} className="text-zinc-400 hover:text-zinc-700">
+              <button onClick={() => setShowAddContractModal(false)} disabled={pendingAction === "create-contract"} className="text-zinc-400 hover:text-zinc-700">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -1426,16 +1458,19 @@ export default function LaborRecapPage() {
                 <button
                   type="button"
                   onClick={() => setShowAddContractModal(false)}
+                  disabled={pendingAction === "create-contract"}
                   className="rounded-xl border border-zinc-200 px-4 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  disabled={!selectedLaborRate || newContractForm.unit_rate <= 0}
-                  className="rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black transition shadow-xs disabled:cursor-not-allowed disabled:opacity-50"
+                  aria-busy={pendingAction === "create-contract"}
+                  disabled={pendingAction !== null || !selectedLaborRate || newContractForm.unit_rate <= 0}
+                  className="inline-flex items-center gap-2 rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black transition shadow-xs disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Simpan Pekerjaan
+                  {pendingAction === "create-contract" && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {pendingAction === "create-contract" ? "Menyimpan Pekerjaan..." : "Simpan Pekerjaan"}
                 </button>
               </div>
             </form>
@@ -1451,7 +1486,7 @@ export default function LaborRecapPage() {
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
             <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
               <h3 className="text-base font-bold text-zinc-950">Verifikasi Pengawas Lapangan</h3>
-              <button onClick={() => setShowVerifyModal(false)} className="text-zinc-400 hover:text-zinc-700">
+              <button onClick={() => setShowVerifyModal(false)} disabled={pendingAction === "verify-claim"} className="text-zinc-400 hover:text-zinc-700">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -1490,15 +1525,19 @@ export default function LaborRecapPage() {
                 <button
                   type="button"
                   onClick={() => setShowVerifyModal(false)}
+                  disabled={pendingAction === "verify-claim"}
                   className="rounded-xl border border-zinc-200 px-4 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition"
+                  disabled={pendingAction !== null}
+                  aria-busy={pendingAction === "verify-claim"}
+                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Konfirmasi Verifikasi Fisik
+                  {pendingAction === "verify-claim" && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {pendingAction === "verify-claim" ? "Memverifikasi..." : "Konfirmasi Verifikasi Fisik"}
                 </button>
               </div>
             </form>
@@ -1514,7 +1553,7 @@ export default function LaborRecapPage() {
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
             <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
               <h3 className="text-base font-bold text-zinc-950">Pembayaran Kas Upah Mandor</h3>
-              <button onClick={() => setShowPayModal(false)} className="text-zinc-400 hover:text-zinc-700">
+              <button onClick={() => setShowPayModal(false)} disabled={pendingAction === "pay-claim"} className="text-zinc-400 hover:text-zinc-700">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -1566,15 +1605,19 @@ export default function LaborRecapPage() {
                 <button
                   type="button"
                   onClick={() => setShowPayModal(false)}
+                  disabled={pendingAction === "pay-claim"}
                   className="rounded-xl border border-zinc-200 px-4 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black transition shadow-xs"
+                  disabled={pendingAction !== null}
+                  aria-busy={pendingAction === "pay-claim"}
+                  className="inline-flex items-center gap-2 rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black transition shadow-xs disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Proses Pembayaran Kas
+                  {pendingAction === "pay-claim" && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {pendingAction === "pay-claim" ? "Memproses Pembayaran..." : "Proses Pembayaran Kas"}
                 </button>
               </div>
             </form>
