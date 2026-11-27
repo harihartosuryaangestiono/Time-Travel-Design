@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireAuthUser } from "@/lib/auth/auth";
 import { getAccountsWithCalculatedBalance } from "@/lib/accounting/cashBalance";
+import { calculateOwnerAdvanceSummary } from "@/lib/reports/ownerAdvanceSummary";
 import {
   GENERAL_EXPENSE_CATEGORIES,
   isSalesMarketingCategory,
@@ -38,9 +39,9 @@ export interface RekapitulasiReportData {
   totalCapex: number;
   openingCash: number;
   currentCash: number;
-  ownerAdvances: Array<{ name: string; amount: number; remainingLimit: number }>;
+  ownerAdvances: Array<{ id: string; name: string; amount: number; remainingLimit: number }>;
   totalOwnerAdvances: number;
-  cashAfterAdvances: number;
+  cashAndOwnerAdvanceReceivable: number;
   uncategorizedExpenses: Array<{
     id: string;
     date: string;
@@ -482,42 +483,33 @@ export async function getRekapitulasiData(year: number = 2026): Promise<Rekapitu
   const currentCash = balances.reduce((sum, b) => sum + b.currentBalance, 0);
 
   // 4. Kasbon Owner
-  const { data: ownerRecipients } = await supabase
+  const { data: ownerRecipients, error: ownerRecipientsError } = await supabase
     .from("advance_recipients")
     .select("id, name")
     .eq("organization_id", user.organizationId)
     .eq("type", "OWNER");
+  if (ownerRecipientsError) {
+    throw new Error(`Gagal memuat penerima kasbon owner: ${ownerRecipientsError.message}`);
+  }
 
-  const { data: ownerAdvances } = await supabase
+  const { data: ownerAdvances, error: ownerAdvancesError } = await supabase
     .from("cash_advances")
-    .select("recipient_id, disbursed_amount, settled_amount, returned_amount")
+    .select("recipient_id, amount, disbursed_amount, settled_amount, returned_amount")
     .eq("organization_id", user.organizationId)
     .in("status", ["DISBURSED", "PARTIALLY_SETTLED"]);
+  if (ownerAdvancesError) {
+    throw new Error(`Gagal memuat transaksi kasbon owner: ${ownerAdvancesError.message}`);
+  }
 
-  const advanceMap = new Map<string, number>();
-  (ownerAdvances || []).forEach((oa: any) => {
-    if (oa.recipient_id) {
-      const open = Math.max(
-        0,
-        parseFloat(oa.disbursed_amount || "0") -
-          parseFloat(oa.settled_amount || "0") -
-          parseFloat(oa.returned_amount || "0")
-      );
-      advanceMap.set(oa.recipient_id, (advanceMap.get(oa.recipient_id) || 0) + open);
-    }
-  });
-
-  const ownersList = (ownerRecipients || []).map((o: any) => {
-    const openBal = advanceMap.get(o.id) || 0;
-    return {
-      name: o.name,
-      amount: openBal,
-      remainingLimit: 0,
-    };
-  });
-
-  const totalOwnerAdvances = ownersList.reduce((sum, o) => sum + o.amount, 0);
-  const cashAfterAdvances = currentCash - totalOwnerAdvances;
+  const ownerAdvanceSummary = calculateOwnerAdvanceSummary(
+    currentCash,
+    ownerRecipients || [],
+    ownerAdvances || [],
+  );
+  const ownersList = ownerAdvanceSummary.ownerAdvances.map((ownerAdvance) => ({
+    ...ownerAdvance,
+    remainingLimit: 0,
+  }));
 
   return {
     fiscalYear: year,
@@ -536,8 +528,8 @@ export async function getRekapitulasiData(year: number = 2026): Promise<Rekapitu
     openingCash,
     currentCash,
     ownerAdvances: ownersList,
-    totalOwnerAdvances,
-    cashAfterAdvances,
+    totalOwnerAdvances: ownerAdvanceSummary.totalOwnerAdvances,
+    cashAndOwnerAdvanceReceivable: ownerAdvanceSummary.cashAndOwnerAdvanceReceivable,
     uncategorizedExpenses: uncategorizedList,
     totalUncategorized,
   };

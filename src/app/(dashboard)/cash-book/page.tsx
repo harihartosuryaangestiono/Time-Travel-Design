@@ -291,26 +291,6 @@ export default function CashBookPage() {
         />
       </div>
 
-      {bookAccounts.length > 0 && (
-        <div className="flex flex-col gap-2 rounded-2xl border border-zinc-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className="text-xs font-bold text-zinc-900">Rekening yang dicatat</h3>
-            <p className="text-[11px] text-zinc-500">Pilih rekening untuk melihat mutasi dan saldo rekening tersebut.</p>
-          </div>
-          <select
-            value={selectedAccountId}
-            onChange={(event) => setSelectedAccountId(event.target.value)}
-            className="h-10 rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs font-semibold text-zinc-900"
-          >
-            {bookAccounts.map((account) => (
-              <option key={account.id} value={account.id}>
-                {account.name}{account.is_active === false ? " (Nonaktif — riwayat saja)" : ""}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
       <DraftExpenseCleanup />
 
       {/* ── Input Cepat Ala Excel ── */}
@@ -416,6 +396,24 @@ export default function CashBookPage() {
               ))}
             </select>
           </div>
+
+          {bookAccounts.length > 0 && (
+            <div className="flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-semibold">
+              <Wallet className="h-3.5 w-3.5 text-zinc-400" />
+              <select
+                aria-label="Filter akun"
+                value={selectedAccountId}
+                onChange={(event) => setSelectedAccountId(event.target.value)}
+                className="max-w-[200px] bg-transparent font-medium text-zinc-900 focus:outline-none"
+              >
+                {bookAccounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.name}{account.is_active === false ? " (Nonaktif — riwayat saja)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         <span className="text-xs text-zinc-400 font-medium self-end sm:self-auto">

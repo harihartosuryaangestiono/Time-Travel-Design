@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getCashAdvanceDisbursedAmount } from "@/lib/accounting/cashAdvanceAmount";
 
 export interface AccountBalanceResult {
   accountId: string;
@@ -72,7 +73,7 @@ export async function getAccountsWithCalculatedBalance(
   // Aturan Fase 2B: Kasbon owner yang bertanda is_opening_balance tidak mengurangi kas riil
   const { data: advances } = await supabase
     .from("cash_advances")
-    .select("cash_account_id, disbursed_amount, returned_amount, status, is_opening_balance")
+    .select("cash_account_id, amount, disbursed_amount, returned_amount, status, is_opening_balance")
     .eq("organization_id", organizationId)
     .in("status", ["DISBURSED", "PARTIALLY_SETTLED", "SETTLED"]);
 
@@ -132,7 +133,7 @@ export async function getAccountsWithCalculatedBalance(
     (advances || []).forEach((ca: any) => {
       if (ca.cash_account_id === acc.id) {
         if (!ca.is_opening_balance) {
-          totalOut += parseFloat(ca.disbursed_amount || "0") || 0;
+          totalOut += getCashAdvanceDisbursedAmount(ca.disbursed_amount, ca.amount);
         }
         totalIn += parseFloat(ca.returned_amount || "0") || 0;
       }

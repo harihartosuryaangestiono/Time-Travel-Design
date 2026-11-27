@@ -104,7 +104,7 @@ export default function RekapitulasiPage() {
     data.ownerAdvances.forEach((oa) => {
       rows.push(`,"Kasbon ${oa.name}",,,,"${oa.amount}"`);
     });
-    rows.push(`,"Kas Setelah Kasbon",,,,"${data.cashAfterAdvances}"`);
+    rows.push(`,"Kas + Piutang Kasbon Owner",,,,"${data.cashAndOwnerAdvanceReceivable}"`);
 
     const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + rows.join("\r\n");
     const encodedUri = encodeURI(csvContent);
@@ -244,7 +244,7 @@ export default function RekapitulasiPage() {
         <StatCard
           title="Kas Saat Ini (Riil)"
           value={isLoading || !data ? "..." : formatCurrency(data.currentCash)}
-          subtitle={`Setelah Kasbon: ${data ? formatCurrency(data.cashAfterAdvances) : "..."}`}
+          subtitle="Saldo rekening setelah pencairan kasbon"
           icon={Wallet}
           iconBgColor="bg-amber-500/10"
           iconColor="text-amber-700"
@@ -449,19 +449,26 @@ export default function RekapitulasiPage() {
                   <span className="font-mono font-bold text-emerald-700">{formatCurrency(data.currentCash)}</span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-zinc-200">
-                  <span className="text-zinc-600">Total Kasbon Owner (Terpakai):</span>
+                  <span className="text-zinc-600">Kasbon Owner Belum Dipertanggungjawabkan:</span>
                   <span className="font-mono font-bold text-amber-700">{formatCurrency(data.totalOwnerAdvances)}</span>
                 </div>
                 <div className="flex justify-between py-1.5 font-bold text-sm bg-white p-2 rounded-xl border border-zinc-200">
-                  <span className="text-zinc-900">Kas Bersih Setelah Kasbon:</span>
-                  <span className="font-mono text-zinc-950">{formatCurrency(data.cashAfterAdvances)}</span>
+                  <span className="text-zinc-900">Total Kas + Piutang Kasbon Owner:</span>
+                  <span className="font-mono text-zinc-950">{formatCurrency(data.cashAndOwnerAdvanceReceivable)}</span>
                 </div>
+                <p className="text-[10px] leading-relaxed text-zinc-500">
+                  Saldo rekening sudah berkurang saat kasbon dicairkan. Kasbon yang belum dipertanggungjawabkan dihitung terpisah sebagai piutang, bukan dikurangkan lagi dari kas.
+                </p>
               </div>
 
               <div className="space-y-2">
                 <span className="font-bold text-zinc-700 block mb-1">Rincian Kasbon Owner:</span>
-                {data.ownerAdvances.map((oa) => (
-                  <div key={oa.name} className="flex justify-between items-center p-2 rounded-xl bg-white border border-zinc-200">
+                {data.ownerAdvances.length === 0 ? (
+                  <p className="rounded-xl border border-dashed border-zinc-300 bg-white p-3 text-zinc-500">
+                    Tidak ada kasbon owner yang belum dipertanggungjawabkan.
+                  </p>
+                ) : data.ownerAdvances.map((oa) => (
+                  <div key={oa.id} className="flex justify-between items-center p-2 rounded-xl bg-white border border-zinc-200">
                     <div>
                       <span className="font-semibold text-zinc-900 block">{oa.name}</span>
                       <span className="text-[10px] text-zinc-400">Tanpa batasan plafon</span>
