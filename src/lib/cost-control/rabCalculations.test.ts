@@ -9,6 +9,21 @@ const oneItem = {
 };
 
 describe("RAB calculations", () => {
+  it("calculates a new RAB with no work items yet", () => {
+    const result = calculateRab({
+      items: [],
+      profitType: "MARKUP",
+      profitPercentage: 20,
+      overheadPercentage: 5,
+      contingencyPercentage: 0,
+      taxPercentage: 0,
+    });
+
+    expect(result.totalHpp).toBe(0);
+    expect(result.grandTotal).toBe(0);
+    expect(result.itemPrices).toEqual([]);
+  });
+
   it("calculates markup on cost including overhead and contingency", () => {
     const result = calculateRab({
       items: [oneItem],

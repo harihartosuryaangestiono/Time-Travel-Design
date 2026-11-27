@@ -125,11 +125,15 @@ export function FastTransactionEntry({
   const isProjectEntry = Boolean(defaultProjectId);
 
   useEffect(() => {
-    if (!accounts.some((account) => account.id === cashAccountId)) {
+    setCashAccountId((currentAccountId) => {
       const preferredAccount = accounts.find((account) => account.id === defaultCashAccountId);
-      setCashAccountId(preferredAccount?.id || accounts[0]?.id || "");
-    }
-  }, [accounts, cashAccountId, defaultCashAccountId]);
+      if (preferredAccount) return preferredAccount.id;
+      if (!accounts.some((account) => account.id === currentAccountId)) {
+        return accounts[0]?.id || "";
+      }
+      return currentAccountId;
+    });
+  }, [accounts, defaultCashAccountId]);
 
   useEffect(() => {
     if (

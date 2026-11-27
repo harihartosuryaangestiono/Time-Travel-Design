@@ -72,10 +72,10 @@ export function calculateRab(input: RabCalculationInput): RabCalculationResult {
   });
 
   const roundMoney = (value: Decimal) => value.toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
-  const totalMaterialHpp = roundMoney(Decimal.sum(...itemCosts.map((item) => item.material)));
-  const totalLaborHpp = roundMoney(Decimal.sum(...itemCosts.map((item) => item.labor)));
-  const totalEquipmentHpp = roundMoney(Decimal.sum(...itemCosts.map((item) => item.equipment)));
-  const totalHpp = roundMoney(Decimal.sum(...itemCosts.map((item) => item.hpp)));
+  const totalMaterialHpp = roundMoney(Decimal.sum(new Decimal(0), ...itemCosts.map((item) => item.material)));
+  const totalLaborHpp = roundMoney(Decimal.sum(new Decimal(0), ...itemCosts.map((item) => item.labor)));
+  const totalEquipmentHpp = roundMoney(Decimal.sum(new Decimal(0), ...itemCosts.map((item) => item.equipment)));
+  const totalHpp = roundMoney(Decimal.sum(new Decimal(0), ...itemCosts.map((item) => item.hpp)));
   const overheadAmount = roundMoney(totalHpp.mul(overheadRate).div(100));
   const contingencyAmount = roundMoney(totalHpp.mul(contingencyRate).div(100));
   const costBeforeProfit = totalHpp.plus(overheadAmount).plus(contingencyAmount);

@@ -51,7 +51,9 @@ export async function getCashBookTransactions(filter?: {
 
   const [{ data: expenses, error: expensesError }, { data: receipts, error: receiptsError },
     { data: projectRevenues, error: revenuesError }, { data: invoicePayments, error: paymentsError },
-    { data: transfers, error: transfersError }, { data: dividendDisbursements, error: dividendsError }] =
+    { data: outgoingTransfers, error: outgoingTransfersError },
+    { data: incomingTransfers, error: incomingTransfersError },
+    { data: dividendDisbursements, error: dividendsError }] =
     await Promise.all([
       supabase
     .from("expenses")
@@ -82,7 +84,13 @@ export async function getCashBookTransactions(filter?: {
         .from("cash_transfers")
         .select("id, from_account_id, from_account_name, to_account_id, date, amount, reference, notes")
         .eq("organization_id", user.organizationId)
-        .or(`from_account_id.eq.${selectedAccount.id},to_account_id.eq.${selectedAccount.id}`)
+        .eq("from_account_id", selectedAccount.id)
+        .order("date", { ascending: true }),
+      supabase
+        .from("cash_transfers")
+        .select("id, from_account_id, from_account_name, to_account_id, date, amount, reference, notes")
+        .eq("organization_id", user.organizationId)
+        .eq("to_account_id", selectedAccount.id)
         .order("date", { ascending: true }),
       supabase
         .from("dividend_disbursements")
@@ -96,9 +104,18 @@ export async function getCashBookTransactions(filter?: {
   if (receiptsError) throw new Error(`Gagal memuat pemasukan: ${receiptsError.message}`);
   if (revenuesError) throw new Error(`Gagal memuat pendapatan proyek: ${revenuesError.message}`);
   if (paymentsError) throw new Error(`Gagal memuat pembayaran invoice: ${paymentsError.message}`);
-  if (transfersError) throw new Error(`Gagal memuat pemindahan dana: ${transfersError.message}`);
+  if (outgoingTransfersError) throw new Error(`Gagal memuat pemindahan dana keluar: ${outgoingTransfersError.message}`);
+  if (incomingTransfersError) throw new Error(`Gagal memuat pemindahan dana masuk: ${incomingTransfersError.message}`);
   if (dividendsError) throw new Error(`Gagal memuat pencairan dividen: ${dividendsError.message}`);
 
+  const transfers = Array.from(
+    new Map(
+      [...(outgoingTransfers || []), ...(incomingTransfers || [])].map((transfer) => [
+        transfer.id,
+        transfer,
+      ])
+    ).values()
+  );
   const salesPersonIds = Array.from(new Set(
     (expenses || [])
       .map((expense) => expense.sales_person_id)
