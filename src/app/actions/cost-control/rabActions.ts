@@ -296,16 +296,13 @@ export async function deleteRabProject(rabId: string) {
   const supabase = await createClient();
   const { data: rab, error: lookupError } = await supabase
     .from("rab_projects")
-    .select("id, status, is_locked")
+    .select("id")
     .eq("id", rabId)
     .eq("organization_id", user.organizationId)
     .maybeSingle();
 
   if (lookupError) throw new Error(`Gagal memeriksa RAB sebelum dihapus: ${lookupError.message}`);
   if (!rab) throw new Error("RAB tidak ditemukan.");
-  if (rab.status === "APPROVED" || rab.is_locked) {
-    throw new Error("RAB yang sudah disetujui atau dikunci tidak dapat dihapus.");
-  }
 
   const { data: deleted, error } = await supabase
     .from("rab_projects")

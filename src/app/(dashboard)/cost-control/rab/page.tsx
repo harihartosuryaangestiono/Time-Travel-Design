@@ -201,7 +201,10 @@ export default function RabProjectsListPage() {
   };
 
   const handleDeleteRab = async (rab: RabProjectItem) => {
-    if (!confirm(`Hapus RAB "${rab.title}"? Semua item dan rincian AHSP di dalam dokumen ini juga akan dihapus. Tindakan ini tidak dapat dibatalkan.`)) return;
+    const linkedRapWarning = rab.status === "APPROVED" || rab.is_locked
+      ? " RAP yang menggunakan RAB ini akan tetap ada, tetapi tautan ke RAB dan item sumbernya akan terputus."
+      : "";
+    if (!confirm(`Hapus RAB "${rab.title}"? Semua item dan rincian AHSP di dalam dokumen ini juga akan dihapus.${linkedRapWarning} Tindakan ini tidak dapat dibatalkan.`)) return;
     try {
       setDeletingRabId(rab.id);
       setError(null);
@@ -422,7 +425,7 @@ export default function RabProjectsListPage() {
                             Edit
                           </button>
                         )}
-                        {canDeleteRabs && rab.status !== "APPROVED" && !rab.is_locked && (
+                        {canDeleteRabs && (
                           <button
                             type="button"
                             onClick={() => handleDeleteRab(rab)}

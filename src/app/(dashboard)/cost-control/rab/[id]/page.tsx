@@ -54,6 +54,17 @@ function formatCurrency(amount: number) {
   }).format(amount || 0);
 }
 
+function formatDocumentNumber(amount: number) {
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount || 0);
+}
+
+function formatDocumentCurrency(amount: number) {
+  return `Rp ${formatDocumentNumber(amount)}`;
+}
+
 export default function RabDetailWorksheetPage() {
   const params = useParams();
   const router = useRouter();
@@ -184,6 +195,8 @@ export default function RabDetailWorksheetPage() {
       })),
     }));
   }, [divisionGroups]);
+  const feeAmount = (rab?.overhead_amount || 0) + (rab?.contingency_amount || 0) + (rab?.profit_amount || 0);
+  const feePercentage = rab?.total_hpp ? (feeAmount / rab.total_hpp) * 100 : 0;
 
   const ahspCategories = useMemo(
     () => Array.from(new Set(ahspCatalog.map((item) => normalizeAhspCategory(item.category))))
@@ -321,6 +334,7 @@ export default function RabDetailWorksheetPage() {
 
     const rows: (string | number)[][] = [];
     const mergedRows: number[] = [];
+    const mergedGroupRows: number[] = [];
     const addMergedRow = (text: string) => {
       mergedRows.push(rows.length);
       rows.push([text]);
@@ -330,50 +344,50 @@ export default function RabDetailWorksheetPage() {
     addMergedRow([organizationProfile.address, organizationProfile.phone, organizationProfile.email].filter(Boolean).join(" • "));
     rows.push([]);
     addMergedRow("RENCANA ANGGARAN BIAYA (RAB)");
-    addMergedRow(rab.title);
-    addMergedRow(`Proyek: ${rab.project?.name || "-"} • Lokasi: ${rab.project_location || rab.project?.location || "-"}`);
-    addMergedRow(`Nomor: ${rab.rab_number} • Versi: ${rab.version} • Tanggal: ${new Date(rab.date).toLocaleDateString("id-ID")}`);
-    addMergedRow(`Klien: ${rab.client_name || "-"}`);
+    addMergedRow(rab.title.toUpperCase());
+    addMergedRow(rab.project_location || rab.project?.location || "-");
+    addMergedRow(String(new Date(rab.date).getFullYear()));
+    addMergedRow(`Nomor RAB: ${rab.rab_number} • Versi: ${rab.version} • Klien: ${rab.client_name || "-"}`);
     rows.push([]);
     rows.push([
       "No",
       "Uraian Pekerjaan",
-      "Satuan",
       "Volume",
-      "Harga Satuan (Rp)",
-      "Jumlah Harga (Rp)",
+      "Satuan",
+      "Harga Satuan (Rp.)",
+      "Jumlah Harga (Rp.)",
     ]);
 
     let globalIndex = 1;
-    divisionGroups.forEach((group) => {
-      rows.push([group.division]);
-      mergedRows.push(rows.length - 1);
+    divisionGroups.forEach((group, groupIndex) => {
+      rows.push([String.fromCharCode(65 + groupIndex), group.division]);
+      mergedGroupRows.push(rows.length - 1);
       group.items.forEach((it) => {
         rows.push([
           globalIndex++,
           it.item_name,
-          it.unit,
           it.volume,
+          it.unit,
           it.unit_hpp,
           it.total_hpp,
         ]);
       });
-      rows.push(["", "", "", "", `Subtotal ${group.division}`, group.subtotalHpp]);
+      rows.push(["", "", "", "", `Total Pekerjaan ${group.division}`, group.subtotalHpp]);
       rows.push([]);
     });
 
     rows.push(["", "", "", "", "Total Semua Pekerjaan", rab.total_hpp]);
-    rows.push(["", "", "", "", `Overhead (${rab.overhead_percentage}%)`, rab.overhead_amount]);
-    rows.push(["", "", "", "", `Kontingensi (${rab.contingency_percentage}%)`, rab.contingency_amount]);
-    rows.push(["", "", "", "", `Keuntungan Owner (${rab.profit_type === "MARKUP" ? "Markup" : "Gross Margin"} ${rab.profit_percentage}%)`, rab.profit_amount]);
-    rows.push(["", "", "", "", `PPN (${rab.tax_percentage}%)`, rab.tax_amount]);
-    rows.push(["", "", "", "", "GRAND TOTAL HARGA PENAWARAN", rab.grand_total]);
+    rows.push(["", "", "", "", `Fee (${formatDocumentNumber(feePercentage)}%)`, feeAmount]);
+    if (rab.tax_percentage > 0) {
+      rows.push(["", "", "", "", `Pajak Pertambahan Nilai (PPN ${rab.tax_percentage}%)`, rab.tax_amount]);
+    }
+    rows.push(["", "", "", "", "Grand Total Harga", rab.grand_total]);
 
     const worksheet = XLSX.utils.aoa_to_sheet(rows);
-    worksheet["!merges"] = mergedRows.map((row) => ({
-      s: { r: row, c: 0 },
-      e: { r: row, c: 5 },
-    }));
+    worksheet["!merges"] = [
+      ...mergedRows.map((row) => ({ s: { r: row, c: 0 }, e: { r: row, c: 5 } })),
+      ...mergedGroupRows.map((row) => ({ s: { r: row, c: 1 }, e: { r: row, c: 5 } })),
+    ];
     worksheet["!cols"] = [
       { wch: 6 },
       { wch: 54 },
@@ -491,11 +505,17 @@ export default function RabDetailWorksheetPage() {
             font-weight: 700;
           }
 
+          #rab-print-document .rab-print-location,
+          #rab-print-document .rab-print-year {
+            margin-top: 2px;
+            text-align: center;
+          }
+
           #rab-print-document .rab-print-meta {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 3px 16px;
-            margin: 12px 0 8px;
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            margin: 10px 0 6px;
           }
 
           #rab-print-document table {
@@ -568,13 +588,12 @@ export default function RabDetailWorksheetPage() {
             </header>
 
             <div className="rab-print-title">RENCANA ANGGARAN BIAYA (RAB)</div>
-            <div className="rab-print-subtitle">{rab.title}</div>
+            <div className="rab-print-subtitle">{rab.title.toUpperCase()}</div>
+            <div className="rab-print-location">{rab.project_location || rab.project?.location || "-"}</div>
+            <div className="rab-print-year">{new Date(rab.date).getFullYear()}</div>
             <div className="rab-print-meta">
-              <div><strong>Proyek:</strong> {rab.project?.name || "-"}</div>
-              <div><strong>Nomor RAB:</strong> {rab.rab_number} (Versi {rab.version})</div>
-              <div><strong>Klien:</strong> {rab.client_name || "-"}</div>
-              <div><strong>Tanggal:</strong> {new Date(rab.date).toLocaleDateString("id-ID")}</div>
-              <div><strong>Lokasi:</strong> {rab.project_location || rab.project?.location || "-"}</div>
+              <span><strong>Nomor RAB:</strong> {rab.rab_number} (Versi {rab.version})</span>
+              <span><strong>Klien:</strong> {rab.client_name || "-"}</span>
             </div>
 
             <table>
@@ -584,8 +603,8 @@ export default function RabDetailWorksheetPage() {
                   <th>Uraian Pekerjaan</th>
                   <th>Volume</th>
                   <th>Satuan</th>
-                  <th>Harga Satuan (Rp)</th>
-                  <th>Jumlah Harga (Rp)</th>
+                  <th>Harga Satuan (Rp.)</th>
+                  <th>Jumlah Harga (Rp.)</th>
                 </tr>
               </thead>
               <tbody>
@@ -597,21 +616,22 @@ export default function RabDetailWorksheetPage() {
                 {printableDivisionGroups.map((group, groupIndex) => (
                   <Fragment key={group.division}>
                     <tr key={`division-${group.division}`} className="rab-print-category">
-                      <td colSpan={6}>{String.fromCharCode(65 + groupIndex)}. {group.division}</td>
+                      <td>{String.fromCharCode(65 + groupIndex)}</td>
+                      <td colSpan={5}>{group.division}</td>
                     </tr>
                     {group.items.map((item) => (
                       <tr key={item.id}>
                         <td>{item.printIndex}</td>
                         <td>{item.item_name}</td>
-                        <td className="rab-print-number">{item.volume}</td>
+                        <td className="rab-print-number">{formatDocumentNumber(item.volume)}</td>
                         <td>{item.unit}</td>
-                        <td className="rab-print-number">{formatCurrency(item.unit_hpp)}</td>
-                        <td className="rab-print-number">{formatCurrency(item.total_hpp)}</td>
+                        <td className="rab-print-number">{formatDocumentCurrency(item.unit_hpp)}</td>
+                        <td className="rab-print-number">{formatDocumentCurrency(item.total_hpp)}</td>
                       </tr>
                     ))}
                     <tr key={`subtotal-${group.division}`} className="rab-print-subtotal">
-                      <td colSpan={5}>Total {group.division}</td>
-                      <td className="rab-print-number">{formatCurrency(group.subtotalHpp)}</td>
+                      <td colSpan={5}>Total Pekerjaan {group.division}</td>
+                      <td className="rab-print-number">{formatDocumentCurrency(group.subtotalHpp)}</td>
                     </tr>
                   </Fragment>
                 ))}
@@ -620,15 +640,21 @@ export default function RabDetailWorksheetPage() {
 
             <table className="rab-print-summary">
               <tbody>
-                <tr><td>Total Semua Pekerjaan</td><td className="rab-print-number">{formatCurrency(rab.total_hpp)}</td></tr>
-                <tr><td>Overhead ({rab.overhead_percentage}%)</td><td className="rab-print-number">{formatCurrency(rab.overhead_amount)}</td></tr>
-                <tr><td>Kontingensi ({rab.contingency_percentage}%)</td><td className="rab-print-number">{formatCurrency(rab.contingency_amount)}</td></tr>
+                <tr><td>Total Semua Pekerjaan</td><td className="rab-print-number">{formatDocumentCurrency(rab.total_hpp)}</td></tr>
                 <tr>
-                  <td>Keuntungan Owner ({rab.profit_type === "MARKUP" ? "Markup" : "Gross Margin"} {rab.profit_percentage}%)</td>
-                  <td className="rab-print-number">{formatCurrency(rab.profit_amount)}</td>
+                  <td>Fee ({formatDocumentNumber(feePercentage)}%)</td>
+                  <td className="rab-print-number">{formatDocumentCurrency(feeAmount)}</td>
                 </tr>
-                <tr><td>PPN ({rab.tax_percentage}%)</td><td className="rab-print-number">{formatCurrency(rab.tax_amount)}</td></tr>
-                <tr className="rab-print-grand-total"><td>GRAND TOTAL HARGA PENAWARAN</td><td className="rab-print-number">{formatCurrency(rab.grand_total)}</td></tr>
+                {rab.tax_percentage > 0 && (
+                  <tr>
+                    <td>Pajak Pertambahan Nilai (PPN {rab.tax_percentage}%)</td>
+                    <td className="rab-print-number">{formatDocumentCurrency(rab.tax_amount)}</td>
+                  </tr>
+                )}
+                <tr className="rab-print-grand-total">
+                  <td>Grand Total Harga</td>
+                  <td className="rab-print-number">{formatDocumentCurrency(rab.grand_total)}</td>
+                </tr>
               </tbody>
             </table>
 
