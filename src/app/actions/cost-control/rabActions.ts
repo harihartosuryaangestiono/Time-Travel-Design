@@ -64,7 +64,13 @@ export interface RabProjectItem {
   grand_total: number;
   notes?: string | null;
   created_at: string;
-  project?: { id: string; name: string; code: string; location?: string | null; client?: { name: string } };
+  project?: {
+    id: string;
+    name: string;
+    code: string;
+    location?: string | null;
+    client?: { name: string | null } | null;
+  };
   items?: RabWorkItem[];
 }
 
@@ -346,12 +352,24 @@ export async function getRabProjectDetail(rabId: string): Promise<RabProjectItem
 
   const { data: project, error: projectError } = await supabase
     .from("projects")
-    .select("id, name, code, location")
+    .select("id, name, code, location, client_id")
     .eq("id", rab.project_id)
     .eq("organization_id", user.organizationId)
     .maybeSingle();
   if (projectError) throw new Error(`Gagal memuat proyek RAB: ${projectError.message}`);
   if (!project) throw new Error("Proyek RAB tidak ditemukan di organisasi ini.");
+
+  let projectClient: { name: string | null } | null = null;
+  if (project.client_id) {
+    const { data: client, error: clientError } = await supabase
+      .from("clients")
+      .select("name")
+      .eq("id", project.client_id)
+      .eq("organization_id", user.organizationId)
+      .maybeSingle();
+    if (clientError) throw new Error(`Gagal memuat klien proyek RAB: ${clientError.message}`);
+    projectClient = client ? { name: client.name } : null;
+  }
 
   const formattedItems: RabWorkItem[] = (rab.items || [])
     .sort((a: any, b: any) => a.sort_order - b.sort_order)
@@ -375,7 +393,7 @@ export async function getRabProjectDetail(rabId: string): Promise<RabProjectItem
 
   return {
     ...rab,
-    project,
+    project: { ...project, client: projectClient },
     profit_percentage: Number(rab.profit_percentage),
     overhead_percentage: Number(rab.overhead_percentage),
     contingency_percentage: Number(rab.contingency_percentage),

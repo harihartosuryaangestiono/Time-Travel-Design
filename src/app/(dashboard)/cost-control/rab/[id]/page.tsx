@@ -26,7 +26,6 @@ import {
   X,
   Loader2,
 } from "lucide-react";
-import * as XLSX from "xlsx";
 import {
   getRabProjectDetail,
   getMasterAhspList,
@@ -44,6 +43,11 @@ import {
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import { normalizeAhspCategory } from "@/lib/cost-control/ahspCategories";
+import {
+  downloadRabExcel,
+  RAB_EXPORT_COLORS,
+  RAB_BRAND_LOGO_PATH,
+} from "@/lib/cost-control/rabExcelExport";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("id-ID", {
@@ -55,14 +59,33 @@ function formatCurrency(amount: number) {
 }
 
 function formatDocumentNumber(amount: number) {
-  return new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+  return new Intl.NumberFormat("id-ID", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 8,
   }).format(amount || 0);
 }
 
 function formatDocumentCurrency(amount: number) {
+  return formatDocumentNumber(amount);
+}
+
+function formatDocumentPercentage(amount: number) {
+  return new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 }).format(amount || 0);
+}
+
+function formatGrandTotalCurrency(amount: number) {
   return `Rp ${formatDocumentNumber(amount)}`;
+}
+
+function formatDocumentDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    timeZone: "Asia/Jakarta",
+  }).format(date);
 }
 
 export default function RabDetailWorksheetPage() {
@@ -74,6 +97,7 @@ export default function RabDetailWorksheetPage() {
   const [ahspCatalog, setAhspCatalog] = useState<MasterAhspItem[]>([]);
   const [organizationProfile, setOrganizationProfile] = useState<RabOrganizationProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [pendingAction, setPendingAction] = useState<
     "add-ahsp" | "add-custom" | "delete-item" | "save-margin" | "approve" | "revision" | null
   >(null);
@@ -197,6 +221,15 @@ export default function RabDetailWorksheetPage() {
   }, [divisionGroups]);
   const feeAmount = (rab?.overhead_amount || 0) + (rab?.contingency_amount || 0) + (rab?.profit_amount || 0);
   const feePercentage = rab?.total_hpp ? (feeAmount / rab.total_hpp) * 100 : 0;
+  const projectName = rab?.project?.name?.trim() || rab?.title.trim() || "";
+  const printableMetadata = [
+    { label: "Nomor RAB", value: rab?.rab_number || "" },
+    { label: "Versi", value: rab ? String(rab.version) : "" },
+    { label: "Tanggal", value: rab ? formatDocumentDate(rab.date) : "" },
+    { label: "Nama Proyek", value: projectName },
+    { label: "Lokasi", value: rab?.project?.location?.trim() || "" },
+    { label: "Klien", value: rab?.project?.client?.name?.trim() || "" },
+  ].filter((item) => item.value.length > 0);
 
   const ahspCategories = useMemo(
     () => Array.from(new Set(ahspCatalog.map((item) => normalizeAhspCategory(item.category))))
@@ -329,85 +362,20 @@ export default function RabDetailWorksheetPage() {
   };
 
   // Excel Export
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (!rab || !organizationProfile) return;
-
-    const rows: (string | number)[][] = [];
-    const mergedRows: number[] = [];
-    const mergedGroupRows: number[] = [];
-    const addMergedRow = (text: string) => {
-      mergedRows.push(rows.length);
-      rows.push([text]);
-    };
-
-    addMergedRow(organizationProfile.name.toUpperCase());
-    addMergedRow([organizationProfile.address, organizationProfile.phone, organizationProfile.email].filter(Boolean).join(" • "));
-    rows.push([]);
-    addMergedRow("RENCANA ANGGARAN BIAYA (RAB)");
-    addMergedRow(rab.title.toUpperCase());
-    addMergedRow(rab.project_location || rab.project?.location || "-");
-    addMergedRow(String(new Date(rab.date).getFullYear()));
-    addMergedRow(`Nomor RAB: ${rab.rab_number} • Versi: ${rab.version} • Klien: ${rab.client_name || "-"}`);
-    rows.push([]);
-    rows.push([
-      "No",
-      "Uraian Pekerjaan",
-      "Volume",
-      "Satuan",
-      "Harga Satuan (Rp.)",
-      "Jumlah Harga (Rp.)",
-    ]);
-
-    let globalIndex = 1;
-    divisionGroups.forEach((group, groupIndex) => {
-      rows.push([String.fromCharCode(65 + groupIndex), group.division]);
-      mergedGroupRows.push(rows.length - 1);
-      group.items.forEach((it) => {
-        rows.push([
-          globalIndex++,
-          it.item_name,
-          it.volume,
-          it.unit,
-          it.unit_hpp,
-          it.total_hpp,
-        ]);
-      });
-      rows.push(["", "", "", "", `Total Pekerjaan ${group.division}`, group.subtotalHpp]);
-      rows.push([]);
-    });
-
-    rows.push(["", "", "", "", "Total Semua Pekerjaan", rab.total_hpp]);
-    rows.push(["", "", "", "", `Fee (${formatDocumentNumber(feePercentage)}%)`, feeAmount]);
-    if (rab.tax_percentage > 0) {
-      rows.push(["", "", "", "", `Pajak Pertambahan Nilai (PPN ${rab.tax_percentage}%)`, rab.tax_amount]);
+    try {
+      setIsExportingExcel(true);
+      await downloadRabExcel(
+        { company: organizationProfile, rab, groups: divisionGroups },
+        `${rab.rab_number}_V${rab.version}.xlsx`,
+      );
+    } catch (exportError) {
+      console.error("Gagal mengekspor RAB ke Excel:", exportError);
+      setError(exportError instanceof Error ? exportError.message : "Gagal mengekspor RAB ke Excel.");
+    } finally {
+      setIsExportingExcel(false);
     }
-    rows.push(["", "", "", "", "Grand Total Harga", rab.grand_total]);
-
-    const worksheet = XLSX.utils.aoa_to_sheet(rows);
-    worksheet["!merges"] = [
-      ...mergedRows.map((row) => ({ s: { r: row, c: 0 }, e: { r: row, c: 5 } })),
-      ...mergedGroupRows.map((row) => ({ s: { r: row, c: 1 }, e: { r: row, c: 5 } })),
-    ];
-    worksheet["!cols"] = [
-      { wch: 6 },
-      { wch: 54 },
-      { wch: 12 },
-      { wch: 13 },
-      { wch: 22 },
-      { wch: 24 },
-    ];
-    const range = XLSX.utils.decode_range(worksheet["!ref"] || "A1");
-    for (let row = range.s.r; row <= range.e.r; row += 1) {
-      for (let column = 2; column <= 5; column += 1) {
-        const cell = worksheet[XLSX.utils.encode_cell({ r: row, c: column })];
-        if (cell && typeof cell.v === "number") {
-          cell.z = column === 2 ? "#,##0.00" : '"Rp" #,##0.00';
-        }
-      }
-    }
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Worksheet RAB");
-    XLSX.writeFile(workbook, `${rab.rab_number}_V${rab.version}.xlsx`);
   };
 
   const handleExportPdf = () => {
@@ -446,8 +414,15 @@ export default function RabDetailWorksheetPage() {
     <div className="space-y-8 pb-16">
       <style jsx global>{`
         @page {
-          size: A4 portrait;
-          margin: 12mm;
+          size: A4 landscape;
+          margin: 12mm 12mm 18mm;
+
+          @bottom-center {
+            content: "Halaman " counter(page) " dari " counter(pages);
+            color: #${RAB_EXPORT_COLORS.mutedGray};
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 8pt;
+          }
         }
 
         @media print {
@@ -465,68 +440,96 @@ export default function RabDetailWorksheetPage() {
             position: absolute;
             inset: 0;
             width: 100%;
-            color: #111;
-            background: #fff;
-            font-family: Arial, sans-serif;
-            font-size: 9px;
+            color: #${RAB_EXPORT_COLORS.black};
+            background: #${RAB_EXPORT_COLORS.white};
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 9pt;
+            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact;
           }
 
           #rab-print-document .rab-print-header {
-            display: flex;
+            display: grid;
+            grid-template-columns: 180px minmax(0, 1fr);
             align-items: center;
-            gap: 14px;
-            border-bottom: 2px solid #111;
-            padding-bottom: 8px;
+            gap: 20px;
+            border-bottom: 1px solid #${RAB_EXPORT_COLORS.black};
+            padding: 2px 6px 10px;
           }
 
           #rab-print-document .rab-print-logo {
-            max-width: 64px;
-            max-height: 54px;
+            display: block;
+            width: 160px;
+            height: auto;
+            max-height: 82px;
             object-fit: contain;
+            object-position: left center;
+            filter: brightness(0);
           }
 
-          #rab-print-document .rab-print-company {
-            font-size: 15px;
-            font-weight: 700;
-            text-transform: uppercase;
+          #rab-print-document .rab-print-contact {
+            color: #${RAB_EXPORT_COLORS.mutedGray};
+            font-size: 9pt;
+            line-height: 1.55;
+            text-align: right;
           }
 
           #rab-print-document .rab-print-title {
-            margin-top: 12px;
+            margin: 18px 0 4px;
             text-align: center;
-            font-size: 14px;
+            font-size: 15pt;
             font-weight: 700;
+            color: #${RAB_EXPORT_COLORS.black};
           }
 
           #rab-print-document .rab-print-subtitle {
-            margin-top: 3px;
+            margin: 0 0 12px;
             text-align: center;
-            font-size: 11px;
+            font-size: 13pt;
             font-weight: 700;
+            color: #${RAB_EXPORT_COLORS.black};
           }
 
-          #rab-print-document .rab-print-location,
-          #rab-print-document .rab-print-year {
-            margin-top: 2px;
-            text-align: center;
+          #rab-print-document .rab-print-meta-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            column-gap: 24px;
+            margin: 0 0 16px;
+            border-top: 1px solid #${RAB_EXPORT_COLORS.lineGray};
           }
 
-          #rab-print-document .rab-print-meta {
-            display: flex;
-            justify-content: space-between;
-            gap: 12px;
-            margin: 10px 0 6px;
+          #rab-print-document .rab-print-meta-item {
+            display: grid;
+            grid-template-columns: 120px minmax(0, 1fr);
+            gap: 8px;
+            padding: 6px 4px;
+            border-bottom: 1px solid #${RAB_EXPORT_COLORS.lineGray};
+          }
+
+          #rab-print-document .rab-print-meta-label {
+            color: #${RAB_EXPORT_COLORS.mutedGray};
+            font-weight: 700;
           }
 
           #rab-print-document table {
             width: 100%;
             border-collapse: collapse;
+            table-layout: fixed;
           }
 
           #rab-print-document th,
           #rab-print-document td {
-            border: 1px solid #333;
-            padding: 4px 5px;
+            border: 1px solid #${RAB_EXPORT_COLORS.lineGray};
+            padding: 6px 7px;
+            vertical-align: top;
+          }
+
+          #rab-print-document th {
+            background: #${RAB_EXPORT_COLORS.black};
+            color: #${RAB_EXPORT_COLORS.white};
+            font-weight: 700;
+            text-align: center;
+            vertical-align: middle;
           }
 
           #rab-print-document thead {
@@ -535,15 +538,26 @@ export default function RabDetailWorksheetPage() {
 
           #rab-print-document tr {
             break-inside: avoid;
+            page-break-inside: avoid;
           }
 
           #rab-print-document .rab-print-category {
-            background: #e5e7eb;
+            background: #${RAB_EXPORT_COLORS.lightGray};
+            color: #${RAB_EXPORT_COLORS.black};
             font-weight: 700;
+            break-after: avoid;
+            page-break-after: avoid;
+          }
+
+          #rab-print-document .rab-print-first-item,
+          #rab-print-document .rab-print-subtotal {
+            break-before: avoid;
+            page-break-before: avoid;
           }
 
           #rab-print-document .rab-print-subtotal td {
             font-weight: 700;
+            background: #${RAB_EXPORT_COLORS.lightGray};
           }
 
           #rab-print-document .rab-print-number {
@@ -551,15 +565,32 @@ export default function RabDetailWorksheetPage() {
             white-space: nowrap;
           }
 
+          #rab-print-document .rab-print-center {
+            text-align: center;
+          }
+
+          #rab-print-document .rab-print-description {
+            overflow-wrap: anywhere;
+            word-break: normal;
+          }
+
           #rab-print-document .rab-print-summary {
-            width: 58%;
-            margin: 10px 0 0 auto;
+            width: 62%;
+            margin: 14px 0 0 auto;
+            break-inside: avoid;
+            page-break-inside: avoid;
           }
 
           #rab-print-document .rab-print-grand-total td {
-            border-top: 2px solid #111;
+            border-top: 2px solid #${RAB_EXPORT_COLORS.black};
+            background: #${RAB_EXPORT_COLORS.black};
+            color: #${RAB_EXPORT_COLORS.white};
             font-weight: 700;
-            font-size: 11px;
+            font-size: 11pt;
+          }
+
+          #rab-print-document .rab-print-grand-total td:last-child {
+            white-space: nowrap;
           }
         }
       `}</style>
@@ -568,43 +599,49 @@ export default function RabDetailWorksheetPage() {
         {rab && organizationProfile && (
           <>
             <header className="rab-print-header">
-              {organizationProfile.logo_url && (
-                <Image
-                  src={organizationProfile.logo_url}
-                  alt={`Logo ${organizationProfile.name}`}
-                  width={64}
-                  height={54}
-                  unoptimized
-                  className="rab-print-logo"
-                />
-              )}
-              <div>
-                <div className="rab-print-company">{organizationProfile.name}</div>
+              <Image
+                src={RAB_BRAND_LOGO_PATH}
+                alt="Logo Time Travel Design"
+                width={160}
+                height={82}
+                unoptimized
+                className="rab-print-logo"
+              />
+              <div className="rab-print-contact">
                 {organizationProfile.address && <div>{organizationProfile.address}</div>}
-                <div>
-                  {[organizationProfile.phone, organizationProfile.email].filter(Boolean).join(" • ")}
-                </div>
+                {organizationProfile.phone && <div>Telepon {organizationProfile.phone}</div>}
+                {organizationProfile.email && <div>Email {organizationProfile.email}</div>}
               </div>
             </header>
 
             <div className="rab-print-title">RENCANA ANGGARAN BIAYA (RAB)</div>
-            <div className="rab-print-subtitle">{rab.title.toUpperCase()}</div>
-            <div className="rab-print-location">{rab.project_location || rab.project?.location || "-"}</div>
-            <div className="rab-print-year">{new Date(rab.date).getFullYear()}</div>
-            <div className="rab-print-meta">
-              <span><strong>Nomor RAB:</strong> {rab.rab_number} (Versi {rab.version})</span>
-              <span><strong>Klien:</strong> {rab.client_name || "-"}</span>
+            <div className="rab-print-subtitle">{projectName.toUpperCase()}</div>
+            <div className="rab-print-meta-grid">
+              {printableMetadata.map((item) => (
+                <div className="rab-print-meta-item" key={item.label}>
+                  <span className="rab-print-meta-label">{item.label}</span>
+                  <span>{item.value}</span>
+                </div>
+              ))}
             </div>
 
             <table>
+              <colgroup>
+                <col style={{ width: "5%" }} />
+                <col style={{ width: "45%" }} />
+                <col style={{ width: "10%" }} />
+                <col style={{ width: "8%" }} />
+                <col style={{ width: "16%" }} />
+                <col style={{ width: "16%" }} />
+              </colgroup>
               <thead>
                 <tr>
                   <th>No</th>
                   <th>Uraian Pekerjaan</th>
                   <th>Volume</th>
                   <th>Satuan</th>
-                  <th>Harga Satuan (Rp.)</th>
-                  <th>Jumlah Harga (Rp.)</th>
+                  <th>Harga Satuan (Rp)</th>
+                  <th>Jumlah Harga (Rp)</th>
                 </tr>
               </thead>
               <tbody>
@@ -615,22 +652,28 @@ export default function RabDetailWorksheetPage() {
                 )}
                 {printableDivisionGroups.map((group, groupIndex) => (
                   <Fragment key={group.division}>
-                    <tr key={`division-${group.division}`} className="rab-print-category">
-                      <td>{String.fromCharCode(65 + groupIndex)}</td>
-                      <td colSpan={5}>{group.division}</td>
+                    <tr className="rab-print-category">
+                      <td className="rab-print-center">{String.fromCharCode(65 + groupIndex)}</td>
+                      <td colSpan={5} className="rab-print-description">{group.division}</td>
                     </tr>
                     {group.items.map((item) => (
-                      <tr key={item.id}>
-                        <td>{item.printIndex}</td>
-                        <td>{item.item_name}</td>
+                      <tr
+                        key={item.id}
+                        className={[
+                          "rab-print-item",
+                          item === group.items[0] ? "rab-print-first-item" : "",
+                        ].filter(Boolean).join(" ")}
+                      >
+                        <td className="rab-print-center">{item.printIndex}</td>
+                        <td className="rab-print-description">{item.item_name}</td>
                         <td className="rab-print-number">{formatDocumentNumber(item.volume)}</td>
-                        <td>{item.unit}</td>
+                        <td className="rab-print-center">{item.unit}</td>
                         <td className="rab-print-number">{formatDocumentCurrency(item.unit_hpp)}</td>
                         <td className="rab-print-number">{formatDocumentCurrency(item.total_hpp)}</td>
                       </tr>
                     ))}
-                    <tr key={`subtotal-${group.division}`} className="rab-print-subtotal">
-                      <td colSpan={5}>Total Pekerjaan {group.division}</td>
+                    <tr className="rab-print-subtotal">
+                      <td colSpan={5}>Subtotal {group.division}</td>
                       <td className="rab-print-number">{formatDocumentCurrency(group.subtotalHpp)}</td>
                     </tr>
                   </Fragment>
@@ -642,7 +685,7 @@ export default function RabDetailWorksheetPage() {
               <tbody>
                 <tr><td>Total Semua Pekerjaan</td><td className="rab-print-number">{formatDocumentCurrency(rab.total_hpp)}</td></tr>
                 <tr>
-                  <td>Fee ({formatDocumentNumber(feePercentage)}%)</td>
+                  <td>Fee ({formatDocumentPercentage(feePercentage)}%)</td>
                   <td className="rab-print-number">{formatDocumentCurrency(feeAmount)}</td>
                 </tr>
                 {rab.tax_percentage > 0 && (
@@ -652,8 +695,8 @@ export default function RabDetailWorksheetPage() {
                   </tr>
                 )}
                 <tr className="rab-print-grand-total">
-                  <td>Grand Total Harga</td>
-                  <td className="rab-print-number">{formatDocumentCurrency(rab.grand_total)}</td>
+                  <td>GRAND TOTAL</td>
+                  <td className="rab-print-number">{formatGrandTotalCurrency(rab.grand_total)}</td>
                 </tr>
               </tbody>
             </table>
@@ -696,11 +739,16 @@ export default function RabDetailWorksheetPage() {
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={handleExportExcel}
-            disabled={!organizationProfile}
+            disabled={!organizationProfile || isExportingExcel}
+            aria-busy={isExportingExcel}
             className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3.5 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition shadow-sm"
           >
-            <Download className="h-3.5 w-3.5 text-zinc-500" />
-            Export Excel
+            {isExportingExcel ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-500" />
+            ) : (
+              <Download className="h-3.5 w-3.5 text-zinc-500" />
+            )}
+            {isExportingExcel ? "Membuat Excel..." : "Export Excel"}
           </button>
           <button
             onClick={handleExportPdf}
