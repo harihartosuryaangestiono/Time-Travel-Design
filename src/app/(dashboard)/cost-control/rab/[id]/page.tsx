@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { Fragment, useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Calculator,
   ArrowLeft,
@@ -21,6 +22,7 @@ import {
   Sliders,
   DollarSign,
   FileSpreadsheet,
+  FileText,
   X,
   Loader2,
 } from "lucide-react";
@@ -34,11 +36,14 @@ import {
   recalculateRab,
   approveRabProject,
   createNewRabVersion,
+  getRabOrganizationProfile,
   RabProjectItem,
   MasterAhspItem,
+  RabOrganizationProfile,
 } from "@/app/actions/cost-control/rabActions";
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
+import { normalizeAhspCategory } from "@/lib/cost-control/ahspCategories";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("id-ID", {
@@ -56,6 +61,7 @@ export default function RabDetailWorksheetPage() {
 
   const [rab, setRab] = useState<RabProjectItem | null>(null);
   const [ahspCatalog, setAhspCatalog] = useState<MasterAhspItem[]>([]);
+  const [organizationProfile, setOrganizationProfile] = useState<RabOrganizationProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [pendingAction, setPendingAction] = useState<
     "add-ahsp" | "add-custom" | "delete-item" | "save-margin" | "approve" | "revision" | null
@@ -75,6 +81,7 @@ export default function RabDetailWorksheetPage() {
   // Forms
   const [ahspPickForm, setAhspPickForm] = useState({
     ahsp_id: "",
+    category: "Pekerjaan Arsitektural",
     division: "III. PEKERJAAN ARSITEKTUR & FINISHING",
     sub_division: "Lantai & Dinding",
     volume: 100,
@@ -104,14 +111,32 @@ export default function RabDetailWorksheetPage() {
     try {
       setIsLoading(true);
       setError(null);
-      const [detail, ahspList] = await Promise.all([
+      const [detail, ahspList, orgProfile] = await Promise.all([
         getRabProjectDetail(rabId),
         getMasterAhspList(),
+        getRabOrganizationProfile(),
       ]);
       setRab(detail);
       setAhspCatalog(ahspList);
+      setOrganizationProfile(orgProfile);
       if (ahspList.length > 0) {
-        setAhspPickForm((prev) => prev.ahsp_id ? prev : ({ ...prev, ahsp_id: ahspList[0].id }));
+        setAhspPickForm((prev) => {
+          const currentItem = ahspList.find((item) => item.id === prev.ahsp_id);
+          const category = currentItem
+            ? normalizeAhspCategory(currentItem.category)
+            : ahspList.some((item) => normalizeAhspCategory(item.category) === prev.category)
+              ? prev.category
+              : normalizeAhspCategory(ahspList[0].category);
+          const selectedItem = currentItem && normalizeAhspCategory(currentItem.category) === category
+            ? currentItem
+            : ahspList.find((item) => normalizeAhspCategory(item.category) === category);
+
+          return {
+            ...prev,
+            category,
+            ahsp_id: selectedItem?.id ?? "",
+          };
+        });
       }
       setMarginForm({
         profit_type: detail.profit_type,
@@ -148,6 +173,27 @@ export default function RabDetailWorksheetPage() {
       return { division, items, subtotalHpp, subtotalSelling };
     });
   }, [rab]);
+
+  const printableDivisionGroups = useMemo(() => {
+    let itemIndex = 1;
+    return divisionGroups.map((group) => ({
+      ...group,
+      items: group.items.map((item) => ({
+        ...item,
+        printIndex: itemIndex++,
+      })),
+    }));
+  }, [divisionGroups]);
+
+  const ahspCategories = useMemo(
+    () => Array.from(new Set(ahspCatalog.map((item) => normalizeAhspCategory(item.category))))
+      .sort((a, b) => a.localeCompare(b, "id")),
+    [ahspCatalog],
+  );
+  const filteredAhspCatalog = useMemo(
+    () => ahspCatalog.filter((item) => normalizeAhspCategory(item.category) === ahspPickForm.category),
+    [ahspCatalog, ahspPickForm.category],
+  );
 
   const toggleExpand = (itemId: string) => {
     setExpandedItems((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
@@ -271,28 +317,37 @@ export default function RabDetailWorksheetPage() {
 
   // Excel Export
   const handleExportExcel = () => {
-    if (!rab) return;
+    if (!rab || !organizationProfile) return;
 
-    const rows: any[] = [];
-    rows.push(["RENCANA ANGGARAN BIAYA (RAB)"]);
-    rows.push([`Proyek: ${rab.project?.name || "-"}`]);
-    rows.push([`Nomor RAB: ${rab.rab_number}`, `Versi: ${rab.version}`, `Tanggal: ${new Date(rab.date).toLocaleDateString("id-ID")}`]);
-    rows.push([`Klien: ${rab.client_name || "-"}`, `Lokasi: ${rab.project_location || "-"}`]);
+    const rows: (string | number)[][] = [];
+    const mergedRows: number[] = [];
+    const addMergedRow = (text: string) => {
+      mergedRows.push(rows.length);
+      rows.push([text]);
+    };
+
+    addMergedRow(organizationProfile.name.toUpperCase());
+    addMergedRow([organizationProfile.address, organizationProfile.phone, organizationProfile.email].filter(Boolean).join(" • "));
+    rows.push([]);
+    addMergedRow("RENCANA ANGGARAN BIAYA (RAB)");
+    addMergedRow(rab.title);
+    addMergedRow(`Proyek: ${rab.project?.name || "-"} • Lokasi: ${rab.project_location || rab.project?.location || "-"}`);
+    addMergedRow(`Nomor: ${rab.rab_number} • Versi: ${rab.version} • Tanggal: ${new Date(rab.date).toLocaleDateString("id-ID")}`);
+    addMergedRow(`Klien: ${rab.client_name || "-"}`);
     rows.push([]);
     rows.push([
       "No",
       "Uraian Pekerjaan",
       "Satuan",
       "Volume",
-      "HPP Satuan (Rp)",
-      "Total HPP (Rp)",
-      "Harga Satuan Penawaran (Rp)",
-      "Total Harga Penawaran (Rp)",
+      "Harga Satuan (Rp)",
+      "Jumlah Harga (Rp)",
     ]);
 
     let globalIndex = 1;
     divisionGroups.forEach((group) => {
-      rows.push(["", group.division, "", "", "", "", "", ""]);
+      rows.push([group.division]);
+      mergedRows.push(rows.length - 1);
       group.items.forEach((it) => {
         rows.push([
           globalIndex++,
@@ -301,25 +356,54 @@ export default function RabDetailWorksheetPage() {
           it.volume,
           it.unit_hpp,
           it.total_hpp,
-          it.unit_price,
-          it.total_price,
         ]);
       });
-      rows.push(["", `Subtotal ${group.division}`, "", "", "", group.subtotalHpp, "", group.subtotalSelling]);
+      rows.push(["", "", "", "", `Subtotal ${group.division}`, group.subtotalHpp]);
       rows.push([]);
     });
 
-    rows.push(["REKAPITULASI BIAYA"]);
-    rows.push(["Total HPP Modal:", "", "", "", "", rab.total_hpp]);
-    rows.push([`Keuntungan Owner (${rab.profit_type === "MARKUP" ? "Markup" : "Gross Margin"} ${rab.profit_percentage}%):`, "", "", "", "", rab.profit_amount]);
-    rows.push([`Overhead (${rab.overhead_percentage}%):`, "", "", "", "", rab.overhead_amount]);
-    rows.push([`Pajak PPN (${rab.tax_percentage}%):`, "", "", "", "", rab.tax_amount]);
-    rows.push(["TOTAL HARGA PENAWARAN (GRAND TOTAL):", "", "", "", "", rab.grand_total]);
+    rows.push(["", "", "", "", "Total Semua Pekerjaan", rab.total_hpp]);
+    rows.push(["", "", "", "", `Overhead (${rab.overhead_percentage}%)`, rab.overhead_amount]);
+    rows.push(["", "", "", "", `Kontingensi (${rab.contingency_percentage}%)`, rab.contingency_amount]);
+    rows.push(["", "", "", "", `Keuntungan Owner (${rab.profit_type === "MARKUP" ? "Markup" : "Gross Margin"} ${rab.profit_percentage}%)`, rab.profit_amount]);
+    rows.push(["", "", "", "", `PPN (${rab.tax_percentage}%)`, rab.tax_amount]);
+    rows.push(["", "", "", "", "GRAND TOTAL HARGA PENAWARAN", rab.grand_total]);
 
     const worksheet = XLSX.utils.aoa_to_sheet(rows);
+    worksheet["!merges"] = mergedRows.map((row) => ({
+      s: { r: row, c: 0 },
+      e: { r: row, c: 5 },
+    }));
+    worksheet["!cols"] = [
+      { wch: 6 },
+      { wch: 54 },
+      { wch: 12 },
+      { wch: 13 },
+      { wch: 22 },
+      { wch: 24 },
+    ];
+    const range = XLSX.utils.decode_range(worksheet["!ref"] || "A1");
+    for (let row = range.s.r; row <= range.e.r; row += 1) {
+      for (let column = 2; column <= 5; column += 1) {
+        const cell = worksheet[XLSX.utils.encode_cell({ r: row, c: column })];
+        if (cell && typeof cell.v === "number") {
+          cell.z = column === 2 ? "#,##0.00" : '"Rp" #,##0.00';
+        }
+      }
+    }
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Worksheet RAB");
     XLSX.writeFile(workbook, `${rab.rab_number}_V${rab.version}.xlsx`);
+  };
+
+  const handleExportPdf = () => {
+    if (!rab || !organizationProfile) return;
+    const previousTitle = document.title;
+    document.title = `${rab.rab_number}_V${rab.version}`;
+    window.addEventListener("afterprint", () => {
+      document.title = previousTitle;
+    }, { once: true });
+    window.print();
   };
 
   if (!rab && isLoading) {
@@ -346,6 +430,213 @@ export default function RabDetailWorksheetPage() {
 
   return (
     <div className="space-y-8 pb-16">
+      <style jsx global>{`
+        @page {
+          size: A4 portrait;
+          margin: 12mm;
+        }
+
+        @media print {
+          body * {
+            visibility: hidden !important;
+          }
+
+          #rab-print-document,
+          #rab-print-document * {
+            visibility: visible !important;
+          }
+
+          #rab-print-document {
+            display: block !important;
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            color: #111;
+            background: #fff;
+            font-family: Arial, sans-serif;
+            font-size: 9px;
+          }
+
+          #rab-print-document .rab-print-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            border-bottom: 2px solid #111;
+            padding-bottom: 8px;
+          }
+
+          #rab-print-document .rab-print-logo {
+            max-width: 64px;
+            max-height: 54px;
+            object-fit: contain;
+          }
+
+          #rab-print-document .rab-print-company {
+            font-size: 15px;
+            font-weight: 700;
+            text-transform: uppercase;
+          }
+
+          #rab-print-document .rab-print-title {
+            margin-top: 12px;
+            text-align: center;
+            font-size: 14px;
+            font-weight: 700;
+          }
+
+          #rab-print-document .rab-print-subtitle {
+            margin-top: 3px;
+            text-align: center;
+            font-size: 11px;
+            font-weight: 700;
+          }
+
+          #rab-print-document .rab-print-meta {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 3px 16px;
+            margin: 12px 0 8px;
+          }
+
+          #rab-print-document table {
+            width: 100%;
+            border-collapse: collapse;
+          }
+
+          #rab-print-document th,
+          #rab-print-document td {
+            border: 1px solid #333;
+            padding: 4px 5px;
+          }
+
+          #rab-print-document thead {
+            display: table-header-group;
+          }
+
+          #rab-print-document tr {
+            break-inside: avoid;
+          }
+
+          #rab-print-document .rab-print-category {
+            background: #e5e7eb;
+            font-weight: 700;
+          }
+
+          #rab-print-document .rab-print-subtotal td {
+            font-weight: 700;
+          }
+
+          #rab-print-document .rab-print-number {
+            text-align: right;
+            white-space: nowrap;
+          }
+
+          #rab-print-document .rab-print-summary {
+            width: 58%;
+            margin: 10px 0 0 auto;
+          }
+
+          #rab-print-document .rab-print-grand-total td {
+            border-top: 2px solid #111;
+            font-weight: 700;
+            font-size: 11px;
+          }
+        }
+      `}</style>
+
+      <div id="rab-print-document" className="hidden">
+        {rab && organizationProfile && (
+          <>
+            <header className="rab-print-header">
+              {organizationProfile.logo_url && (
+                <Image
+                  src={organizationProfile.logo_url}
+                  alt={`Logo ${organizationProfile.name}`}
+                  width={64}
+                  height={54}
+                  unoptimized
+                  className="rab-print-logo"
+                />
+              )}
+              <div>
+                <div className="rab-print-company">{organizationProfile.name}</div>
+                {organizationProfile.address && <div>{organizationProfile.address}</div>}
+                <div>
+                  {[organizationProfile.phone, organizationProfile.email].filter(Boolean).join(" • ")}
+                </div>
+              </div>
+            </header>
+
+            <div className="rab-print-title">RENCANA ANGGARAN BIAYA (RAB)</div>
+            <div className="rab-print-subtitle">{rab.title}</div>
+            <div className="rab-print-meta">
+              <div><strong>Proyek:</strong> {rab.project?.name || "-"}</div>
+              <div><strong>Nomor RAB:</strong> {rab.rab_number} (Versi {rab.version})</div>
+              <div><strong>Klien:</strong> {rab.client_name || "-"}</div>
+              <div><strong>Tanggal:</strong> {new Date(rab.date).toLocaleDateString("id-ID")}</div>
+              <div><strong>Lokasi:</strong> {rab.project_location || rab.project?.location || "-"}</div>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>No</th>
+                  <th>Uraian Pekerjaan</th>
+                  <th>Volume</th>
+                  <th>Satuan</th>
+                  <th>Harga Satuan (Rp)</th>
+                  <th>Jumlah Harga (Rp)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {divisionGroups.length === 0 && (
+                  <tr>
+                    <td colSpan={6}>Belum ada item pekerjaan pada RAB ini.</td>
+                  </tr>
+                )}
+                {printableDivisionGroups.map((group, groupIndex) => (
+                  <Fragment key={group.division}>
+                    <tr key={`division-${group.division}`} className="rab-print-category">
+                      <td colSpan={6}>{String.fromCharCode(65 + groupIndex)}. {group.division}</td>
+                    </tr>
+                    {group.items.map((item) => (
+                      <tr key={item.id}>
+                        <td>{item.printIndex}</td>
+                        <td>{item.item_name}</td>
+                        <td className="rab-print-number">{item.volume}</td>
+                        <td>{item.unit}</td>
+                        <td className="rab-print-number">{formatCurrency(item.unit_hpp)}</td>
+                        <td className="rab-print-number">{formatCurrency(item.total_hpp)}</td>
+                      </tr>
+                    ))}
+                    <tr key={`subtotal-${group.division}`} className="rab-print-subtotal">
+                      <td colSpan={5}>Total {group.division}</td>
+                      <td className="rab-print-number">{formatCurrency(group.subtotalHpp)}</td>
+                    </tr>
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+
+            <table className="rab-print-summary">
+              <tbody>
+                <tr><td>Total Semua Pekerjaan</td><td className="rab-print-number">{formatCurrency(rab.total_hpp)}</td></tr>
+                <tr><td>Overhead ({rab.overhead_percentage}%)</td><td className="rab-print-number">{formatCurrency(rab.overhead_amount)}</td></tr>
+                <tr><td>Kontingensi ({rab.contingency_percentage}%)</td><td className="rab-print-number">{formatCurrency(rab.contingency_amount)}</td></tr>
+                <tr>
+                  <td>Keuntungan Owner ({rab.profit_type === "MARKUP" ? "Markup" : "Gross Margin"} {rab.profit_percentage}%)</td>
+                  <td className="rab-print-number">{formatCurrency(rab.profit_amount)}</td>
+                </tr>
+                <tr><td>PPN ({rab.tax_percentage}%)</td><td className="rab-print-number">{formatCurrency(rab.tax_amount)}</td></tr>
+                <tr className="rab-print-grand-total"><td>GRAND TOTAL HARGA PENAWARAN</td><td className="rab-print-number">{formatCurrency(rab.grand_total)}</td></tr>
+              </tbody>
+            </table>
+
+            {rab.notes && <p><strong>Catatan:</strong> {rab.notes}</p>}
+          </>
+        )}
+      </div>
+
       {/* Top Navigation & Status */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
@@ -379,10 +670,19 @@ export default function RabDetailWorksheetPage() {
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={handleExportExcel}
+            disabled={!organizationProfile}
             className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3.5 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition shadow-sm"
           >
             <Download className="h-3.5 w-3.5 text-zinc-500" />
             Export Excel
+          </button>
+          <button
+            onClick={handleExportPdf}
+            disabled={!organizationProfile}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3.5 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <FileText className="h-3.5 w-3.5 text-zinc-500" />
+            Export PDF
           </button>
 
           {!rab?.is_locked ? (
@@ -710,6 +1010,28 @@ export default function RabDetailWorksheetPage() {
 
             <form onSubmit={handleAddAhsp} className="mt-4 space-y-4">
               <div>
+                <label className="text-xs font-semibold text-zinc-700">Kategori Pekerjaan</label>
+                <select
+                  value={ahspPickForm.category}
+                  onChange={(e) => {
+                    const category = e.target.value;
+                    const firstItem = ahspCatalog.find((item) => normalizeAhspCategory(item.category) === category);
+                    setAhspPickForm((prev) => ({
+                      ...prev,
+                      category,
+                      ahsp_id: firstItem?.id ?? "",
+                    }));
+                  }}
+                  className="mt-1 w-full rounded-xl border border-zinc-200 p-2.5 text-xs text-zinc-900 font-semibold outline-none focus:border-zinc-400"
+                  required
+                >
+                  {ahspCategories.map((category) => (
+                    <option key={category} value={category}>{category}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
                 <label className="text-xs font-semibold text-zinc-700">Divisi Pekerjaan</label>
                 <input
                   type="text"
@@ -728,7 +1050,7 @@ export default function RabDetailWorksheetPage() {
                   className="mt-1 w-full rounded-xl border border-zinc-200 p-2.5 text-xs text-zinc-900 outline-none focus:border-zinc-400 cursor-pointer"
                   required
                 >
-                  {ahspCatalog.map((a) => (
+                  {filteredAhspCatalog.map((a) => (
                     <option key={a.id} value={a.id}>
                       {a.code} • {a.name} ({a.unit})
                     </option>

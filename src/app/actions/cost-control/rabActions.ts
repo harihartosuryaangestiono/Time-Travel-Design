@@ -64,8 +64,16 @@ export interface RabProjectItem {
   grand_total: number;
   notes?: string | null;
   created_at: string;
-  project?: { id: string; name: string; code: string; client?: { name: string } };
+  project?: { id: string; name: string; code: string; location?: string | null; client?: { name: string } };
   items?: RabWorkItem[];
+}
+
+export interface RabOrganizationProfile {
+  name: string;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  logo_url: string | null;
 }
 
 export type CreateRabProjectResult =
@@ -205,6 +213,119 @@ export async function getRabProjects(projectId?: string): Promise<RabProjectItem
     tax_amount: Number(r.tax_amount),
     grand_total: Number(r.grand_total),
   }));
+}
+
+export async function getRabManagementPermissions() {
+  const user = await requireAuthUser();
+  return {
+    canEdit: RAB_EDIT_ROLES.includes(user.role),
+    canDelete: ["OWNER", "PROJECT_MANAGER"].includes(user.role),
+  };
+}
+
+export async function getRabOrganizationProfile(): Promise<RabOrganizationProfile> {
+  const user = await requireAuthUser();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("organizations")
+    .select("name, address, phone, email, logo_url")
+    .eq("id", user.organizationId)
+    .single();
+
+  if (error || !data) {
+    throw new Error(`Gagal memuat identitas perusahaan untuk kop RAB: ${error?.message || "Data perusahaan tidak ditemukan."}`);
+  }
+
+  return data;
+}
+
+export async function updateRabProject(input: {
+  rab_id: string;
+  title: string;
+  client_name?: string | null;
+  project_location?: string | null;
+  notes?: string | null;
+  date: string;
+}) {
+  const user = await requireAuthUser();
+  assertCanEditRab(user.role);
+
+  const title = input.title.trim();
+  if (!title) throw new Error("Judul RAB wajib diisi.");
+  const date = new Date(input.date);
+  if (!Number.isFinite(date.getTime())) throw new Error("Tanggal RAB tidak valid.");
+
+  const supabase = await createClient();
+  await ensureRabEditable(input.rab_id, user.organizationId);
+
+  const { data, error } = await supabase
+    .from("rab_projects")
+    .update({
+      title,
+      client_name: input.client_name?.trim() || null,
+      project_location: input.project_location?.trim() || null,
+      notes: input.notes?.trim() || null,
+      date: date.toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.rab_id)
+    .eq("organization_id", user.organizationId)
+    .select()
+    .single();
+
+  if (error) throw new Error(`Gagal memperbarui RAB: ${error.message}`);
+
+  await logAudit(user, {
+    action: "UPDATE_RAB_PROJECT",
+    entityType: "rab_projects",
+    entityId: input.rab_id,
+    metadata: { title },
+  });
+
+  revalidatePath("/cost-control/rab");
+  revalidatePath(`/cost-control/rab/${input.rab_id}`);
+  return data;
+}
+
+export async function deleteRabProject(rabId: string) {
+  const user = await requireAuthUser();
+  if (!["OWNER", "PROJECT_MANAGER"].includes(user.role)) {
+    throw new Error("Hanya Owner atau Project Manager yang dapat menghapus RAB.");
+  }
+
+  const supabase = await createClient();
+  const { data: rab, error: lookupError } = await supabase
+    .from("rab_projects")
+    .select("id, status, is_locked")
+    .eq("id", rabId)
+    .eq("organization_id", user.organizationId)
+    .maybeSingle();
+
+  if (lookupError) throw new Error(`Gagal memeriksa RAB sebelum dihapus: ${lookupError.message}`);
+  if (!rab) throw new Error("RAB tidak ditemukan.");
+  if (rab.status === "APPROVED" || rab.is_locked) {
+    throw new Error("RAB yang sudah disetujui atau dikunci tidak dapat dihapus.");
+  }
+
+  const { data: deleted, error } = await supabase
+    .from("rab_projects")
+    .delete()
+    .eq("id", rabId)
+    .eq("organization_id", user.organizationId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) throw new Error(`Gagal menghapus RAB: ${error.message}`);
+  if (!deleted) throw new Error("RAB tidak ditemukan atau tidak dapat dihapus.");
+
+  await logAudit(user, {
+    action: "DELETE_RAB_PROJECT",
+    entityType: "rab_projects",
+    entityId: rabId,
+  });
+
+  revalidatePath("/cost-control/rab");
+  return { success: true };
 }
 
 export async function getRabProjectDetail(rabId: string): Promise<RabProjectItem> {

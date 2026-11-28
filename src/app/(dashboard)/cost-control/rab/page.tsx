@@ -18,10 +18,15 @@ import {
   ArrowRight,
   TrendingUp,
   Loader2,
+  Edit2,
+  Trash2,
 } from "lucide-react";
 import {
   getRabProjects,
   createRabProject,
+  getRabManagementPermissions,
+  updateRabProject,
+  deleteRabProject,
   RabProjectItem,
 } from "@/app/actions/cost-control/rabActions";
 import { getProjects } from "@/app/actions/projectActions";
@@ -35,6 +40,17 @@ function formatCurrency(amount: number) {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount || 0);
+}
+
+function formatDateInput(value: string) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(value));
+  const part = (type: string) => parts.find((item) => item.type === type)?.value || "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
 export default function RabProjectsListPage() {
@@ -51,6 +67,18 @@ export default function RabProjectsListPage() {
   const [openingRabId, setOpeningRabId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [canEditRabs, setCanEditRabs] = useState(false);
+  const [canDeleteRabs, setCanDeleteRabs] = useState(false);
+  const [editingRab, setEditingRab] = useState<RabProjectItem | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [deletingRabId, setDeletingRabId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({
+    title: "",
+    client_name: "",
+    project_location: "",
+    date: "",
+    notes: "",
+  });
 
   // Create Modal
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -71,12 +99,15 @@ export default function RabProjectsListPage() {
     try {
       setIsLoading(true);
       setError(null);
-      const [rabs, projList] = await Promise.all([
+      const [rabs, projList, permissions] = await Promise.all([
         getRabProjects(selectedProjectId === "ALL" ? undefined : selectedProjectId),
         getProjects(),
+        getRabManagementPermissions(),
       ]);
       setRabList(rabs);
       setProjects((projList || []).map((p: any) => ({ id: p.id, name: p.name, code: p.code, location: p.location })));
+      setCanEditRabs(permissions.canEdit);
+      setCanDeleteRabs(permissions.canDelete);
       if (projList && projList.length > 0) {
         setCreateForm((prev) => prev.project_id ? prev : ({
           ...prev,
@@ -132,6 +163,55 @@ export default function RabProjectsListPage() {
       setError(err?.message || "Gagal membuat RAB.");
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  const openEditModal = (rab: RabProjectItem) => {
+    setEditingRab(rab);
+    setEditForm({
+      title: rab.title,
+      client_name: rab.client_name || "",
+      project_location: rab.project_location || "",
+      date: formatDateInput(rab.date),
+      notes: rab.notes || "",
+    });
+  };
+
+  const handleUpdateRab = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingRab) return;
+    try {
+      if (!editForm.title.trim()) throw new Error("Judul RAB wajib diisi.");
+      if (!editForm.date) throw new Error("Tanggal RAB wajib diisi.");
+      setIsSavingEdit(true);
+      setError(null);
+      await updateRabProject({
+        rab_id: editingRab.id,
+        ...editForm,
+        date: new Date(`${editForm.date}T00:00:00+07:00`).toISOString(),
+      });
+      setEditingRab(null);
+      setSuccessMsg("Informasi RAB berhasil diperbarui.");
+      await fetchData();
+    } catch (err: any) {
+      setError(err?.message || "Gagal memperbarui RAB.");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const handleDeleteRab = async (rab: RabProjectItem) => {
+    if (!confirm(`Hapus RAB "${rab.title}"? Semua item dan rincian AHSP di dalam dokumen ini juga akan dihapus. Tindakan ini tidak dapat dibatalkan.`)) return;
+    try {
+      setDeletingRabId(rab.id);
+      setError(null);
+      await deleteRabProject(rab.id);
+      setSuccessMsg(`RAB "${rab.title}" berhasil dihapus.`);
+      await fetchData();
+    } catch (err: any) {
+      setError(err?.message || "Gagal menghapus RAB.");
+    } finally {
+      setDeletingRabId(null);
     }
   };
 
@@ -330,23 +410,52 @@ export default function RabProjectsListPage() {
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <Link
-                        href={`/cost-control/rab/${rab.id}`}
-                        onClick={() => setOpeningRabId(rab.id)}
-                        aria-busy={openingRabId === rab.id}
-                        className="inline-flex items-center gap-1 rounded-lg bg-zinc-950 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-black transition shadow-xs"
-                      >
-                        {openingRabId === rab.id ? (
-                          <>
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                            Membuka...
-                          </>
-                        ) : (
-                          <>
-                            Buka Worksheet <ArrowRight className="h-3 w-3" />
-                          </>
+                      <div className="flex items-center justify-center gap-1.5">
+                        {canEditRabs && rab.status !== "APPROVED" && !rab.is_locked && (
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(rab)}
+                            title="Edit informasi RAB"
+                            className="inline-flex items-center gap-1 rounded-lg border border-zinc-200 px-2 py-1.5 text-[11px] font-semibold text-zinc-700 hover:bg-zinc-50"
+                          >
+                            <Edit2 className="h-3 w-3" />
+                            Edit
+                          </button>
                         )}
-                      </Link>
+                        {canDeleteRabs && rab.status !== "APPROVED" && !rab.is_locked && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteRab(rab)}
+                            disabled={deletingRabId !== null}
+                            title="Hapus RAB"
+                            className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-2 py-1.5 text-[11px] font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {deletingRabId === rab.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-3 w-3" />
+                            )}
+                            Hapus
+                          </button>
+                        )}
+                        <Link
+                          href={`/cost-control/rab/${rab.id}`}
+                          onClick={() => setOpeningRabId(rab.id)}
+                          aria-busy={openingRabId === rab.id}
+                          className="inline-flex items-center gap-1 rounded-lg bg-zinc-950 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-black transition shadow-xs"
+                        >
+                          {openingRabId === rab.id ? (
+                            <>
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              Membuka...
+                            </>
+                          ) : (
+                            <>
+                              Buka Worksheet <ArrowRight className="h-3 w-3" />
+                            </>
+                          )}
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -504,6 +613,98 @@ export default function RabProjectsListPage() {
                       Membuat RAB...
                     </>
                   ) : "Buka Lembar Kerja"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {editingRab && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
+            <div className="flex items-center justify-between border-b border-zinc-100 pb-4">
+              <div>
+                <h3 className="text-base font-bold text-zinc-950">Edit Informasi RAB</h3>
+                <p className="mt-1 text-[11px] text-zinc-500">{editingRab.rab_number} • Versi {editingRab.version}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingRab(null)}
+                disabled={isSavingEdit}
+                className="text-zinc-400 hover:text-zinc-700 disabled:opacity-50"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateRab} className="mt-4 space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-zinc-700">Judul RAB</label>
+                <input
+                  type="text"
+                  value={editForm.title}
+                  onChange={(event) => setEditForm({ ...editForm, title: event.target.value })}
+                  className="mt-1 w-full rounded-xl border border-zinc-200 p-2.5 text-xs text-zinc-900 outline-none focus:border-zinc-400"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-zinc-700">Nama Klien</label>
+                  <input
+                    type="text"
+                    value={editForm.client_name}
+                    onChange={(event) => setEditForm({ ...editForm, client_name: event.target.value })}
+                    className="mt-1 w-full rounded-xl border border-zinc-200 p-2.5 text-xs text-zinc-900 outline-none focus:border-zinc-400"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-zinc-700">Tanggal RAB</label>
+                  <input
+                    type="date"
+                    value={editForm.date}
+                    onChange={(event) => setEditForm({ ...editForm, date: event.target.value })}
+                    className="mt-1 w-full rounded-xl border border-zinc-200 p-2.5 text-xs text-zinc-900 outline-none focus:border-zinc-400"
+                    required
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-zinc-700">Lokasi Proyek</label>
+                <input
+                  type="text"
+                  value={editForm.project_location}
+                  onChange={(event) => setEditForm({ ...editForm, project_location: event.target.value })}
+                  className="mt-1 w-full rounded-xl border border-zinc-200 p-2.5 text-xs text-zinc-900 outline-none focus:border-zinc-400"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-zinc-700">Catatan</label>
+                <textarea
+                  rows={3}
+                  value={editForm.notes}
+                  onChange={(event) => setEditForm({ ...editForm, notes: event.target.value })}
+                  className="mt-1 w-full rounded-xl border border-zinc-200 p-2.5 text-xs text-zinc-900 outline-none focus:border-zinc-400"
+                />
+              </div>
+              <div className="flex justify-end gap-2 border-t border-zinc-100 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setEditingRab(null)}
+                  disabled={isSavingEdit}
+                  className="rounded-xl border border-zinc-200 px-4 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingEdit}
+                  aria-busy={isSavingEdit}
+                  className="inline-flex items-center gap-2 rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {isSavingEdit && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {isSavingEdit ? "Menyimpan..." : "Simpan Perubahan"}
                 </button>
               </div>
             </form>
